@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+._*
+
+# Editors
+.vscode/
+.idea/
+.cursor/
+.claude/
+*.swp
+
+# Local
+*.log
+*.tmp
+*.bak
+node_modules/
+.env
+.env.local
+
+# Keep the original prototype as reference, but don't ship it
+original.jsx
