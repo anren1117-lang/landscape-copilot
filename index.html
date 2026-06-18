@@ -420,6 +420,90 @@
   }
   .preview-prompt-edit:focus { outline: none; border-color: var(--sage); }
 
+  /* PHOTO upload + AI analysis */
+  .photo-dropzone {
+    border: 2px dashed var(--line);
+    border-radius: 18px;
+    padding: 40px 24px;
+    text-align: center;
+    background: rgba(255,255,255,0.4);
+    transition: all .25s;
+    cursor: pointer;
+  }
+  .photo-dropzone:hover, .photo-dropzone.drag {
+    border-color: var(--sage);
+    background: rgba(255,255,255,0.7);
+  }
+  .photo-dropzone .icon {
+    font-size: 56px; line-height: 1; margin-bottom: 16px;
+  }
+  .photo-dropzone .label {
+    font-family: var(--serif); font-size: 19px; color: var(--forest); margin-bottom: 6px;
+  }
+  .photo-dropzone .sub {
+    font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; max-width: 440px; margin: 0 auto;
+  }
+  .photo-actions {
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px;
+  }
+  .photo-preview-wrap {
+    margin-top: 22px;
+    background: rgba(255,255,255,0.5);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 18px;
+    text-align: center;
+  }
+  .photo-preview {
+    max-width: 100%; max-height: 360px;
+    border-radius: 14px;
+    box-shadow: 0 12px 24px -12px rgba(44,53,38,0.3);
+    display: block; margin: 0 auto;
+  }
+  .photo-analyze-status {
+    margin-top: 14px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    font-family: var(--serif); font-style: italic;
+    min-height: 22px;
+  }
+  .photo-analyze-status.ok { color: var(--sage-deep); font-style: normal; font-weight: 600; }
+  .photo-analyze-status.err { color: #B23A30; }
+  .photo-analysis-card {
+    margin-top: 22px;
+    padding: 22px;
+    background: linear-gradient(135deg, rgba(110,126,96,0.08), rgba(196,160,76,0.08));
+    border: 1px solid var(--sage);
+    border-radius: 18px;
+  }
+  .photo-analysis-card h3 {
+    font-family: var(--serif); font-size: 18px; font-weight: 600; color: var(--forest);
+    margin-bottom: 16px;
+  }
+  .photo-detected-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; margin-bottom: 14px;
+  }
+  .photo-detected-cell .lbl { font-size: 11px; color: var(--ink-soft); letter-spacing: 0.08em; margin-bottom: 3px; }
+  .photo-detected-cell .val { font-size: 15px; font-weight: 600; color: var(--forest); font-family: var(--serif); }
+  .photo-observation {
+    margin-top: 10px; padding-top: 14px; border-top: 1px dashed var(--line);
+    font-size: 14px; line-height: 1.65; color: var(--ink-soft);
+    font-family: var(--serif); font-style: italic;
+  }
+  .photo-confirm-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+  .photo-privacy {
+    font-size: 11.5px; color: var(--ink-soft); margin-top: 12px;
+    line-height: 1.55; opacity: 0.8;
+    text-align: center;
+  }
+  .photo-spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--line); border-top-color: var(--sage-deep);
+    border-radius: 50%; animation: spin .8s linear infinite;
+    margin-right: 6px; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   /* HOMEPAGE — the friendly landing before the wizard */
   .home-hero {
     text-align: center;
@@ -469,7 +553,8 @@
     display: grid; grid-template-columns: 1fr; gap: 16px;
     max-width: 880px; margin: 36px auto 0; padding: 0 20px;
   }
-  @media (min-width: 720px) { .home-paths { grid-template-columns: 1fr 1fr 1fr; } }
+  @media (min-width: 720px) { .home-paths { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1080px) { .home-paths { grid-template-columns: 1fr 1fr 1fr 1fr; } }
   .home-path-card {
     text-align: left; cursor: pointer;
     background: rgba(255,255,255,0.55);
@@ -3463,7 +3548,12 @@ const MONTHS = {
 // ─────────────────────────────────────────────────────────────
 const STEPS = ["space","details","sun","water","goals","result"];
 const state = {
-  view: "home",          // "home" → friendly landing page; "wizard" → the 5-step + result flow
+  view: "home",          // "home" → friendly landing | "photo" → AI photo-analysis flow | "wizard" → 5-step + result
+  // photo flow
+  photoDataUrl: null,    // base64 data URL of the user's downscaled image
+  photoAnalysis: null,   // parsed JSON from Pollinations.ai vision
+  photoStatus: "",
+  photoStatusKind: "",
   step: 0,
   space: null,
   // step 2 — space details (all optional, defaults applied per space type)
@@ -3677,7 +3767,7 @@ const drawerHost = document.getElementById("drawerHost");
 function t(zh, en) { return state.lang === "zh" ? zh : en; }
 
 function render() {
-  // Top-bar left content switches based on view: brand on home, "← back to home" link in wizard.
+  // Top-bar left content switches based on view: brand on home, "← back to home" link elsewhere.
   const tbLeft = document.getElementById("topBarLeft");
   if (state.view === "home") {
     tbLeft.innerHTML = `<span style="font-weight:600; color:var(--sage-deep); letter-spacing:0.02em;" data-zh="🌿 AI Landscape Copilot" data-en="🌿 AI Landscape Copilot">🌿 AI Landscape Copilot</span>`;
@@ -3689,6 +3779,16 @@ function render() {
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
+  }
+
+  // Photo view — its own dedicated flow before optionally jumping to results
+  if (state.view === "photo") {
+    progressWrap.innerHTML = "";
+    document.querySelector("header.brand").style.display = "";
+    renderPhotoFlow();
+    navFooter.innerHTML = "";
+    applyLanguage();
+    return;
   }
 
   // Hide the progress dots and brand header on the homepage so the landing feels clean.
@@ -3747,16 +3847,28 @@ function renderHome() {
       </div>
 
       <div class="home-paths">
-        <button class="home-path-card featured" id="homeWizardBtn">
-          <div class="home-path-icon">✨</div>
-          <div class="home-path-sub" data-zh="5 分鐘 · AI 推薦" data-en="5 min · AI design">5 分鐘 · AI 推薦</div>
-          <div class="home-path-title" data-zh="幫我規劃景觀" data-en="Design my garden">幫我規劃景觀</div>
+        <button class="home-path-card featured" id="homePhotoBtn">
+          <div class="home-path-icon">📸</div>
+          <div class="home-path-sub" data-zh="1 分鐘 · 拍照即可" data-en="1 min · just a photo">1 分鐘 · 拍照即可</div>
+          <div class="home-path-title" data-zh="拍照，AI 幫你規劃" data-en="Snap, AI does the rest">拍照，AI 幫你規劃</div>
           <p class="home-path-body"
-             data-zh="告訴我空間、光照、能投入多少照顧，AI 從植物資料庫推薦最適合的植物與配置方式。"
-             data-en="Tell me your space, light, and how much care you can give. AI picks the right plants from the database and shows you how to arrange them.">
-             告訴我空間、光照、能投入多少照顧，AI 從植物資料庫推薦最適合的植物與配置方式。
+             data-zh="拍一張你想種植的空間照片，AI 自動分析光線、空間類型、大小與朝向，直接生成景觀規劃 — 最快的方式。"
+             data-en="Snap a photo of your space. AI analyzes light, space type, size, and orientation, then generates a landscape plan — the fastest path.">
+             拍一張你想種植的空間照片，AI 自動分析光線、空間類型、大小與朝向，直接生成景觀規劃 — 最快的方式。
           </p>
-          <span class="home-path-arrow"><span data-zh="開始 5 分鐘規劃" data-en="Start the 5-min wizard">開始 5 分鐘規劃</span> →</span>
+          <span class="home-path-arrow"><span data-zh="拍照開始" data-en="Take a photo">拍照開始</span> →</span>
+        </button>
+
+        <button class="home-path-card" id="homeWizardBtn">
+          <div class="home-path-icon">✨</div>
+          <div class="home-path-sub" data-zh="5 分鐘 · 5 個問題" data-en="5 min · 5 questions">5 分鐘 · 5 個問題</div>
+          <div class="home-path-title" data-zh="回答問題規劃" data-en="Answer 5 questions">回答問題規劃</div>
+          <p class="home-path-body"
+             data-zh="不想拍照？回答 5 個簡單問題（空間、光照、水分、目標），AI 從植物資料庫挑選最適合的植物。"
+             data-en="Don't want to snap a photo? Answer 5 simple questions (space, light, water, goals) and AI picks the right plants.">
+             不想拍照？回答 5 個簡單問題（空間、光照、水分、目標），AI 從植物資料庫挑選最適合的植物。
+          </p>
+          <span class="home-path-arrow"><span data-zh="開始問卷" data-en="Start the wizard">開始問卷</span> →</span>
         </button>
 
         <button class="home-path-card" id="homeBrowseBtn">
@@ -3866,6 +3978,7 @@ function renderHome() {
     </div>`;
 
   // Wire entry buttons
+  document.getElementById("homePhotoBtn").addEventListener("click", () => startPhotoFlow());
   document.getElementById("homeWizardBtn").addEventListener("click", () => startWizard());
   document.getElementById("homeBrowseBtn").addEventListener("click", () => jumpToDictionary());
   document.getElementById("homeQuickBtn").addEventListener("click", () => {
@@ -3876,6 +3989,273 @@ function renderHome() {
   document.querySelectorAll(".home-quick-btn").forEach((btn) => {
     btn.addEventListener("click", () => applyQuickFilter(btn.dataset.quick));
   });
+}
+
+// ── PHOTO-BASED ENTRY ────────────────────────────────────────
+// User snaps / uploads a photo of their planting space; AI analyzes it via
+// Pollinations.ai's free vision endpoint (OpenAI-compatible) and returns
+// structured JSON for space type / sun / dimensions / orientation /
+// coastal / observations. We pre-fill the wizard state and jump to results.
+//
+// Privacy: the image is sent to text.pollinations.ai (third party). Nothing
+// is stored on our side. Disclosed up-front in the UI.
+
+function startPhotoFlow() {
+  state.view = "photo";
+  state.photoDataUrl = null;
+  state.photoAnalysis = null;
+  state.photoStatus = "";
+  state.photoStatusKind = "";
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderPhotoFlow() {
+  const hasPhoto = !!state.photoDataUrl;
+  const hasAnalysis = !!state.photoAnalysis;
+  const a = state.photoAnalysis;
+
+  app.innerHTML = `
+    <div class="fade-up">
+      <div class="kicker" data-zh="📸 拍照規劃" data-en="📸 Photo-based design">📸 拍照規劃</div>
+      <h1 class="title" data-zh="拍張照，剩下交給 AI" data-en="Snap a photo, AI does the rest">拍張照，剩下交給 AI</h1>
+      <p class="lead"
+         data-zh="拍一張你想種植的空間照片 — 陽台、頂樓、庭院都可以。AI 會分析空間類型、光線狀況、大致尺寸與朝向，幫你生成景觀規劃。"
+         data-en="Snap a photo of your space — balcony, rooftop, yard, anywhere. AI analyzes space type, lighting, size, and orientation, then generates a plan.">
+         拍一張你想種植的空間照片 — 陽台、頂樓、庭院都可以。AI 會分析空間類型、光線狀況、大致尺寸與朝向，幫你生成景觀規劃。
+      </p>
+
+      <div style="margin-top: 30px;">
+        ${hasPhoto ? `
+          <div class="photo-preview-wrap">
+            <img class="photo-preview" id="photoPreview" src="${state.photoDataUrl}" alt="${t('你的空間照片', 'Your space photo')}" />
+            <div class="photo-analyze-status ${state.photoStatusKind}" id="photoStatus">${state.photoStatus}</div>
+            ${!hasAnalysis ? `
+              <div class="photo-actions">
+                <button class="btn" id="analyzeBtn">✨ <span data-zh="開始分析" data-en="Analyze">開始分析</span></button>
+                <button class="btn ghost" id="reuploadBtn">🔄 <span data-zh="重新選擇" data-en="Choose another">重新選擇</span></button>
+              </div>` : ""}
+          </div>
+        ` : `
+          <label for="photoInput" class="photo-dropzone" id="dropzone">
+            <div class="icon">📸</div>
+            <div class="label" data-zh="點此拍照或上傳" data-en="Tap to take or upload a photo">點此拍照或上傳</div>
+            <div class="sub" data-zh="支援手機拍照、相片上傳，或拖曳到此處。圖片會在本機壓縮後送至 AI 分析（不儲存）。"
+                            data-en="Take a photo with your phone, upload, or drag-and-drop. Image is compressed locally before AI analysis (nothing stored).">
+                 支援手機拍照、相片上傳，或拖曳到此處。圖片會在本機壓縮後送至 AI 分析（不儲存）。</div>
+          </label>
+          <input id="photoInput" type="file" accept="image/*" capture="environment" style="display:none;" />
+        `}
+
+        ${hasAnalysis ? `
+          <div class="photo-analysis-card">
+            <h3 data-zh="🔍 AI 看到了..." data-en="🔍 AI sees...">🔍 AI 看到了...</h3>
+            <div class="photo-detected-grid">
+              <div class="photo-detected-cell">
+                <div class="lbl" data-zh="空間類型" data-en="Space type">空間類型</div>
+                <div class="val" data-zh="${spaceZh(a.space)}" data-en="${spaceEn(a.space)}">${spaceZh(a.space)}</div>
+              </div>
+              <div class="photo-detected-cell">
+                <div class="lbl" data-zh="光照" data-en="Sunlight">光照</div>
+                <div class="val" data-zh="${sunZh(a.sun)}" data-en="${sunEn(a.sun)}">${sunZh(a.sun)}</div>
+              </div>
+              <div class="photo-detected-cell">
+                <div class="lbl" data-zh="估計尺寸" data-en="Estimated size">估計尺寸</div>
+                <div class="val">${a.estimated_width_m || "?"} × ${a.estimated_depth_m || "?"} m</div>
+              </div>
+              <div class="photo-detected-cell">
+                <div class="lbl" data-zh="朝向（推測）" data-en="Orientation (guess)">朝向（推測）</div>
+                <div class="val">${a.orientation_guess && a.orientation_guess !== "unknown" ? a.orientation_guess : t("無法判斷", "unknown")}</div>
+              </div>
+            </div>
+            ${a.observations ? `<div class="photo-observation">"${escapeHtml(a.observations)}"</div>` : ""}
+            ${a.coastal ? `<div style="margin-top:10px;"><span class="detected-chip coastal">🌊 ${t("看起來在海邊 · 已啟用耐鹽植物優先", "Looks coastal · salt-tolerant boost enabled")}</span></div>` : ""}
+            <div class="photo-confirm-row">
+              <button class="cta" id="photoGenerateBtn">✓ <span data-zh="用這些設定生成景觀" data-en="Generate with these settings">用這些設定生成景觀</span> →</button>
+              <button class="btn ghost" id="photoTuneBtn">🛠 <span data-zh="先去調整細節" data-en="Tune details first">先去調整細節</span></button>
+            </div>
+          </div>` : ""}
+
+        <p class="photo-privacy"
+           data-zh="* 圖片會發送到 pollinations.ai 進行 AI 視覺分析（免費、無註冊），本機與遠端皆不儲存。隱私敏感場景請勿使用。"
+           data-en="* Image is sent to pollinations.ai for AI vision (free, no signup); nothing is stored on either end. Don't use for privacy-sensitive scenes.">
+           * 圖片會發送到 pollinations.ai 進行 AI 視覺分析（免費、無註冊），本機與遠端皆不儲存。隱私敏感場景請勿使用。
+        </p>
+      </div>
+    </div>`;
+
+  wirePhotoFlow();
+}
+
+// Label helpers for the analysis display
+function spaceZh(k) { return ({ balcony:"陽台", rooftop:"頂樓", yard:"庭院 / 中庭", indoor:"室內窗邊" })[k] || "陽台"; }
+function spaceEn(k) { return ({ balcony:"Balcony", rooftop:"Rooftop", yard:"Yard / Courtyard", indoor:"Indoor / Window" })[k] || "Balcony"; }
+function sunZh(k)   { return ({ full:"全日照（6h+）", part:"半日照（3-5h）", shade:"遮陰（散射光）" })[k] || "半日照"; }
+function sunEn(k)   { return ({ full:"Full sun (6h+)", part:"Part sun (3-5h)", shade:"Shade (diffuse)" })[k] || "Part sun"; }
+
+function wirePhotoFlow() {
+  // File picker
+  const fileInput = document.getElementById("photoInput");
+  if (fileInput) {
+    fileInput.addEventListener("change", (e) => {
+      const f = e.target.files[0];
+      if (f) handlePhotoFile(f);
+    });
+  }
+  // Drag-and-drop on the dropzone
+  const dz = document.getElementById("dropzone");
+  if (dz) {
+    ["dragenter","dragover"].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("drag"); }));
+    ["dragleave","dragend","drop"].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("drag"); }));
+    dz.addEventListener("drop", (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handlePhotoFile(f); });
+  }
+
+  // Re-upload
+  const reupload = document.getElementById("reuploadBtn");
+  if (reupload) {
+    reupload.addEventListener("click", () => {
+      state.photoDataUrl = null;
+      state.photoAnalysis = null;
+      state.photoStatus = "";
+      renderPhotoFlow();
+      applyLanguage();
+    });
+  }
+
+  // Analyze
+  const analyze = document.getElementById("analyzeBtn");
+  if (analyze) analyze.addEventListener("click", analyzePhoto);
+
+  // Generate with analysis
+  const gen = document.getElementById("photoGenerateBtn");
+  if (gen) gen.addEventListener("click", () => applyPhotoAnalysisAndGenerate());
+
+  // Tune details first — apply detected and jump to wizard step 1 (details)
+  const tune = document.getElementById("photoTuneBtn");
+  if (tune) tune.addEventListener("click", () => applyPhotoAnalysisAndTune());
+}
+
+// Read the file, downscale to max 1024px wide via canvas, store as data URL.
+function handlePhotoFile(file) {
+  if (!file.type.startsWith("image/")) {
+    state.photoStatus = t("不支援的檔案格式 — 請選擇圖片", "Unsupported file — pick an image");
+    state.photoStatusKind = "err";
+    renderPhotoFlow(); applyLanguage();
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 1024;
+      const scale = img.width > maxW ? maxW / img.width : 1;
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      state.photoDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      state.photoStatus = "";
+      state.photoStatusKind = "";
+      renderPhotoFlow();
+      applyLanguage();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Call Pollinations.ai vision endpoint to analyze the photo and return JSON.
+async function analyzePhoto() {
+  const btn = document.getElementById("analyzeBtn");
+  if (btn) btn.disabled = true;
+  state.photoStatus = t("分析中… 約 15-30 秒", "Analyzing… 15-30s");
+  state.photoStatusKind = "";
+  const statusEl = document.getElementById("photoStatus");
+  if (statusEl) { statusEl.className = "photo-analyze-status"; statusEl.innerHTML = `<span class="photo-spinner"></span>${state.photoStatus}`; }
+
+  const systemPrompt = `You are a landscape design assistant in Taiwan analyzing a photo of someone's planting space. Output ONLY valid JSON, no markdown, no commentary. Use this exact schema:
+{
+  "space": "balcony" | "rooftop" | "yard" | "indoor",
+  "sun": "full" | "part" | "shade",
+  "estimated_width_m": number,
+  "estimated_depth_m": number,
+  "orientation_guess": "N" | "E" | "S" | "W" | "unknown",
+  "coastal": true | false,
+  "observations": "1-2 short sentences in Traditional Chinese describing what you see — current condition, existing plants if any, any concerns."
+}`;
+  const userPrompt = `Analyze this photo of a planting space in Taiwan and respond with ONLY the JSON object.`;
+
+  try {
+    const resp = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "openai",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: [
+            { type: "text", text: userPrompt },
+            { type: "image_url", image_url: { url: state.photoDataUrl } },
+          ]},
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!resp.ok) throw new Error("API " + resp.status);
+    const data = await resp.json();
+    const text = data?.choices?.[0]?.message?.content || "";
+    // Try to extract JSON even if wrapped in code fences
+    const jsonText = (text.match(/\{[\s\S]*\}/) || [text])[0];
+    const parsed = JSON.parse(jsonText);
+    state.photoAnalysis = parsed;
+    state.photoStatus = t("✓ 分析完成", "✓ Analysis complete");
+    state.photoStatusKind = "ok";
+    renderPhotoFlow();
+    applyLanguage();
+  } catch (err) {
+    state.photoStatus = t("分析失敗 — 可改用「回答問題」流程", "Analysis failed — try the questions wizard");
+    state.photoStatusKind = "err";
+    if (statusEl) { statusEl.className = "photo-analyze-status err"; statusEl.textContent = state.photoStatus; }
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Apply detected values to state and generate the result page directly.
+function applyPhotoAnalysisAndGenerate() {
+  const a = state.photoAnalysis;
+  if (!a) return;
+  state.space = a.space || "balcony";
+  state.sun = a.sun || "part";
+  state.water = "med";       // safe default — user can change in wizard later
+  state.widthM = a.estimated_width_m || SPACE_DEFAULTS[state.space].w;
+  state.depthM = a.estimated_depth_m || SPACE_DEFAULTS[state.space].d;
+  state.orientation = (a.orientation_guess && a.orientation_guess !== "unknown") ? a.orientation_guess : "S";
+  state.detected = a.coastal ? { county: null, zone: "C", coastal: true } : state.detected;
+  state.goals = ["pollinator","easy"];  // sensible default goals
+  state.view = "wizard";
+  state.step = 5;
+  state.resultTab = "preview";
+  initShoppingQty();
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Apply detected, then jump to wizard step 1 (details) so user can fine-tune.
+function applyPhotoAnalysisAndTune() {
+  const a = state.photoAnalysis;
+  if (!a) return;
+  state.space = a.space || "balcony";
+  state.sun = a.sun || "part";
+  state.widthM = a.estimated_width_m || SPACE_DEFAULTS[state.space].w;
+  state.depthM = a.estimated_depth_m || SPACE_DEFAULTS[state.space].d;
+  state.orientation = (a.orientation_guess && a.orientation_guess !== "unknown") ? a.orientation_guess : "S";
+  if (a.coastal) state.detected = { county: null, zone: "C", coastal: true };
+  state.view = "wizard";
+  state.step = 1;            // Land on Details step so user can tweak
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 // Bring the user from home into the wizard, freshly initialized.
