@@ -981,6 +981,31 @@
   .shop-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
   .shop-actions .btn { font-size: 13px; padding: 8px 14px; }
 
+  /* care-calendar export panel — sits below the month grid and offers
+     "Add to my phone calendar" so the auto-generated tasks survive the tab close. */
+  .care-actions-wrap {
+    margin-top: 22px;
+    padding: 18px 20px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    backdrop-filter: blur(2px);
+  }
+  .care-actions-title {
+    font-family: var(--serif); font-size: 15px; font-weight: 600; color: var(--forest);
+    margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
+  }
+  .care-actions-sub {
+    font-size: 12.5px; color: var(--ink-soft); line-height: 1.55;
+    font-family: var(--serif); font-style: italic; margin-bottom: 14px;
+  }
+  .care-actions-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .care-actions-row .btn { font-size: 13px; padding: 8px 14px; }
+  .care-actions-foot {
+    margin-top: 10px; font-size: 11.5px; color: var(--ink-soft);
+    opacity: 0.85; line-height: 1.5;
+  }
+
   /* PLANT DRAWER */
   .drawer-overlay {
     position: fixed; inset: 0; z-index: 20;
@@ -6302,12 +6327,128 @@ function renderCareCalendar(recs) {
        data-zh="自動依照你的推薦植物生成 12 個月的具體任務 — 何時欣賞花、何時修剪、何時施肥、何時注意病蟲。本月會標亮。"
        data-en="Auto-generated 12-month garden tasks from your recommended plants — when to enjoy bloom, prune, feed, watch for pests. Current month is highlighted.">
        自動依照你的推薦植物生成 12 個月的具體任務 — 何時欣賞花、何時修剪、何時施肥、何時注意病蟲。本月會標亮。</p>
-    <div class="month-grid">${rows.join("")}</div>`;
+    <div class="month-grid">${rows.join("")}</div>
+
+    <div class="care-actions-wrap">
+      <div class="care-actions-title">
+        📅 <span data-zh="把這份月曆加入你的手機" data-en="Add this calendar to your phone">把這份月曆加入你的手機</span>
+      </div>
+      <div class="care-actions-sub"
+           data-zh="下載 .ics 檔，匯入 Google / Apple / Outlook 行事曆。修剪、施肥、注意事項會在當月自動提醒，每年自動重複，不會忘記。"
+           data-en="Download an .ics file and import into Google / Apple / Outlook Calendar. Prune, feed, and watch-out tasks will remind you each month and repeat yearly — so nothing slips.">
+           下載 .ics 檔，匯入 Google / Apple / Outlook 行事曆。修剪、施肥、注意事項會在當月自動提醒，每年自動重複，不會忘記。
+      </div>
+      <div class="care-actions-row">
+        <button class="btn ghost" onclick="exportCareICS()">📅 <span data-zh="下載月曆 (.ics)" data-en="Download calendar (.ics)">下載月曆 (.ics)</span></button>
+        <button class="btn ghost" onclick="window.print()">📄 <span data-zh="列印月曆" data-en="Print calendar">列印月曆</span></button>
+      </div>
+      <div class="care-actions-foot"
+           data-zh="* .ics 是標準格式，可匯入 Google 行事曆「設定 → 匯入和匯出」、Apple 行事曆「檔案 → 匯入」、或 Outlook「檔案 → 開啟與匯出」。事件設為全月（無時間）並每年重複。"
+           data-en="* .ics is the universal calendar format. Import via Google Calendar (Settings → Import), Apple Calendar (File → Import), or Outlook (File → Open & Export). Events are all-month with yearly recurrence.">
+           * .ics 是標準格式，可匯入 Google 行事曆「設定 → 匯入和匯出」、Apple 行事曆「檔案 → 匯入」、或 Outlook「檔案 → 開啟與匯出」。事件設為全月（無時間）並每年重複。
+      </div>
+    </div>`;
 }
 
 function wireCarePlantChips() {
   document.querySelectorAll(".month-row .m-pill[data-id]").forEach(el =>
     el.addEventListener("click", () => openDrawer(el.dataset.id)));
+}
+
+// ── ICS export — write the auto-generated care calendar to a downloadable
+//    .ics file so users can import the 12 monthly task batches into Google /
+//    Apple / Outlook with yearly recurrence. Once imported, the tasks live in
+//    the user's phone calendar and survive the tab close.
+window.exportCareICS = function () {
+  const scored = scorePlants();
+  const all = scored.filter(p => p.score >= 30);
+  const recs = state.nativeOnly ? all.filter(p => p.native) : all;
+  const top = recs.slice(0, 10);
+
+  // Same seasonal warning table as renderCareCalendar so the .ics matches the UI
+  const seasonalWarnings = {
+    3:  { zh:"春季蚜蟲爆發期 — 檢查新芽是否捲縮、油亮", en:"Aphid season — check new shoots for curling or oily sheen" },
+    4:  { zh:"梅雨將至 — 加強排水，避免根腐病",          en:"Plum-rain approaching — improve drainage to prevent root rot" },
+    5:  { zh:"高濕高溫 — 觀察葉片白粉病徵兆",              en:"High humidity + heat — watch for powdery mildew" },
+    6:  { zh:"颱風季開始 — 為大喬木檢查支撐與固定",        en:"Typhoon season begins — check staking on canopy trees" },
+    7:  { zh:"盛夏 — 容器植物可能需要每日澆水",            en:"Peak summer — container plants may need daily watering" },
+    8:  { zh:"高溫午後 — 葉片噴水降溫，但避免日照下噴",    en:"Hot afternoons — mist for cooling, but never under direct sun" },
+    9:  { zh:"颱風尾季 — 修剪過長枝以減少風阻",            en:"Late typhoon — prune over-long branches to reduce wind load" },
+    10: { zh:"秋涼 — 補施緩效肥支援冬前生長",              en:"Cool autumn — apply slow-release fertilizer for pre-winter growth" },
+    11: { zh:"落葉樹開始休眠 — 計劃明春的修剪",            en:"Deciduous trees enter dormancy — plan next spring's pruning" },
+    12: { zh:"冬季少水 — 多數植物減少澆水頻率 1/2",        en:"Winter cool — most plants need watering ~50% less" },
+    1:  { zh:"深冬休眠 — 是大幅度修剪落葉樹的好時機",      en:"Deep winter — best time for hard-pruning deciduous trees" },
+    2:  { zh:"早春前 — 大多數果樹與灌木此時修剪最理想",    en:"Pre-spring — ideal window to prune fruit & flowering shrubs" },
+  };
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const yyyy = new Date().getFullYear();
+  const events = [];
+
+  for (let m = 1; m <= 12; m++) {
+    const bloom = top.filter(p => (p.bloom || []).includes(m));
+    const fruit = top.filter(p => (p.fruit || []).includes(m));
+    const prune = top.filter(p => (expert(p).prune_months    || []).includes(m));
+    const fert  = top.filter(p => (expert(p).fertilize_months || []).includes(m));
+    const warning = seasonalWarnings[m];
+
+    const nameList = (arr) => arr.map(p => state.lang === "zh" ? p.zh : p.en).join(", ");
+    const lines = [];
+    if (bloom.length) lines.push(`🌸 ${state.lang === "zh" ? "花期" : "Bloom"}: ${nameList(bloom)}`);
+    if (fruit.length) lines.push(`🍎 ${state.lang === "zh" ? "果期" : "Fruit"}: ${nameList(fruit)}`);
+    if (prune.length) lines.push(`✂️ ${state.lang === "zh" ? "修剪" : "Prune"}: ${nameList(prune)}`);
+    if (fert.length)  lines.push(`🌱 ${state.lang === "zh" ? "施肥" : "Fertilize"}: ${nameList(fert)}`);
+    if (warning)      lines.push(`⚠ ${state.lang === "zh" ? "注意" : "Watch"}: ${state.lang === "zh" ? warning.zh : warning.en}`);
+    if (!lines.length) continue;
+
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const summary = state.lang === "zh" ? `🌿 ${m} 月 · 景觀養護` : `🌿 ${monthNames[m-1]} · Landscape care`;
+
+    const startY = yyyy;
+    const endY   = m === 12 ? yyyy + 1 : yyyy;
+    const endM   = m === 12 ? 1 : m + 1;
+    events.push([
+      "BEGIN:VEVENT",
+      `UID:landscape-copilot-${m}@anren1117-lang.github.io`,
+      `DTSTAMP:${yyyy}${pad2(new Date().getMonth() + 1)}${pad2(new Date().getDate())}T000000Z`,
+      `DTSTART;VALUE=DATE:${startY}${pad2(m)}01`,
+      `DTEND;VALUE=DATE:${endY}${pad2(endM)}01`,
+      `SUMMARY:${escapeICS(summary)}`,
+      `DESCRIPTION:${escapeICS(lines.join("\\n"))}`,
+      `RRULE:FREQ=YEARLY`,
+      "TRANSP:TRANSPARENT",
+      "END:VEVENT",
+    ].join("\r\n"));
+  }
+
+  // RFC 5545 line endings (\r\n) matter for strict parsers.
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//AI Landscape Copilot//Care Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    `X-WR-CALNAME:${state.lang === "zh" ? "景觀養護月曆" : "Landscape Care Calendar"}`,
+    "X-WR-TIMEZONE:Asia/Taipei",
+    ...events,
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  const blob = new Blob(["﻿" + ics], { type: "text/calendar;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `landscape-care-${state.space || "garden"}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// RFC 5545 escaping for SUMMARY / DESCRIPTION fields.
+function escapeICS(s) {
+  return String(s ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\n/g, "\\n");
 }
 
 // ── TAB: BUILD PLAN (step-by-step installation guide) ───────
