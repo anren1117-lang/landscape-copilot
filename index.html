@@ -420,6 +420,140 @@
   }
   .preview-prompt-edit:focus { outline: none; border-color: var(--sage); }
 
+  /* HOMEPAGE — the friendly landing before the wizard */
+  .home-hero {
+    text-align: center;
+    padding: 40px 20px 20px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .home-hero .badge {
+    display: inline-block;
+    padding: 5px 14px;
+    background: rgba(110,126,96,0.15);
+    color: var(--sage-deep);
+    border: 1px solid rgba(110,126,96,0.25);
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 22px;
+  }
+  .home-hero h1 {
+    font-family: var(--serif);
+    font-size: clamp(34px, 7vw, 56px);
+    line-height: 1.12;
+    color: var(--forest);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin-bottom: 18px;
+  }
+  .home-hero p.tagline {
+    font-size: clamp(15px, 2.2vw, 18px);
+    line-height: 1.65;
+    color: var(--ink-soft);
+    max-width: 580px;
+    margin: 0 auto 22px;
+  }
+  .home-stat-row {
+    display: flex; gap: 24px; justify-content: center; flex-wrap: wrap;
+    margin: 24px 0 0;
+    font-size: 13px; color: var(--ink-soft);
+  }
+  .home-stat { font-family: var(--serif); font-style: italic; }
+  .home-stat strong { font-style: normal; color: var(--forest); font-weight: 600; font-size: 15px; margin-right: 4px; }
+
+  /* 3 main entry cards */
+  .home-paths {
+    display: grid; grid-template-columns: 1fr; gap: 16px;
+    max-width: 880px; margin: 36px auto 0; padding: 0 20px;
+  }
+  @media (min-width: 720px) { .home-paths { grid-template-columns: 1fr 1fr 1fr; } }
+  .home-path-card {
+    text-align: left; cursor: pointer;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 24px 22px;
+    transition: all .25s cubic-bezier(.2,.7,.3,1);
+    font-family: inherit;
+    display: flex; flex-direction: column;
+    position: relative; overflow: hidden;
+  }
+  .home-path-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--sage); transform: scaleX(0); transform-origin: left;
+    transition: transform .3s ease;
+  }
+  .home-path-card:hover { transform: translateY(-4px); border-color: var(--sage); box-shadow: 0 16px 32px -16px rgba(44,53,38,0.3); }
+  .home-path-card:hover::before { transform: scaleX(1); }
+  .home-path-card.featured { background: var(--forest); color: var(--paper); border-color: var(--forest); }
+  .home-path-card.featured::before { background: var(--clay); }
+  .home-path-icon { font-size: 32px; margin-bottom: 14px; line-height: 1; }
+  .home-path-title { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--forest); margin-bottom: 6px; }
+  .home-path-card.featured .home-path-title { color: var(--paper); }
+  .home-path-sub { font-size: 12.5px; color: var(--clay-deep); letter-spacing: 0.06em; margin-bottom: 12px; font-weight: 500; }
+  .home-path-card.featured .home-path-sub { color: rgba(237,234,224,0.65); }
+  .home-path-body { font-size: 14px; line-height: 1.6; color: var(--ink-soft); flex: 1; margin-bottom: 18px; }
+  .home-path-card.featured .home-path-body { color: rgba(237,234,224,0.8); }
+  .home-path-arrow { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--forest); letter-spacing: 0.02em; }
+  .home-path-card.featured .home-path-arrow { color: var(--paper); }
+  .home-path-card:hover .home-path-arrow { gap: 14px; }
+
+  /* Quick tools strip */
+  .home-quick-wrap { max-width: 880px; margin: 44px auto 0; padding: 0 20px; }
+  .home-quick-label {
+    font-size: 11.5px; letter-spacing: 0.22em; color: var(--clay-deep); font-weight: 600;
+    text-transform: uppercase; text-align: center; margin-bottom: 18px;
+  }
+  .home-quick-grid {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  .home-quick-btn {
+    background: rgba(255,255,255,0.5);
+    border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 12px;
+    font-family: inherit; font-size: 13.5px;
+    color: var(--forest); cursor: pointer;
+    text-align: center;
+    transition: all .2s;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .home-quick-btn:hover { transform: translateY(-2px); border-color: var(--sage); background: rgba(255,255,255,0.85); }
+  .home-quick-btn .ico { font-size: 22px; line-height: 1; }
+  .home-quick-btn .sub { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+
+  /* How it works */
+  .home-how {
+    max-width: 880px; margin: 56px auto 0; padding: 0 20px;
+  }
+  .home-how-grid {
+    display: grid; grid-template-columns: 1fr; gap: 24px; margin-top: 18px;
+  }
+  @media (min-width: 720px) { .home-how-grid { grid-template-columns: 1fr 1fr 1fr; } }
+  .home-step {
+    text-align: left; padding: 18px 4px;
+  }
+  .home-step-num {
+    font-family: var(--serif); font-size: 36px; font-weight: 700; color: var(--clay); line-height: 1;
+    margin-bottom: 10px;
+  }
+  .home-step h3 {
+    font-family: var(--serif); font-size: 17px; font-weight: 600; color: var(--forest);
+    margin-bottom: 6px;
+  }
+  .home-step p { font-size: 13.5px; line-height: 1.65; color: var(--ink-soft); }
+
+  .home-footer-note {
+    max-width: 760px; margin: 56px auto 30px; padding: 0 20px;
+    text-align: center; font-size: 12.5px; color: var(--ink-soft);
+    font-family: var(--serif); font-style: italic;
+  }
+  .home-footer-note a { color: var(--sage-deep); text-decoration: none; font-weight: 600; }
+  .home-footer-note a:hover { color: var(--forest); }
+
   /* DICTIONARY view */
   .dict-toolbar { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-bottom: 14px; align-items: center; }
   .dict-search {
@@ -676,7 +810,7 @@
 <div class="glow-br"></div>
 
 <div class="screen-bar">
-  <div class="left">
+  <div class="left" id="topBarLeft">
     <span style="font-weight:600; color:var(--sage-deep); letter-spacing:0.02em;" data-zh="🌿 AI Landscape Copilot" data-en="🌿 AI Landscape Copilot">🌿 AI Landscape Copilot</span>
   </div>
   <div class="right">
@@ -3329,6 +3463,7 @@ const MONTHS = {
 // ─────────────────────────────────────────────────────────────
 const STEPS = ["space","details","sun","water","goals","result"];
 const state = {
+  view: "home",          // "home" → friendly landing page; "wizard" → the 5-step + result flow
   step: 0,
   space: null,
   // step 2 — space details (all optional, defaults applied per space type)
@@ -3363,10 +3498,15 @@ const state = {
   previewPromptOverride: null,
   // dictionary view filters
   dictQuery: "",
-  dictTier: "all",      // all | T | S | G | W | C
-  dictNative: "all",    // all | native | intro
+  dictTier: "all",       // all | T | S | G | W | C
+  dictNative: "all",     // all | native | intro
   dictFragOnly: false,
   dictPetSafeOnly: false,
+  dictWater: "all",      // all | low | med | high — used by the "省水植物" quick tool
+  dictSpace: "all",      // all | balcony | rooftop | yard | indoor — used by "室內" / "陽台" quick tools
+  dictEdibleOnly: false, // used by "可食植物" quick tool
+  dictCoastalOnly: false,// used by "耐鹽風" quick tool
+  dictThisMonth: false,  // used by "本月可種" — show plants blooming/fruiting this month
   lang: "zh",
 };
 
@@ -3537,11 +3677,35 @@ const drawerHost = document.getElementById("drawerHost");
 function t(zh, en) { return state.lang === "zh" ? zh : en; }
 
 function render() {
-  // progress dots — 5 wizard steps (space, details, sun, water, goals) before the result
+  // Top-bar left content switches based on view: brand on home, "← back to home" link in wizard.
+  const tbLeft = document.getElementById("topBarLeft");
+  if (state.view === "home") {
+    tbLeft.innerHTML = `<span style="font-weight:600; color:var(--sage-deep); letter-spacing:0.02em;" data-zh="🌿 AI Landscape Copilot" data-en="🌿 AI Landscape Copilot">🌿 AI Landscape Copilot</span>`;
+  } else {
+    tbLeft.innerHTML = `<a href="#" id="backHomeLink" style="color: var(--sage-deep); text-decoration: none; font-weight: 600; font-size: 13px;" data-zh="← 回首頁" data-en="← Home">← 回首頁</a>`;
+    document.getElementById("backHomeLink").addEventListener("click", (e) => {
+      e.preventDefault();
+      state.view = "home";
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
+  // Hide the progress dots and brand header on the homepage so the landing feels clean.
+  if (state.view === "home") {
+    progressWrap.innerHTML = "";
+    document.querySelector("header.brand").style.display = "none";
+    renderHome();
+    navFooter.innerHTML = "";
+    applyLanguage();
+    return;
+  }
+
+  // Otherwise we're in the wizard / result flow — show progress + brand header again.
+  document.querySelector("header.brand").style.display = "";
   progressWrap.innerHTML = state.step < 5 ? STEPS.slice(0,5).map((_, i) =>
     `<div class="progress-dot ${i <= state.step ? "on" : ""}"></div>`).join("") : "";
 
-  // main area
   switch (state.step) {
     case 0: renderSpace(); break;
     case 1: renderDetails(); break;
@@ -3555,12 +3719,222 @@ function render() {
   applyLanguage();
 }
 
+// ── HOMEPAGE — the friendly landing ─────────────────────────
+// Three paths: take the design wizard, browse the full plant dictionary,
+// or jump straight into a quick tool. Each path commits less than the
+// full 5-step wizard.
+function renderHome() {
+  const nativeCount = PLANTS.filter(p => p.native).length;
+  const introCount  = PLANTS.length - nativeCount;
+
+  app.innerHTML = `
+    <div class="fade-up">
+
+      <div class="home-hero">
+        <span class="badge" data-zh="原生 × 引入 · 共 ${PLANTS.length} 種" data-en="Native + Introduced · ${PLANTS.length} species">原生 × 引入 · 共 ${PLANTS.length} 種</span>
+        <h1 data-zh="幫你的空間<br>找到對的植物" data-en="Find the right plants<br>for your space">幫你的空間<br>找到對的植物</h1>
+        <p class="tagline"
+           data-zh="不論是 3 m² 陽台還是 50 m² 庭院，5 分鐘生成完整的景觀規劃：實景參考、施工指南、養護月曆，全部免費。"
+           data-en="Whether it's a 3 m² balcony or a 50 m² yard, get a complete landscape plan in 5 minutes — realistic preview, install guide, care calendar. All free.">
+           不論是 3 m² 陽台還是 50 m² 庭院，5 分鐘生成完整的景觀規劃：實景參考、施工指南、養護月曆，全部免費。
+        </p>
+        <div class="home-stat-row">
+          <span class="home-stat"><strong>${PLANTS.length}</strong><span data-zh="種植物" data-en="species">種植物</span></span>
+          <span class="home-stat"><strong>${nativeCount}</strong><span data-zh="原生種" data-en="native">原生種</span></span>
+          <span class="home-stat"><strong>${introCount}</strong><span data-zh="引入栽培" data-en="cultivated">引入栽培</span></span>
+          <span class="home-stat"><strong>9</strong><span data-zh="種視角" data-en="views">種視角</span></span>
+        </div>
+      </div>
+
+      <div class="home-paths">
+        <button class="home-path-card featured" id="homeWizardBtn">
+          <div class="home-path-icon">✨</div>
+          <div class="home-path-sub" data-zh="5 分鐘 · AI 推薦" data-en="5 min · AI design">5 分鐘 · AI 推薦</div>
+          <div class="home-path-title" data-zh="幫我規劃景觀" data-en="Design my garden">幫我規劃景觀</div>
+          <p class="home-path-body"
+             data-zh="告訴我空間、光照、能投入多少照顧，AI 從植物資料庫推薦最適合的植物與配置方式。"
+             data-en="Tell me your space, light, and how much care you can give. AI picks the right plants from the database and shows you how to arrange them.">
+             告訴我空間、光照、能投入多少照顧，AI 從植物資料庫推薦最適合的植物與配置方式。
+          </p>
+          <span class="home-path-arrow"><span data-zh="開始 5 分鐘規劃" data-en="Start the 5-min wizard">開始 5 分鐘規劃</span> →</span>
+        </button>
+
+        <button class="home-path-card" id="homeBrowseBtn">
+          <div class="home-path-icon">📖</div>
+          <div class="home-path-sub" data-zh="${PLANTS.length} 種植物" data-en="${PLANTS.length} species">${PLANTS.length} 種植物</div>
+          <div class="home-path-title" data-zh="瀏覽植物字典" data-en="Browse plant dictionary">瀏覽植物字典</div>
+          <p class="home-path-body"
+             data-zh="搜尋名稱、依分層篩選、依原生／引入分類、依香氣或寵物安全找尋。每種植物有詳細養護資料與生態貢獻。"
+             data-en="Search by name, filter by layer / native / fragrance / pet-safety. Each plant has detailed care, ecology, and sourcing notes.">
+             搜尋名稱、依分層篩選、依原生／引入分類、依香氣或寵物安全找尋。每種植物有詳細養護資料與生態貢獻。
+          </p>
+          <span class="home-path-arrow"><span data-zh="瀏覽全部 →" data-en="Browse all →">瀏覽全部 →</span></span>
+        </button>
+
+        <button class="home-path-card" id="homeQuickBtn">
+          <div class="home-path-icon">⚡</div>
+          <div class="home-path-sub" data-zh="一鍵答案" data-en="One-click answers">一鍵答案</div>
+          <div class="home-path-title" data-zh="快速工具" data-en="Quick tools">快速工具</div>
+          <p class="home-path-body"
+             data-zh="本月種什麼？貓咪安全嗎？哪些不用常澆水？室內適合什麼？跳過問卷，直接得到答案。"
+             data-en="What to plant this month? Cat-safe? Doesn't need much water? Indoor picks? Skip the wizard — get an answer instantly.">
+             本月種什麼？貓咪安全嗎？哪些不用常澆水？室內適合什麼？跳過問卷，直接得到答案。
+          </p>
+          <span class="home-path-arrow"><span data-zh="看下方 ↓" data-en="See below ↓">看下方 ↓</span></span>
+        </button>
+      </div>
+
+      <div class="home-quick-wrap">
+        <div class="home-quick-label" data-zh="快速工具 · QUICK TOOLS" data-en="Quick tools">快速工具 · QUICK TOOLS</div>
+        <div class="home-quick-grid">
+          <button class="home-quick-btn" data-quick="thisMonth">
+            <span class="ico">✨</span>
+            <span data-zh="本月可種" data-en="Plant this month">本月可種</span>
+            <span class="sub" data-zh="當下適合栽種" data-en="What thrives now">當下適合栽種</span>
+          </button>
+          <button class="home-quick-btn" data-quick="petSafe">
+            <span class="ico">🐾</span>
+            <span data-zh="寵物安全" data-en="Pet-safe">寵物安全</span>
+            <span class="sub" data-zh="貓狗不會被毒到" data-en="Non-toxic to cats / dogs">貓狗不會被毒到</span>
+          </button>
+          <button class="home-quick-btn" data-quick="drought">
+            <span class="ico">💧</span>
+            <span data-zh="省水植物" data-en="Low water">省水植物</span>
+            <span class="sub" data-zh="常忘記澆水也活" data-en="Survives neglect">常忘記澆水也活</span>
+          </button>
+          <button class="home-quick-btn" data-quick="indoor">
+            <span class="ico">🏠</span>
+            <span data-zh="室內植物" data-en="Indoor">室內植物</span>
+            <span class="sub" data-zh="窗邊或客廳" data-en="Living room / window">窗邊或客廳</span>
+          </button>
+          <button class="home-quick-btn" data-quick="fragrant">
+            <span class="ico">🌸</span>
+            <span data-zh="香氣植物" data-en="Fragrant">香氣植物</span>
+            <span class="sub" data-zh="夏夜清香" data-en="Summer night scent">夏夜清香</span>
+          </button>
+          <button class="home-quick-btn" data-quick="edible">
+            <span class="ico">🍽</span>
+            <span data-zh="可食植物" data-en="Edible">可食植物</span>
+            <span class="sub" data-zh="陽台菜園" data-en="Balcony pantry">陽台菜園</span>
+          </button>
+          <button class="home-quick-btn" data-quick="native">
+            <span class="ico">🌱</span>
+            <span data-zh="台灣原生" data-en="Taiwan native">台灣原生</span>
+            <span class="sub" data-zh="生態跳島" data-en="Biodiversity stepping stones">生態跳島</span>
+          </button>
+          <button class="home-quick-btn" data-quick="coastal">
+            <span class="ico">🌊</span>
+            <span data-zh="耐鹽風" data-en="Coastal">耐鹽風</span>
+            <span class="sub" data-zh="海邊住宅" data-en="Seaside home">海邊住宅</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="home-how">
+        <h2 class="subtitle" style="text-align:center;"
+            data-zh="怎麼運作？" data-en="How it works">怎麼運作？</h2>
+        <div class="home-how-grid">
+          <div class="home-step">
+            <div class="home-step-num">01</div>
+            <h3 data-zh="告訴我你的空間" data-en="Tell me your space">告訴我你的空間</h3>
+            <p data-zh="陽台、頂樓、庭院還是室內？選一個，再簡單告訴我有多大、面向哪邊（不用很精確）。"
+               data-en="Balcony, rooftop, yard, or indoors? Pick one and roughly tell me the size and direction (precision not required).">
+               陽台、頂樓、庭院還是室內？選一個，再簡單告訴我有多大、面向哪邊（不用很精確）。</p>
+          </div>
+          <div class="home-step">
+            <div class="home-step-num">02</div>
+            <h3 data-zh="AI 為你配置植物" data-en="AI matches plants for you">AI 為你配置植物</h3>
+            <p data-zh="依光照、水分、目標從 ${PLANTS.length} 種植物找出最適合的，並組成上中下層的復層綠化設計。"
+               data-en="From ${PLANTS.length} species, AI picks the right plants for your light, water, and goals, and arranges them in canopy / shrub / ground layers.">
+               依光照、水分、目標從 ${PLANTS.length} 種植物找出最適合的，並組成上中下層的復層綠化設計。</p>
+          </div>
+          <div class="home-step">
+            <div class="home-step-num">03</div>
+            <h3 data-zh="取得完整指南" data-en="Get the complete guide">取得完整指南</h3>
+            <p data-zh="實景參考圖、3D 視角、施工步驟、養護月曆、採購清單與成本估算 — 全部可列印或分享。"
+               data-en="Realistic preview, 3D view, build phases, care calendar, shopping list with cost — all printable or shareable.">
+               實景參考圖、3D 視角、施工步驟、養護月曆、採購清單與成本估算 — 全部可列印或分享。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="home-footer-note"
+           data-zh="* 100% 免費 · 無需註冊 · 無後端 · 開源於 <a href='https://github.com/anren1117-lang/landscape-copilot' target='_blank' rel='noopener'>GitHub</a>"
+           data-en="* 100% free · No signup · No backend · Open source on <a href='https://github.com/anren1117-lang/landscape-copilot' target='_blank' rel='noopener'>GitHub</a>">
+           * 100% 免費 · 無需註冊 · 無後端 · 開源於 <a href='https://github.com/anren1117-lang/landscape-copilot' target='_blank' rel='noopener'>GitHub</a>
+      </div>
+    </div>`;
+
+  // Wire entry buttons
+  document.getElementById("homeWizardBtn").addEventListener("click", () => startWizard());
+  document.getElementById("homeBrowseBtn").addEventListener("click", () => jumpToDictionary());
+  document.getElementById("homeQuickBtn").addEventListener("click", () => {
+    document.querySelector(".home-quick-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  // Quick tool buttons — each pre-applies a dictionary filter
+  document.querySelectorAll(".home-quick-btn").forEach((btn) => {
+    btn.addEventListener("click", () => applyQuickFilter(btn.dataset.quick));
+  });
+}
+
+// Bring the user from home into the wizard, freshly initialized.
+function startWizard() {
+  state.view = "wizard";
+  state.step = 0;
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Jump straight to the dictionary tab, skipping the wizard entirely.
+// Pre-fills sensible defaults so the result-page rendering doesn't crash.
+function jumpToDictionary() {
+  state.view = "wizard";
+  if (!state.space) state.space = "balcony";
+  if (state.widthM == null) state.widthM = SPACE_DEFAULTS[state.space].w;
+  if (state.depthM == null) state.depthM = SPACE_DEFAULTS[state.space].d;
+  if (!state.sun) state.sun = "part";
+  if (!state.water) state.water = "med";
+  state.resultTab = "dict";
+  state.step = 5;
+  initShoppingQty();
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Apply a pre-set filter on the dictionary view and jump there.
+function applyQuickFilter(kind) {
+  // Reset baseline so multiple clicks don't compound filters unexpectedly
+  state.dictQuery = "";
+  state.dictTier = "all";
+  state.dictNative = "all";
+  state.dictFragOnly = false;
+  state.dictPetSafeOnly = false;
+  state.dictWater = "all";
+  state.dictSpace = "all";
+  state.dictEdibleOnly = false;
+  state.dictCoastalOnly = false;
+  state.dictThisMonth = false;
+
+  switch (kind) {
+    case "thisMonth": state.dictThisMonth = true; break;
+    case "petSafe":   state.dictPetSafeOnly = true; break;
+    case "drought":   state.dictWater = "low"; break;
+    case "indoor":    state.dictSpace = "indoor"; break;
+    case "fragrant":  state.dictFragOnly = true; break;
+    case "edible":    state.dictEdibleOnly = true; break;
+    case "native":    state.dictNative = "native"; break;
+    case "coastal":   state.dictCoastalOnly = true; break;
+  }
+  jumpToDictionary();
+}
+
 function renderSpace() {
   app.innerHTML = `
     <div class="fade-up">
-      <div class="kicker" data-zh="01 — 你的空間" data-en="01 — Your space">01 — 你的空間</div>
+      <div class="kicker" data-zh="第 1 題（共 5 題）" data-en="Question 1 of 5">第 1 題（共 5 題）</div>
       <h1 class="title" data-zh="你想種在哪裡？" data-en="Where will you plant?">你想種在哪裡？</h1>
-      <p class="lead" data-zh="告訴我你的種植環境，AI 將從 ${PLANTS.length} 種台灣原生與常見植物中為你配置。" data-en="Tell me your planting environment — I'll design from ${PLANTS.length} Taiwan natives and common landscape plants.">告訴我你的種植環境，AI 將從 ${PLANTS.length} 種台灣原生與常見植物中為你配置。</p>
+      <p class="lead" data-zh="先從這個簡單的問題開始 — 你的種植空間是哪一種？" data-en="Let's start with the easy question — what kind of space is yours?">先從這個簡單的問題開始 — 你的種植空間是哪一種？</p>
       <div class="grid cols-2">
         ${SPACE_OPTIONS.map(o => optCard(o, state.space === o.key)).join("")}
       </div>
@@ -3606,12 +3980,12 @@ function renderDetails() {
 
   app.innerHTML = `
     <div class="fade-up">
-      <div class="kicker" data-zh="02 — 空間細節" data-en="02 — Space details">02 — 空間細節</div>
-      <h1 class="title" data-zh="告訴我更多，配置會更準。" data-en="More detail → more accurate plan.">告訴我更多，配置會更準。</h1>
+      <div class="kicker" data-zh="第 2 題（可全部跳過）" data-en="Question 2 (all optional)">第 2 題（可全部跳過）</div>
+      <h1 class="title" data-zh="你的空間有多大？" data-en="How big is your space?">你的空間有多大？</h1>
       <p class="lead"
-         data-zh="地址、尺寸、朝向都是選填 — 但提供越多，AI 越能依你的氣候區、海岸鹽霧與光照軌跡量身設計。"
-         data-en="Address, size, and orientation are all optional — but the more you share, the better AI can tune to your climate zone, salt exposure, and sun path.">
-         地址、尺寸、朝向都是選填 — 但提供越多，AI 越能依你的氣候區、海岸鹽霧與光照軌跡量身設計。</p>
+         data-zh="不知道也沒關係 — 直接按「繼續」用預設值即可。提供越多細節，配置會越準。"
+         data-en="Not sure? Just hit Continue — we'll use defaults. The more you share, the more accurate the plan.">
+         不知道也沒關係 — 直接按「繼續」用預設值即可。提供越多細節，配置會越準。</p>
 
       <div class="detail-grid">
 
@@ -4067,9 +4441,9 @@ function escapeHtml(s) {
 function renderSun() {
   app.innerHTML = `
     <div class="fade-up">
-      <div class="kicker" data-zh="03 — 微氣候" data-en="03 — Microclimate">03 — 微氣候</div>
-      <h1 class="title" data-zh="光照條件如何？" data-en="What's the light like?">光照條件如何？</h1>
-      <p class="lead" data-zh="日照是景觀設計的第一準則。先讀光，再選種。" data-en="Light is the first rule of landscape design. Read the light, then choose plants.">日照是景觀設計的第一準則。先讀光，再選種。</p>
+      <div class="kicker" data-zh="第 3 題（共 5 題）" data-en="Question 3 of 5">第 3 題（共 5 題）</div>
+      <h1 class="title" data-zh="陽光夠嗎？" data-en="How sunny is it?">陽光夠嗎？</h1>
+      <p class="lead" data-zh="走到你的空間，看看陽光直射的時間 — 大概就好。" data-en="Stand in your space and check how much direct sun it gets — rough estimate is fine.">走到你的空間，看看陽光直射的時間 — 大概就好。</p>
       <div class="grid cols-3">
         ${SUN_OPTIONS.map(o => optCard(o, state.sun === o.key, sunIcon(o.key, state.sun === o.key))).join("")}
       </div>
@@ -4080,9 +4454,9 @@ function renderSun() {
 function renderWater() {
   app.innerHTML = `
     <div class="fade-up">
-      <div class="kicker" data-zh="04 — 水分" data-en="04 — Water">04 — 水分</div>
-      <h1 class="title" data-zh="你能投入多少照顧？" data-en="How much care can you give?">你能投入多少照顧？</h1>
-      <p class="lead" data-zh="誠實面對你的生活節奏，才能養出健康的活體土壤。" data-en="Be honest about your rhythm — that's how living soil stays healthy.">誠實面對你的生活節奏，才能養出健康的活體土壤。</p>
+      <div class="kicker" data-zh="第 4 題（共 5 題）" data-en="Question 4 of 5">第 4 題（共 5 題）</div>
+      <h1 class="title" data-zh="你能多常澆水？" data-en="How often can you water?">你能多常澆水？</h1>
+      <p class="lead" data-zh="老實說 — 經常出差還是每天都在家？這會決定要選哪一類植物。" data-en="Be honest — always on the road, or home every day? This decides which plants suit you.">老實說 — 經常出差還是每天都在家？這會決定要選哪一類植物。</p>
       <div class="grid cols-3">
         ${WATER_OPTIONS.map(o => optCard(o, state.water === o.key)).join("")}
       </div>
@@ -4093,9 +4467,9 @@ function renderWater() {
 function renderGoals() {
   app.innerHTML = `
     <div class="fade-up">
-      <div class="kicker" data-zh="05 — 願景（可複選）" data-en="05 — Goals (multi-select)">05 — 願景（可複選）</div>
-      <h1 class="title" data-zh="你希望這片綠地帶來什麼？" data-en="What should this green space give you?">你希望這片綠地帶來什麼？</h1>
-      <p class="lead" data-zh="從單純的觀賞，到成為都市生態廊道的一部分。" data-en="From simple ornament to becoming part of an urban ecological corridor.">從單純的觀賞，到成為都市生態廊道的一部分。</p>
+      <div class="kicker" data-zh="第 5 題（最後一題，可複選）" data-en="Question 5 of 5 (multi-select)">第 5 題（最後一題，可複選）</div>
+      <h1 class="title" data-zh="你最想要什麼？" data-en="What do you want most?">你最想要什麼？</h1>
+      <p class="lead" data-zh="可以選好幾個 — AI 會找能同時達成你願望的植物。" data-en="Pick as many as you like — AI will find plants that hit your wishlist.">可以選好幾個 — AI 會找能同時達成你願望的植物。</p>
       <div class="grid cols-2">
         ${GOAL_OPTIONS.map(o => optCard(o, state.goals.includes(o.key), null, true)).join("")}
       </div>
@@ -5660,14 +6034,35 @@ window.exportShoppingCSV = function() {
 // ── TAB: PLANT DICTIONARY (browse all) ──────────────────────
 function renderDictionary() {
   const q = (state.dictQuery || "").trim().toLowerCase();
+  const curMonth = new Date().getMonth() + 1;
   const filtered = PLANTS.filter(p => {
     if (state.dictTier !== "all" && p.tier !== state.dictTier) return false;
     if (state.dictNative === "native" && !p.native) return false;
     if (state.dictNative === "intro"  && p.native)  return false;
     if (state.dictFragOnly    && !(p.fragrance >= 2)) return false;
     if (state.dictPetSafeOnly && p.pet_safe !== true) return false;
+    if (state.dictWater !== "all" && p.water !== state.dictWater) return false;
+    if (state.dictSpace !== "all" && !(p.spaces || []).includes(state.dictSpace)) return false;
+    if (state.dictCoastalOnly && !p.coastal_ok) return false;
+    if (state.dictEdibleOnly) {
+      const txt = [p.type_zh, p.type_en, p.role_zh, p.role_en, (p.supports_zh||[]).join(" "), (p.supports_en||[]).join(" ")].join(" ").toLowerCase();
+      if (!/可食|edible/i.test(txt)) return false;
+    }
+    if (state.dictThisMonth) {
+      const bloomNow = (p.bloom || []).includes(curMonth);
+      const fruitNow = (p.fruit || []).includes(curMonth);
+      // "Plant this month" interpretation: best planting windows in Taiwan are spring (3-5) and autumn (10-11);
+      // for those months, show plants currently in bloom or fruit; otherwise show plants that bloom/fruit within ±2 months
+      if (curMonth >= 3 && curMonth <= 5 || curMonth >= 10 && curMonth <= 11) {
+        if (!bloomNow && !fruitNow) return false;
+      } else {
+        const nearby = (m) => Math.min((m - curMonth + 12) % 12, (curMonth - m + 12) % 12) <= 2;
+        const anyNearby = (p.bloom || []).some(nearby) || (p.fruit || []).some(nearby);
+        if (!anyNearby) return false;
+      }
+    }
     if (q) {
-      const hay = [p.zh, p.en, p.lt, p.role_zh, p.role_en, p.origin_zh, p.origin_en].join(" ").toLowerCase();
+      const hay = [p.zh, p.en, p.lt, p.role_zh, p.role_en, p.origin_zh, p.origin_en, p.type_zh, p.type_en].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
