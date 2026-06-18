@@ -420,6 +420,87 @@
   }
   .preview-prompt-edit:focus { outline: none; border-color: var(--sage); }
 
+  /* COMPASS — live orientation detector using DeviceOrientation API */
+  .compass-toggle {
+    margin-top: 10px;
+    background: none; border: none;
+    color: var(--sage-deep);
+    font-family: inherit; font-size: 12.5px; font-weight: 600;
+    cursor: pointer; padding: 4px 0;
+    text-decoration: underline; text-underline-offset: 3px;
+    text-decoration-color: rgba(110,126,96,0.4);
+  }
+  .compass-toggle:hover { color: var(--forest); }
+  .compass-box {
+    margin-top: 14px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 22px;
+    text-align: center;
+  }
+  .compass-instructions {
+    font-size: 12.5px; color: var(--ink-soft);
+    line-height: 1.6; margin-bottom: 16px;
+    font-style: italic; font-family: var(--serif);
+  }
+  .compass-stage {
+    position: relative;
+    width: 240px; height: 240px;
+    margin: 0 auto;
+  }
+  .compass-rose-svg {
+    width: 100%; height: 100%;
+    transition: transform .2s ease;
+  }
+  /* Fixed top triangle = where the device is pointing */
+  .compass-pointer {
+    position: absolute;
+    top: -8px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 22px solid var(--clay-deep);
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    z-index: 2;
+  }
+  .compass-readout {
+    margin-top: 18px;
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--forest);
+  }
+  .compass-readout .deg {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    margin-left: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .compass-actions {
+    margin-top: 18px;
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  }
+  .compass-error {
+    padding: 12px 14px;
+    background: rgba(178,58,48,0.10);
+    border-left: 3px solid #B23A30;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #8C2A22;
+    line-height: 1.55;
+    margin: 12px 0;
+    text-align: left;
+  }
+  .compass-help {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.55;
+    font-family: var(--serif);
+  }
+
   /* WELCOME-BACK banner — when state is restored from localStorage */
   .welcome-back {
     max-width: 880px; margin: 16px auto; padding: 14px 18px;
@@ -3627,6 +3708,11 @@ const state = {
   photoAnalysis: null,   // parsed JSON from Pollinations.ai vision
   photoStatus: "",
   photoStatusKind: "",
+  // live compass (DeviceOrientation API)
+  compassOpen: false,
+  compassHeading: null,    // 0-360, where 0 = north
+  compassError: null,      // null | "permission_denied" | "not_supported" | "no_data"
+  compassListening: false,
   step: 0,
   space: null,
   // step 2 — space details (all optional, defaults applied per space type)
@@ -4666,6 +4752,10 @@ function renderDetails() {
               </button>
             `).join("")}
           </div>
+          <button class="compass-toggle" type="button" id="openCompassBtn">
+            🧭 <span data-zh="${state.compassOpen ? "關閉指南針" : "不知道朝向？用手機指南針偵測"}" data-en="${state.compassOpen ? "Close compass" : "Not sure? Use the phone compass"}">${state.compassOpen ? "關閉指南針" : "不知道朝向？用手機指南針偵測"}</span>
+          </button>
+          ${state.compassOpen ? renderCompass() : ""}
         </div>
 
       </div>
@@ -4756,6 +4846,231 @@ function buildDetectedFromNominatim(result) {
     lng: isFinite(lng) ? lng : null,
     display: display.trim() || result.display_name?.split(",").slice(0, 2).join(",").trim() || null,
   };
+}
+
+// ── COMPASS — live orientation detection via DeviceOrientation API ──
+// Lets the user point their phone at their garden and read off the
+// cardinal direction directly, instead of guessing N/E/S/W.
+function compassCardinalFromHeading(h) {
+  if (h == null) return { dir: "?", zh: "—", en: "—" };
+  // 8-way snapping for display, 4-way snapping for state.orientation
+  if (h < 22.5 || h >= 337.5) return { dir: "N", zh: "正北", en: "North" };
+  if (h < 67.5)  return { dir: "N", zh: "東北", en: "Northeast" };
+  if (h < 112.5) return { dir: "E", zh: "正東", en: "East" };
+  if (h < 157.5) return { dir: "E", zh: "東南", en: "Southeast" };
+  if (h < 202.5) return { dir: "S", zh: "正南", en: "South" };
+  if (h < 247.5) return { dir: "S", zh: "西南", en: "Southwest" };
+  if (h < 292.5) return { dir: "W", zh: "正西", en: "West" };
+  return { dir: "W", zh: "西北", en: "Northwest" };
+}
+
+// 4-way cardinal for the orientation buttons (we only have N/E/S/W slots).
+function compassFourWay(h) {
+  if (h == null) return "S";
+  if (h < 45 || h >= 315) return "N";
+  if (h < 135) return "E";
+  if (h < 225) return "S";
+  return "W";
+}
+
+function renderCompass() {
+  // The compass rose SVG — N at top, E right, S bottom, W left.
+  const rose = `
+    <svg class="compass-rose-svg" id="compassRose" viewBox="0 0 240 240">
+      <defs>
+        <radialGradient id="cgrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.85)"/>
+          <stop offset="70%" stop-color="rgba(196,184,144,0.18)"/>
+          <stop offset="100%" stop-color="rgba(196,184,144,0.05)"/>
+        </radialGradient>
+      </defs>
+      <circle cx="120" cy="120" r="110" fill="url(#cgrad)" stroke="#C9C3B4" stroke-width="2"/>
+      <circle cx="120" cy="120" r="90" fill="none" stroke="rgba(196,184,144,0.4)" stroke-width="1" stroke-dasharray="4 4"/>
+      <!-- Tick marks every 30° -->
+      ${[...Array(12).keys()].map(i => {
+        const angle = i * 30;
+        const rad = (angle - 90) * Math.PI / 180;
+        const x1 = 120 + Math.cos(rad) * 100;
+        const y1 = 120 + Math.sin(rad) * 100;
+        const x2 = 120 + Math.cos(rad) * 108;
+        const y2 = 120 + Math.sin(rad) * 108;
+        return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#8C6F52" stroke-width="${i % 3 === 0 ? 2 : 1}"/>`;
+      }).join("")}
+      <!-- N marker (always red, highlights true north) -->
+      <polygon points="120,28 110,60 130,60" fill="#B23A30"/>
+      <text x="120" y="56" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="Noto Serif TC">N</text>
+      <!-- E S W markers -->
+      <text x="208" y="125" text-anchor="middle" font-size="14" font-weight="600" fill="#3F4A37" font-family="Noto Serif TC">E</text>
+      <text x="120" y="212" text-anchor="middle" font-size="14" font-weight="600" fill="#3F4A37" font-family="Noto Serif TC">S</text>
+      <text x="32" y="125" text-anchor="middle" font-size="14" font-weight="600" fill="#3F4A37" font-family="Noto Serif TC">W</text>
+      <!-- Center dot -->
+      <circle cx="120" cy="120" r="5" fill="#3F4A37"/>
+    </svg>`;
+
+  // Error / status messages
+  let errMsg = "";
+  if (state.compassError === "permission_denied") {
+    errMsg = `<div class="compass-error" data-zh="瀏覽器拒絕了感應器存取。請至「設定 → Safari → 動作與方向存取權」啟用，或改用「📐 用太陽位置」估算（南半球請反向）。"
+                       data-en="Browser denied sensor access. Enable Motion & Orientation in Settings → Safari, or use the sun-position estimator below.">
+                       瀏覽器拒絕了感應器存取。請至「設定 → Safari → 動作與方向存取權」啟用，或改用「📐 用太陽位置」估算。
+              </div>`;
+  } else if (state.compassError === "not_supported") {
+    errMsg = `<div class="compass-error"
+                   data-zh="你的裝置沒有方向感應器（多數電腦皆無）。請改用以下提示：早晨太陽從東升 → 你看著太陽就是面向東。"
+                   data-en="Your device has no orientation sensor (most desktops don't). Use this hint: sun rises in the east — face the morning sun and you're looking east.">
+                   你的裝置沒有方向感應器（多數電腦皆無）。請改用以下提示：早晨太陽從東升 → 你看著太陽就是面向東。
+              </div>`;
+  } else if (state.compassError === "no_data") {
+    errMsg = `<div class="compass-error"
+                   data-zh="感應器沒有回傳數據。請輕輕搖晃手機校正，或退出後重試。"
+                   data-en="Sensor returned no data. Gently shake the phone in a figure-8 to calibrate, or close and reopen.">
+                   感應器沒有回傳數據。請輕輕搖晃手機校正，或退出後重試。
+              </div>`;
+  }
+
+  const card = compassCardinalFromHeading(state.compassHeading);
+  const fourWay = compassFourWay(state.compassHeading);
+  const fourWayLabel = { N: "北", E: "東", S: "南", W: "西" }[fourWay];
+
+  return `
+    <div class="compass-box" id="compassBox">
+      <p class="compass-instructions"
+         data-zh="請站在你的空間中，手機平放，前端朝向你最常看向的方向（例如：陽台外、窗外）。"
+         data-en="Stand in your space, hold the phone flat, point the top edge toward whatever your space faces (the balcony's view, the window).">
+         請站在你的空間中，手機平放，前端朝向你最常看向的方向（例如：陽台外、窗外）。
+      </p>
+      ${errMsg}
+      <div class="compass-stage">
+        <div class="compass-pointer" title="${t('裝置朝向 (你面對的方向)', 'Device direction (the way you face)')}"></div>
+        ${rose}
+      </div>
+      <div class="compass-readout" id="compassReadout">
+        ${state.compassHeading != null
+          ? `<span data-zh="${card.zh}" data-en="${card.en}">${card.zh}</span><span class="deg">${Math.round(state.compassHeading)}°</span>`
+          : t("等待感應器…", "Waiting for sensor…")}
+      </div>
+      <div class="compass-actions">
+        ${state.compassHeading != null ? `
+          <button class="cta" id="compassApplyBtn">
+            ✓ <span data-zh="套用：朝${fourWayLabel}" data-en="Apply: facing ${fourWay}">套用：朝${fourWayLabel}</span>
+          </button>` : ""}
+        <button class="btn ghost" id="compassCloseBtn">
+          ✕ <span data-zh="關閉" data-en="Close">關閉</span>
+        </button>
+      </div>
+      <p class="compass-help"
+         data-zh="* 「正北」是地圖上的北方，不是你家正前方。指針指向裝置上方代表你前面那個方向的羅盤讀數。"
+         data-en="* The red N marks magnetic north. The fixed top triangle points to whatever direction your device is facing.">
+         * 「正北」是地圖上的北方。指針指向裝置上方代表你面對的方向。
+      </p>
+    </div>`;
+}
+
+function wireCompass() {
+  // Apply button — snap to N/E/S/W and write to state.orientation
+  document.getElementById("compassApplyBtn")?.addEventListener("click", () => {
+    if (state.compassHeading == null) return;
+    state.orientation = compassFourWay(state.compassHeading);
+    stopCompass();
+    state.compassOpen = false;
+    renderDetails(); wireDetails(); applyLanguage();
+  });
+  // Close
+  document.getElementById("compassCloseBtn")?.addEventListener("click", () => {
+    stopCompass();
+    state.compassOpen = false;
+    renderDetails(); wireDetails(); applyLanguage();
+  });
+}
+
+// Permission flow (iOS 13+ requires explicit request)
+async function openCompass() {
+  state.compassOpen = true;
+  state.compassError = null;
+  state.compassHeading = null;
+  renderDetails(); wireDetails(); applyLanguage();
+
+  if (typeof DeviceOrientationEvent === "undefined") {
+    state.compassError = "not_supported";
+    renderDetails(); wireDetails(); applyLanguage();
+    return;
+  }
+  // iOS Safari permission gate
+  if (typeof DeviceOrientationEvent.requestPermission === "function") {
+    try {
+      const permission = await DeviceOrientationEvent.requestPermission();
+      if (permission !== "granted") {
+        state.compassError = "permission_denied";
+        renderDetails(); wireDetails(); applyLanguage();
+        return;
+      }
+    } catch (e) {
+      state.compassError = "permission_denied";
+      renderDetails(); wireDetails(); applyLanguage();
+      return;
+    }
+  }
+  startCompassListener();
+}
+
+function startCompassListener() {
+  if (state.compassListening) return;
+  state.compassListening = true;
+  // Prefer the absolute (true compass) event when available, fall back to relative
+  window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+  window.addEventListener("deviceorientation", handleOrientation, true);
+  // Watchdog: if no data after 2.5s, surface a sensor warning
+  setTimeout(() => {
+    if (state.compassOpen && state.compassHeading == null && !state.compassError) {
+      state.compassError = "no_data";
+      renderDetails(); wireDetails(); applyLanguage();
+    }
+  }, 2500);
+}
+
+function stopCompass() {
+  window.removeEventListener("deviceorientationabsolute", handleOrientation, true);
+  window.removeEventListener("deviceorientation", handleOrientation, true);
+  state.compassListening = false;
+}
+
+function handleOrientation(event) {
+  // iOS Safari uses webkitCompassHeading (0=N, clockwise)
+  // Android uses event.alpha (0=device's top points to magnetic N, but increases counter-clockwise on most devices)
+  let heading = null;
+  if (event.webkitCompassHeading != null) {
+    heading = event.webkitCompassHeading;
+  } else if (event.alpha != null) {
+    // For deviceorientationabsolute, alpha is clockwise from north (Chrome convention)
+    // For deviceorientation, it varies — but most devices use the same convention as absolute
+    heading = (360 - event.alpha) % 360;
+  }
+  if (heading == null) return;
+
+  // Smooth via a tiny rolling average to reduce jitter
+  const prev = state.compassHeading;
+  if (prev != null) {
+    // Handle 359 → 1 wraparound
+    let delta = heading - prev;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    heading = (prev + delta * 0.3 + 360) % 360;
+  }
+  state.compassHeading = heading;
+  state.compassError = null;
+
+  // Live-update the rose rotation + readout without a full re-render
+  const rose = document.getElementById("compassRose");
+  if (rose) rose.style.transform = `rotate(${-heading}deg)`;
+  const readout = document.getElementById("compassReadout");
+  if (readout) {
+    const card = compassCardinalFromHeading(heading);
+    readout.innerHTML = `<span data-zh="${card.zh}" data-en="${card.en}">${state.lang === "zh" ? card.zh : card.en}</span><span class="deg">${Math.round(heading)}°</span>`;
+  }
+  // If we hadn't yet shown the apply button, re-render to add it
+  if (!document.getElementById("compassApplyBtn")) {
+    renderDetails(); wireDetails(); applyLanguage();
+  }
 }
 
 function renderEstimator() {
@@ -5052,6 +5367,20 @@ function wireDetails() {
 
   // If the estimator is currently open, wire its inner controls now
   if (state.estimatorOpen) wireEstimator();
+
+  // Compass toggle — opens the live DeviceOrientation compass UI
+  document.getElementById("openCompassBtn")?.addEventListener("click", () => {
+    if (state.compassOpen) {
+      stopCompass();
+      state.compassOpen = false;
+      renderDetails(); wireDetails(); applyLanguage();
+    } else {
+      openCompass();
+    }
+  });
+
+  // If the compass is currently open, wire its inner controls now
+  if (state.compassOpen) wireCompass();
 }
 
 function escapeHtml(s) {
