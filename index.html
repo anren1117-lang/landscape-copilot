@@ -420,6 +420,79 @@
   }
   .preview-prompt-edit:focus { outline: none; border-color: var(--sage); }
 
+  /* WELCOME-BACK banner — when state is restored from localStorage */
+  .welcome-back {
+    max-width: 880px; margin: 16px auto; padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(110,126,96,0.15), rgba(196,160,76,0.12));
+    border: 1px solid var(--sage);
+    border-radius: 14px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    font-size: 13.5px; color: var(--forest);
+  }
+  .welcome-back .icon { font-size: 22px; }
+  .welcome-back .text { flex: 1; min-width: 200px; line-height: 1.5; }
+  .welcome-back .text strong { color: var(--forest); font-family: var(--serif); }
+  .welcome-back .text .sub { display:block; font-size: 12px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); margin-top: 2px; }
+  .welcome-back .actions { display: flex; gap: 8px; }
+  .welcome-back .actions button {
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    font-family: inherit; border: 1px solid var(--line);
+    background: rgba(255,255,255,0.6); color: var(--forest);
+  }
+  .welcome-back .actions button.primary { background: var(--forest); color: var(--paper); border-color: var(--forest); }
+
+  /* TUTORIALS tab */
+  .tut-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 720px) { .tut-grid { grid-template-columns: 1fr 1fr; } }
+  .tut-card {
+    background: rgba(255,255,255,0.55);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px 22px;
+    text-align: left;
+    cursor: pointer;
+    transition: all .25s;
+    font-family: inherit;
+    display: flex; flex-direction: column;
+  }
+  .tut-card:hover { transform: translateY(-2px); border-color: var(--sage); box-shadow: 0 12px 24px -14px rgba(44,53,38,0.3); }
+  .tut-card.open { background: rgba(255,255,255,0.85); border-color: var(--sage); box-shadow: 0 14px 26px -14px rgba(44,53,38,0.3); }
+  .tut-icon { font-size: 28px; margin-bottom: 10px; line-height: 1; }
+  .tut-title { font-family: var(--serif); font-size: 18px; font-weight: 600; color: var(--forest); margin-bottom: 4px; }
+  .tut-sub { font-size: 12px; color: var(--clay-deep); letter-spacing: 0.06em; font-weight: 500; margin-bottom: 12px; }
+  .tut-body { font-size: 14px; line-height: 1.7; color: var(--ink); }
+  .tut-body h4 {
+    font-family: var(--serif); font-size: 14px; font-weight: 600; color: var(--forest);
+    margin-top: 14px; margin-bottom: 6px; letter-spacing: 0.04em;
+  }
+  .tut-body ol, .tut-body ul {
+    padding-left: 22px; margin-top: 4px; margin-bottom: 8px;
+    font-size: 13.5px; line-height: 1.7; color: var(--ink-soft);
+  }
+  .tut-body li { margin-bottom: 4px; }
+  .tut-body .pitfall {
+    background: rgba(178,58,48,0.10); border-left: 3px solid #B23A30;
+    padding: 8px 12px; border-radius: 6px; margin-top: 10px;
+    font-size: 13px; color: #8C2A22; line-height: 1.6;
+  }
+  .tut-body .tip {
+    background: rgba(110,126,96,0.12); border-left: 3px solid var(--sage);
+    padding: 8px 12px; border-radius: 6px; margin-top: 10px;
+    font-size: 13px; color: var(--sage-deep); line-height: 1.6;
+  }
+  .tut-plants {
+    display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px;
+    padding-top: 12px; border-top: 1px dashed var(--line);
+  }
+  .tut-plants .lbl {
+    font-size: 11px; color: var(--ink-soft); letter-spacing: 0.08em;
+    text-transform: uppercase; width: 100%; margin-bottom: 4px;
+  }
+  .tut-summary {
+    font-size: 13.5px; color: var(--ink-soft); line-height: 1.6;
+  }
+
   /* PHOTO upload + AI analysis */
   .photo-dropzone {
     border: 2px dashed var(--line);
@@ -3757,6 +3830,147 @@ function buildLayers(scored) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// PERSONAL DASHBOARD — save & restore
+//   The user's design IS their dashboard. We save it to:
+//     · localStorage (so they see it again on next visit)
+//     · URL hash (#d=base64) so bookmarking / sharing the URL works
+//   No backend, no account, no tracking.
+// ─────────────────────────────────────────────────────────────
+const SAVE_KEY = "landscape-copilot-v1";
+const HASH_KEY = "d";
+
+// The minimal slice of state worth persisting — inputs + view layer toggles.
+function snapshotState() {
+  return {
+    space: state.space, sun: state.sun, water: state.water, goals: state.goals,
+    address: state.address, detected: state.detected,
+    widthM: state.widthM, depthM: state.depthM, orientation: state.orientation,
+    qty: state.qty, nativeOnly: state.nativeOnly,
+    savedAt: Date.now(),
+  };
+}
+
+function applySnapshot(snap) {
+  if (!snap || !snap.space) return false;
+  state.space = snap.space;
+  state.sun = snap.sun || "part";
+  state.water = snap.water || "med";
+  state.goals = Array.isArray(snap.goals) ? snap.goals : [];
+  state.address = snap.address || "";
+  state.detected = snap.detected || null;
+  state.widthM = snap.widthM ?? SPACE_DEFAULTS[snap.space].w;
+  state.depthM = snap.depthM ?? SPACE_DEFAULTS[snap.space].d;
+  state.orientation = snap.orientation || "S";
+  state.qty = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
+  state.nativeOnly = !!snap.nativeOnly;
+  state.savedAt = snap.savedAt || Date.now();
+  return true;
+}
+
+function saveToLocal() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshotState())); } catch (e) {}
+}
+
+function loadFromLocal() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function clearLocal() {
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+}
+
+// URL hash encoding — base64-encoded JSON. Used for sharing / bookmarking.
+function encodeHashFromState() {
+  try {
+    const s = JSON.stringify(snapshotState());
+    return btoa(encodeURIComponent(s));
+  } catch (e) { return ""; }
+}
+
+function decodeHash(hash) {
+  try {
+    if (!hash) return null;
+    const m = hash.match(new RegExp(`#?${HASH_KEY}=([^&]+)`));
+    if (!m) return null;
+    return JSON.parse(decodeURIComponent(atob(m[1])));
+  } catch (e) { return null; }
+}
+
+function pushHashFromState() {
+  const enc = encodeHashFromState();
+  if (enc) {
+    const url = `${location.pathname}#${HASH_KEY}=${enc}`;
+    history.replaceState(null, "", url);
+  }
+}
+
+// On result page reach, save to localStorage + bump URL hash so a bookmark works.
+function persistDashboard() {
+  saveToLocal();
+  pushHashFromState();
+}
+
+// On boot: check URL hash first (shared link wins), then localStorage.
+function tryRestoreDashboard() {
+  const fromHash = decodeHash(location.hash);
+  if (fromHash) {
+    applySnapshot(fromHash);
+    state.view = "wizard";
+    state.step = 5;
+    state.resultTab = "preview";
+    state.restoredFrom = "hash";
+    initShoppingQty();
+    return true;
+  }
+  const fromLocal = loadFromLocal();
+  if (fromLocal) {
+    // Don't auto-jump to result on localStorage restore — show banner on home offering to resume.
+    state.pendingSnapshot = fromLocal;
+    state.restoredFrom = "local";
+    return true;
+  }
+  return false;
+}
+
+// Welcome-back banner on the homepage when localStorage has a saved design.
+function renderWelcomeBackBanner() {
+  if (!state.pendingSnapshot) return "";
+  const s = state.pendingSnapshot;
+  const spaceLabel = spaceZh(s.space);
+  const area = (s.widthM * s.depthM).toFixed(1);
+  const ago = humanizeTimeAgo(s.savedAt);
+  return `
+    <div class="welcome-back" id="welcomeBack">
+      <span class="icon">🌿</span>
+      <div class="text">
+        <strong data-zh="歡迎回來！" data-en="Welcome back!">歡迎回來！</strong>
+        <span class="sub" data-zh="${ago} 前你規劃了 ${spaceLabel} · ${area} m² 的景觀，要繼續編輯嗎？"
+                          data-en="You saved a ${spaceLabel} · ${area} m² design ${ago} ago. Continue?">
+              ${ago} 前你規劃了 ${spaceLabel} · ${area} m² 的景觀，要繼續編輯嗎？
+        </span>
+      </div>
+      <div class="actions">
+        <button class="primary" id="resumeBtn"><span data-zh="繼續使用" data-en="Resume">繼續使用</span></button>
+        <button id="discardBtn"><span data-zh="重新開始" data-en="Start fresh">重新開始</span></button>
+      </div>
+    </div>`;
+}
+
+function humanizeTimeAgo(ts) {
+  if (!ts) return "?";
+  const diffMs = Date.now() - ts;
+  const min = Math.floor(diffMs / 60000);
+  if (min < 60) return state.lang === "zh" ? `${min} 分鐘` : `${min} min`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return state.lang === "zh" ? `${hr} 小時` : `${hr} hr`;
+  const d = Math.floor(hr / 24);
+  return state.lang === "zh" ? `${d} 天` : `${d} d`;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Render
 // ─────────────────────────────────────────────────────────────
 const app = document.getElementById("app");
@@ -3829,6 +4043,8 @@ function renderHome() {
 
   app.innerHTML = `
     <div class="fade-up">
+
+      ${renderWelcomeBackBanner()}
 
       <div class="home-hero">
         <span class="badge" data-zh="原生 × 引入 · 共 ${PLANTS.length} 種" data-en="Native + Introduced · ${PLANTS.length} species">原生 × 引入 · 共 ${PLANTS.length} 種</span>
@@ -3989,6 +4205,30 @@ function renderHome() {
   document.querySelectorAll(".home-quick-btn").forEach((btn) => {
     btn.addEventListener("click", () => applyQuickFilter(btn.dataset.quick));
   });
+
+  // Welcome-back banner buttons
+  const resume = document.getElementById("resumeBtn");
+  if (resume) {
+    resume.addEventListener("click", () => {
+      applySnapshot(state.pendingSnapshot);
+      state.pendingSnapshot = null;
+      state.view = "wizard";
+      state.step = 5;
+      state.resultTab = "preview";
+      initShoppingQty();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+  const discard = document.getElementById("discardBtn");
+  if (discard) {
+    discard.addEventListener("click", () => {
+      clearLocal();
+      state.pendingSnapshot = null;
+      history.replaceState(null, "", location.pathname);
+      render();
+    });
+  }
 }
 
 // ── PHOTO-BASED ENTRY ────────────────────────────────────────
@@ -4964,6 +5204,11 @@ function initShoppingQty() {
 }
 
 function renderResult() {
+  // Anytime we render the result page, this counts as a saved dashboard —
+  // persist to localStorage + update URL hash so a bookmark / shared link
+  // becomes the user's personal "dashboard".
+  persistDashboard();
+
   const scored = scorePlants();
   // Apply native-only filter at the result level (scoring stays the same so the
   // filter can be toggled live without recomputing scores).
@@ -5022,6 +5267,7 @@ function renderResult() {
           { k:"calendar",  zh:"花期月曆",     en:"Bloom calendar" },
           { k:"care",      zh:"養護月曆",     en:"Care calendar" },
           { k:"build",     zh:"施工指南",     en:"Build plan" },
+          { k:"tutorials", zh:"養護教學",     en:"Tutorials" },
           { k:"shopping",  zh:"採購清單",     en:"Shopping list" },
           { k:"dict",      zh:"植物字典",     en:"Plant dictionary" },
         ].map(tab => `
@@ -5060,6 +5306,7 @@ function renderTabPanel(recs, layers) {
     case "calendar": host.innerHTML = renderCalendar(recs); break;
     case "care":     host.innerHTML = renderCareCalendar(recs); wireCarePlantChips(); break;
     case "build":    host.innerHTML = renderBuildPlan(layers, recs); wireBuildPlantChips(); break;
+    case "tutorials":host.innerHTML = renderTutorials(recs); wireTutorials(); break;
     case "shopping": host.innerHTML = renderShopping(recs); wireShoppingControls(); break;
     case "dict":     host.innerHTML = renderDictionary(); wireDictionary(); break;
   }
@@ -6106,6 +6353,516 @@ function wireBuildPlantChips() {
     el.addEventListener("click", () => openDrawer(el.dataset.id)));
 }
 
+// ── TAB: MAINTENANCE TUTORIALS ──────────────────────────────
+// 8 fundamental garden maintenance techniques, each personalized to the
+// user's recommended plants where relevant. Cards expand on click to
+// reveal step-by-step instructions, common mistakes, and which of the
+// user's plants the technique applies to most directly.
+function renderTutorials(recs) {
+  const top = recs.slice(0, 10);
+
+  // Helpers — which plants are most relevant to a given tutorial topic
+  const lowWater = top.filter(p => p.water === "low");
+  const highWater = top.filter(p => p.water === "high");
+  const woodyShrubs = top.filter(p => p.tier === "T" || p.tier === "S");
+  const containerOk = top.filter(p => p.container_ok);
+  const tender = top.filter(p => (expert(p).hardy_c ?? 0) >= 5);
+  const fragrantList = top.filter(p => p.fragrance >= 2);
+  const orchids = top.filter(p => /蘭|orchid/i.test(p.lt + p.zh + p.en));
+
+  function plantsRow(arr, label_zh, label_en) {
+    if (!arr.length) return "";
+    return `
+      <div class="tut-plants">
+        <span class="lbl" data-zh="${label_zh}" data-en="${label_en}">${label_zh}</span>
+        ${arr.slice(0, 6).map(p => `<button class="m-pill" data-id="${p.id}"><span data-zh="${p.zh}" data-en="${p.en}">${p.zh}</span></button>`).join("")}
+      </div>`;
+  }
+
+  const topics = [
+    {
+      icon: "💧", id: "water",
+      title_zh: "澆水基礎",                          title_en: "Watering Basics",
+      sub_zh: "新手最容易出錯的一件事",              sub_en: "The thing most beginners get wrong",
+      body_zh: `
+        <h4>什麼時候澆？</h4>
+        <ul>
+          <li>清晨（6-9 點）或黃昏（5-7 點）—  葉片有時間在夜溫前乾，避免黴菌。</li>
+          <li>絕不在正午烈日下澆 — 水滴在葉片上會像放大鏡灼傷葉子。</li>
+          <li>判斷依據：手指插入土中 2-3 公分，乾才澆，濕就等。</li>
+        </ul>
+        <h4>澆多少？</h4>
+        <ul>
+          <li>原則是「少次但澆透」勝過「常澆但澆少」。澆到水從盆底排水孔流出。</li>
+          <li>盆栽：澆到整個土壤都濕透；地植：第一年每週深澆 1-2 次。</li>
+        </ul>
+        <div class="tip">💡 <strong>覆蓋層的重要性：</strong>樹皮、椰殼或稻草鋪 3-5 cm，可減少 50% 蒸發、抑制雜草、穩定土溫。一次投資，整季受益。</div>
+        <div class="pitfall">⚠ <strong>常見錯誤：</strong>每天澆一點點。表土濕但根部缺水 — 植物會以為水夠了不發深根，反而更怕乾旱。</div>`,
+      body_en: `
+        <h4>When to water</h4>
+        <ul>
+          <li>Early morning (6-9 am) or early evening (5-7 pm) — leaves dry before night, preventing fungal disease.</li>
+          <li>Never water at midday — droplets on leaves act like magnifying glasses, scorching the foliage.</li>
+          <li>The finger test: push a finger 2-3 cm into the soil. Dry? Water. Damp? Wait.</li>
+        </ul>
+        <h4>How much</h4>
+        <ul>
+          <li>"Less often but deep" beats "often but shallow." Water until it drains from the bottom holes.</li>
+          <li>Containers: saturate the soil. In-ground: deep watering 1-2× per week through the first year.</li>
+        </ul>
+        <div class="tip">💡 <strong>Mulch matters:</strong> 3-5 cm of bark, coir, or straw cuts evaporation by 50%, suppresses weeds, and stabilizes soil temperature. One investment, all-season benefit.</div>
+        <div class="pitfall">⚠ <strong>Common mistake:</strong> a little water every day. Topsoil is wet but the roots are thirsty — the plant thinks it has enough and never develops deep roots, making it MORE drought-vulnerable.</div>`,
+      relevant: [
+        { arr: highWater, zh: "需要常澆水：", en: "Needs frequent watering:" },
+        { arr: lowWater, zh: "幾乎免澆水（每週 1-2 次）：", en: "Hardly needs watering (1-2× a week):" },
+      ],
+    },
+
+    {
+      icon: "✂️", id: "prune",
+      title_zh: "修剪入門",                          title_en: "Pruning Basics",
+      sub_zh: "剪對位置 = 強健的植物",                sub_en: "Cut in the right place = a strong plant",
+      body_zh: `
+        <h4>什麼時候剪？</h4>
+        <ul>
+          <li>大多數開花灌木：花後立刻修剪（不會影響明年的花苞）。</li>
+          <li>落葉樹：冬季休眠期（1-2 月）重剪整形。</li>
+          <li>常綠樹與綠籬：春末或秋末。</li>
+          <li>絕不在開花前重剪 — 你會剪掉今年的花。</li>
+        </ul>
+        <h4>剪在哪裡？</h4>
+        <ul>
+          <li>找一個「向外的芽」，斜切在芽上方 0.5 cm。</li>
+          <li>切口斜面朝外，讓雨水流走、避免積水腐爛。</li>
+          <li>剪枯枝、病枝、交叉摩擦的枝條 — 隨時可剪。</li>
+        </ul>
+        <h4>工具：</h4>
+        <ul>
+          <li>枝徑 < 1.5 cm：手剪（pruning shears）</li>
+          <li>1.5 - 4 cm：剪定鋸（lopper）</li>
+          <li>> 4 cm：手鋸（pruning saw）</li>
+          <li>用前後用酒精擦拭 — 避免在植物間傳播病害。</li>
+        </ul>
+        <div class="pitfall">⚠ <strong>絕對不要：</strong>剪成「圓球」或「方塊」般的造型（除非是綠籬）。違反植物自然形態，反而長得更亂。</div>
+        <div class="tip">💡 <strong>3D 法則：</strong>Dead, Damaged, Diseased — 死、傷、病的枝條優先剪。一次不要剪超過 25% 的活枝條。</div>`,
+      body_en: `
+        <h4>When to prune</h4>
+        <ul>
+          <li>Most flowering shrubs: prune right after bloom (won't affect next year's buds).</li>
+          <li>Deciduous trees: hard-prune during winter dormancy (Jan-Feb in Taiwan).</li>
+          <li>Evergreens and hedges: late spring or late autumn.</li>
+          <li>Never hard-prune before bloom — you'll cut off this year's flowers.</li>
+        </ul>
+        <h4>Where to cut</h4>
+        <ul>
+          <li>Find an outward-facing bud, cut at a slight angle 0.5 cm above it.</li>
+          <li>Angle the cut outward so rain drains away — no rot.</li>
+          <li>Dead, damaged, or crossing branches can be cut anytime.</li>
+        </ul>
+        <h4>Tools</h4>
+        <ul>
+          <li>Up to 1.5 cm: hand pruners (shears)</li>
+          <li>1.5 - 4 cm: loppers</li>
+          <li>Over 4 cm: pruning saw</li>
+          <li>Wipe blades with alcohol between plants — don't spread disease.</li>
+        </ul>
+        <div class="pitfall">⚠ <strong>Don't:</strong> shape into balls or cubes (unless it's a hedge). Fighting the natural form makes the plant grow back messier.</div>
+        <div class="tip">💡 <strong>The 3 D's:</strong> Dead, Damaged, Diseased — these come off first. Never remove more than 25% of live wood at one go.</div>`,
+      relevant: [
+        { arr: woodyShrubs, zh: "需要定期修剪的木本植物：", en: "Woody plants needing regular pruning:" },
+      ],
+    },
+
+    {
+      icon: "🌱", id: "fert",
+      title_zh: "施肥指南",                          title_en: "Fertilizing Guide",
+      sub_zh: "餵土，不是餵植物",                    sub_en: "Feed the soil, not the plant",
+      body_zh: `
+        <h4>NPK 三大營養：</h4>
+        <ul>
+          <li><strong>N（氮）</strong> — 葉片生長。葉色淡黃 = 缺氮。</li>
+          <li><strong>P（磷）</strong> — 開花結果與根系。花少 = 缺磷。</li>
+          <li><strong>K（鉀）</strong> — 整體強健與抗病。葉緣枯黃 = 缺鉀。</li>
+        </ul>
+        <h4>有機 vs 化學？</h4>
+        <ul>
+          <li>有機肥（堆肥、骨粉、雞糞）：緩慢釋放、餵土壤微生物、長期改善土質。建議首選。</li>
+          <li>化學肥（速效肥）：快速見效但易燒根、土壤越用越貧。緊急救援用。</li>
+          <li>緩釋肥（Osmocote 類）：3-6 月一次，盆栽好選擇。</li>
+        </ul>
+        <h4>什麼時候施？</h4>
+        <ul>
+          <li>春季（3 月）— 配合萌芽期主肥。</li>
+          <li>初夏（5-6 月）— 開花前補磷鉀。</li>
+          <li>秋季（9 月）— 為冬眠儲備。</li>
+          <li>冬季（12-1 月）— 大多數植物休眠，不施肥。</li>
+        </ul>
+        <div class="pitfall">⚠ <strong>「肥傷」：</strong>葉緣捲曲變褐 = 施肥過量。立刻大量澆水沖洗，下次減半。</div>
+        <div class="tip">💡 <strong>盆栽特別注意：</strong>3 年後土壤鹽分累積，需換土。或每年大水沖洗 1-2 次（從盆面慢慢灌水至流出 3 倍體積）。</div>`,
+      body_en: `
+        <h4>The big three: NPK</h4>
+        <ul>
+          <li><strong>N (nitrogen)</strong> — leaf growth. Pale yellow leaves = nitrogen deficiency.</li>
+          <li><strong>P (phosphorus)</strong> — flowers, fruit, roots. Few flowers = phosphorus deficiency.</li>
+          <li><strong>K (potassium)</strong> — overall vigor, disease resistance. Brown leaf edges = potassium deficiency.</li>
+        </ul>
+        <h4>Organic vs chemical?</h4>
+        <ul>
+          <li>Organic (compost, bone meal, chicken manure): slow release, feeds soil microbes, improves soil long-term. First choice.</li>
+          <li>Chemical (fast-acting): instant results but can burn roots and depletes soil. Use only for emergencies.</li>
+          <li>Slow-release pellets (Osmocote-style): once every 3-6 months. Great for containers.</li>
+        </ul>
+        <h4>When to feed</h4>
+        <ul>
+          <li>Spring (March) — main feed at bud break.</li>
+          <li>Early summer (May-June) — top up P and K before bloom.</li>
+          <li>Autumn (September) — build reserves before dormancy.</li>
+          <li>Winter (Dec-Jan) — most plants dormant, no feeding.</li>
+        </ul>
+        <div class="pitfall">⚠ <strong>Fertilizer burn:</strong> curled, brown leaf edges = over-fed. Flush with lots of water immediately; halve the dose next time.</div>
+        <div class="tip">💡 <strong>Containers especially:</strong> after 3 years salt builds up. Replace soil — or once a year flush with 3× the pot's volume of plain water until it runs clear from the bottom.</div>`,
+      relevant: [
+        { arr: containerOk, zh: "盆栽容易缺肥的植物：", en: "Container plants that benefit from regular feeding:" },
+      ],
+    },
+
+    {
+      icon: "🐛", id: "pest",
+      title_zh: "病蟲害辨識",                        title_en: "Pest & Disease ID",
+      sub_zh: "台灣最常見的 7 大威脅",                sub_en: "The 7 most common Taiwan threats",
+      body_zh: `
+        <h4>常見蟲害：</h4>
+        <ul>
+          <li><strong>蚜蟲</strong>（春季 + 新芽）— 綠色小蟲群聚嫩芽，葉片捲縮油亮。<br>對策：強水柱沖洗 → 若嚴重，噴稀釋的辣椒蒜頭水或苦楝油。</li>
+          <li><strong>介殼蟲</strong>（柑橘類、室內植物）— 白色或棕色硬殼附著葉背枝條。<br>對策：棉花棒沾酒精擦拭；嚴重時可剪除受害枝。</li>
+          <li><strong>紅蜘蛛</strong>（高溫乾燥）— 葉背有極小紅點，葉色變灰。<br>對策：提高濕度（噴霧）；嚴重時用苦楝油。</li>
+          <li><strong>蝸牛與蛞蝓</strong>（梅雨季）— 葉片有不規則孔洞、銀色黏液。<br>對策：傍晚出沒，手抓最有效；圍咖啡渣或蛋殼形成屏障。</li>
+        </ul>
+        <h4>常見病害：</h4>
+        <ul>
+          <li><strong>白粉病</strong>（高濕度 + 通風差）— 葉面白色粉狀。<br>對策：剪除病葉、改善通風；噴牛奶水（1:10）有效。</li>
+          <li><strong>黑斑病</strong>（玫瑰常見）— 葉片圓形黑斑，逐漸黃化掉葉。<br>對策：每週用碳酸氫鈉水（1 茶匙/1 L）噴灑；秋季落葉徹底清除。</li>
+          <li><strong>根腐病</strong>（澆水過多 + 排水差）— 葉片萎凋、根部變黑發臭。<br>對策：立刻翻土通風；嚴重時換盆、剪除腐根、改善排水。</li>
+        </ul>
+        <div class="tip">💡 <strong>有機防治三劍客：</strong>苦楝油（廣效）、辣椒蒜頭水（驅蟲）、稀釋牛奶（白粉病）。比化學農藥安全，效果不差。</div>
+        <div class="pitfall">⚠ <strong>不要用「萬靈丹」：</strong>看到任何蟲就噴廣效殺蟲劑，會殺死蜜蜂、瓢蟲等益蟲。先鑑定，再對症下藥。</div>`,
+      body_en: `
+        <h4>Common pests</h4>
+        <ul>
+          <li><strong>Aphids</strong> (spring on new shoots) — clusters of green bugs; leaves curl, look oily.<br>Fix: blast with water; for heavy infestation, spray diluted chili-garlic water or neem oil.</li>
+          <li><strong>Scale insects</strong> (citrus, indoor plants) — white or brown hard shells on stems and leaf backs.<br>Fix: wipe with alcohol-soaked cotton swab; prune severely affected stems.</li>
+          <li><strong>Red spider mites</strong> (hot + dry) — tiny red dots on leaf backs, foliage looks dusty grey.<br>Fix: raise humidity (misting); for severe cases use neem oil.</li>
+          <li><strong>Snails & slugs</strong> (plum-rain season) — irregular holes in leaves, silver slime trails.<br>Fix: most active at dusk — hand-pick. Ring with coffee grounds or eggshells as a barrier.</li>
+        </ul>
+        <h4>Common diseases</h4>
+        <ul>
+          <li><strong>Powdery mildew</strong> (high humidity + poor airflow) — white powdery coating on leaves.<br>Fix: prune affected leaves, improve airflow; milky water (1:10) sprayed weekly works well.</li>
+          <li><strong>Black spot</strong> (esp. roses) — round black blotches on leaves, yellowing, defoliation.<br>Fix: weekly baking-soda spray (1 tsp / L); collect autumn leaves to break the cycle.</li>
+          <li><strong>Root rot</strong> (overwatering + bad drainage) — wilting despite wet soil, roots blackened and smelly.<br>Fix: aerate immediately; in severe cases repot, trim rotten roots, improve drainage.</li>
+        </ul>
+        <div class="tip">💡 <strong>Organic 3 musketeers:</strong> neem oil (broad-spectrum), chili-garlic water (insect repel), diluted milk (mildew). Safer than chemicals, nearly as effective.</div>
+        <div class="pitfall">⚠ <strong>Don't reach for broad-spectrum insecticides at any sign of bugs.</strong> They kill bees, ladybugs, and other allies. Identify first, then target.</div>`,
+      relevant: [],
+    },
+
+    {
+      icon: "🌿", id: "propagate",
+      title_zh: "繁殖技術",                          title_en: "Propagation Techniques",
+      sub_zh: "一株變十株，植物還會更健康",          sub_en: "Turn one plant into ten — and they get healthier",
+      body_zh: `
+        <h4>1. 扦插（最簡單）</h4>
+        <ul>
+          <li>時機：春末或初秋。</li>
+          <li>剪 10-15 cm 嫩枝，最下方節點下方剪斜口。</li>
+          <li>去除底部葉片，留頂端 2-3 對葉。</li>
+          <li>沾發根粉（非必需），插入濕潤的椰殼纖維或珍珠岩。</li>
+          <li>蓋透明袋保濕，放在散射光下。</li>
+          <li>2-6 週發根。輕拉枝條有阻力 = 已發根。</li>
+        </ul>
+        <h4>2. 分株（最快）</h4>
+        <ul>
+          <li>適用：叢生型植物（百合、麥門冬、月桃、紫鴨跖草）。</li>
+          <li>春季或秋季，挖出母株。</li>
+          <li>用銳利刀具切分，每塊至少 2-3 個健康芽眼。</li>
+          <li>傷口塗草木灰殺菌，立刻種回土壤。</li>
+          <li>第一週遮陰 + 充足澆水。</li>
+        </ul>
+        <h4>3. 播種（最便宜）</h4>
+        <ul>
+          <li>新鮮種子發芽率最高。買來的種子查包裝日期。</li>
+          <li>播種深度 = 種子直徑的 2-3 倍。太深不發芽。</li>
+          <li>保持土壤微濕（不可乾透也不可積水）。</li>
+          <li>發芽前蓋透明蓋；發芽後立刻去蓋避免徒長。</li>
+        </ul>
+        <h4>4. 壓條（最穩當）</h4>
+        <ul>
+          <li>適用：藤本與木本（茉莉、鵝掌藤、九重葛）。</li>
+          <li>選一根低處的彈性枝條。</li>
+          <li>在地面用 U 形鐵絲固定枝條中段，覆土。</li>
+          <li>2-3 個月後該段長根，剪下移植。</li>
+        </ul>
+        <div class="tip">💡 <strong>自製發根水：</strong>用柳枝（任何柳屬植物）泡水 24 小時，含天然生根激素。比商業發根粉便宜。</div>`,
+      body_en: `
+        <h4>1. Cuttings (easiest)</h4>
+        <ul>
+          <li>Timing: late spring or early autumn.</li>
+          <li>Cut a 10-15 cm soft shoot, angled cut just below the lowest node.</li>
+          <li>Strip lower leaves; keep 2-3 pairs at the top.</li>
+          <li>Dip in rooting hormone (optional), push into moist coir or perlite.</li>
+          <li>Cover with a clear plastic bag for humidity; place in diffused light.</li>
+          <li>Roots in 2-6 weeks. Gentle tug feels resistance = rooted.</li>
+        </ul>
+        <h4>2. Division (fastest)</h4>
+        <ul>
+          <li>For clumping plants (lilies, liriope, alpinia, tradescantia).</li>
+          <li>Spring or autumn, lift the mother plant.</li>
+          <li>Cut into pieces with a sharp knife; each piece needs 2-3 healthy growth points.</li>
+          <li>Dust cuts with wood ash to sterilize, replant immediately.</li>
+          <li>Shade and water generously for the first week.</li>
+        </ul>
+        <h4>3. Seed (cheapest)</h4>
+        <ul>
+          <li>Fresh seed has the highest germination. Check packet dates.</li>
+          <li>Sowing depth = 2-3× the seed's diameter. Too deep = no sprout.</li>
+          <li>Keep soil slightly moist (not dry, not soggy).</li>
+          <li>Cover with clear lid before germination; remove the moment sprouts appear (prevents leggy growth).</li>
+        </ul>
+        <h4>4. Layering (most reliable)</h4>
+        <ul>
+          <li>For vines and woody shrubs (jasmine, schefflera, bougainvillea).</li>
+          <li>Pick a flexible low branch.</li>
+          <li>Pin a section to the ground with a U-shaped wire, cover with soil.</li>
+          <li>That section roots in 2-3 months; sever and transplant.</li>
+        </ul>
+        <div class="tip">💡 <strong>DIY rooting water:</strong> Steep willow branches (any Salix) in water for 24 hours — contains natural rooting hormones. Cheaper than commercial powders.</div>`,
+      relevant: [],
+    },
+
+    {
+      icon: "🪴", id: "repot",
+      title_zh: "換盆",                              title_en: "Repotting",
+      sub_zh: "什麼時候、怎麼換、避免哪些錯誤",      sub_en: "When, how, and what to avoid",
+      body_zh: `
+        <h4>什麼時候要換盆？</h4>
+        <ul>
+          <li>盆底排水孔有根伸出 — 根系已盤繞。</li>
+          <li>澆水後水從盆面流走，無法滲入 — 土壤過度壓實。</li>
+          <li>植物生長明顯停滯 — 土壤養分耗盡。</li>
+          <li>葉片黃化、邊緣焦黑 — 鹽分累積或根擠壓。</li>
+          <li>一般原則：1-2 年換一次盆。</li>
+        </ul>
+        <h4>步驟（30 分鐘）：</h4>
+        <ol>
+          <li>新盆直徑大原盆 2-5 cm。盆底放陶粒或破瓦片 3-5 cm 加強排水。</li>
+          <li>新盆裝入新土至 1/3 處。</li>
+          <li>輕擠原盆四壁，倒扣取出植株。若卡住可用刀沿盆邊切割。</li>
+          <li>檢查根團：用手指鬆開盤繞的根，剪除黑色腐根或太細的鬚根。</li>
+          <li>放入新盆中央，根球頂端應略低於盆口 2 cm。</li>
+          <li>填新土，邊填邊輕拍實。</li>
+          <li>澆透水，放在陰涼處 7-10 天緩苗。</li>
+        </ol>
+        <div class="tip">💡 <strong>選盆秘訣：</strong>陶盆透氣但水分蒸發快；塑膠盆保水但易積水；上釉陶盆是折衷。盆底必須有排水孔，沒有就用電鑽鑽。</div>
+        <div class="pitfall">⚠ <strong>不要立刻施肥：</strong>換盆後 4-6 週內不施肥 — 根部正在受傷修復，肥料會加重壓力。</div>`,
+      body_en: `
+        <h4>When to repot</h4>
+        <ul>
+          <li>Roots emerging from drainage holes — pot-bound.</li>
+          <li>Water runs off the surface without soaking in — soil compacted.</li>
+          <li>Growth has clearly slowed — soil nutrients exhausted.</li>
+          <li>Yellowing leaves with brown edges — salt buildup or root crowding.</li>
+          <li>Rule of thumb: every 1-2 years.</li>
+        </ul>
+        <h4>Steps (30 min)</h4>
+        <ol>
+          <li>New pot diameter 2-5 cm larger than the old. Add 3-5 cm of expanded clay or broken shards at the bottom for drainage.</li>
+          <li>Fill new pot 1/3 with fresh soil mix.</li>
+          <li>Squeeze the old pot sides, invert to release the plant. Stuck? Run a knife around the edge.</li>
+          <li>Inspect roots: loosen circling roots with fingers; trim black rotten or extra-thin hair roots.</li>
+          <li>Center the plant in the new pot; the root crown should sit 2 cm below the rim.</li>
+          <li>Fill in soil around it, tamping gently.</li>
+          <li>Water thoroughly; place in shade for 7-10 days to settle.</li>
+        </ol>
+        <div class="tip">💡 <strong>Pot choice:</strong> terracotta breathes but loses water fast; plastic retains water but risks waterlogging; glazed ceramic strikes a balance. Drainage holes are non-negotiable — drill them if absent.</div>
+        <div class="pitfall">⚠ <strong>Don't fertilize right after repotting.</strong> Wait 4-6 weeks — the roots are recovering, fertilizer adds stress.</div>`,
+      relevant: [
+        { arr: containerOk, zh: "適合盆栽（每 1-2 年換盆）：", en: "Container-friendly (repot every 1-2 years):" },
+      ],
+    },
+
+    {
+      icon: "❄", id: "winter",
+      title_zh: "冬季保護",                          title_en: "Winter Protection",
+      sub_zh: "台灣冬天看似溫和，但寒流可致命",      sub_en: "Taiwan winters look mild, but cold snaps can be fatal",
+      body_zh: `
+        <h4>寒流前 24-48 小時：</h4>
+        <ol>
+          <li><strong>移入：</strong>可搬動的盆栽全部移入屋內、車庫或屋簷下。</li>
+          <li><strong>包覆：</strong>地植不耐寒植物用不織布、舊棉被、農用保溫膜包覆主幹與枝條。可形成 2-5°C 的保溫效果。</li>
+          <li><strong>加厚覆蓋：</strong>根部覆蓋層加到 7-10 cm（樹皮、稻草、椰殼），保溫保濕。</li>
+          <li><strong>停澆水：</strong>寒流前 24 小時不澆水（土壤含水會凍結傷根）。</li>
+          <li><strong>停施肥：</strong>2 個月內不施肥（刺激新芽容易受寒害）。</li>
+        </ol>
+        <h4>寒流期間：</h4>
+        <ul>
+          <li>清晨若有結霜，<strong>用冷水（不是熱水）</strong>輕灑葉面 — 利用結冰的潛熱保護葉片。</li>
+          <li>若植物已受寒害（葉片變黑或半透明），不要立刻剪除 — 等春暖後再判斷。</li>
+        </ul>
+        <h4>哪些植物最怕寒？</h4>
+        <ul>
+          <li>熱帶系：雞蛋花、九重葛、芒果、楊桃</li>
+          <li>多肉類：很多品種低於 5°C 即受害</li>
+          <li>蘭花類：需移入溫暖室內</li>
+          <li>耐寒植物：山櫻花、流蘇、楓香 — 寒冬反而促花</li>
+        </ul>
+        <div class="tip">💡 <strong>判斷耐寒度：</strong>每株植物的「耐寒下限」可在植物字典裡查。 ≥ 5°C 為熱帶系，必須保護；≤ 0°C 為耐寒系，不用管。</div>`,
+      body_en: `
+        <h4>24-48 hours before a cold snap</h4>
+        <ol>
+          <li><strong>Bring inside:</strong> move all portable containers indoors, into a garage, or under eaves.</li>
+          <li><strong>Wrap:</strong> cover cold-sensitive in-ground plants with nonwoven fabric, old blankets, or ag-grade insulation film around trunk and branches. Creates a 2-5°C buffer.</li>
+          <li><strong>Thicker mulch:</strong> 7-10 cm of mulch (bark, straw, coir) over roots to insulate and retain moisture.</li>
+          <li><strong>Stop watering:</strong> no water for 24 h before — wet soil can freeze and damage roots.</li>
+          <li><strong>Stop feeding:</strong> no fertilizer for 2 months — forced new growth is the most cold-vulnerable.</li>
+        </ol>
+        <h4>During the cold snap</h4>
+        <ul>
+          <li>If morning frost appears, <strong>mist leaves with cold water (NOT hot)</strong> — the latent heat of freezing actually protects the leaves.</li>
+          <li>If a plant looks frost-burned (leaves black or translucent), don't prune immediately — wait until spring warmth to judge the damage.</li>
+        </ul>
+        <h4>Which plants suffer most?</h4>
+        <ul>
+          <li>Tropicals: plumeria, bougainvillea, mango, star fruit</li>
+          <li>Many succulents fail below 5°C</li>
+          <li>Most orchids must come indoors</li>
+          <li>Cold-tolerant: Taiwan cherry, fringe tree, sweetgum — cold winters actually promote bloom</li>
+        </ul>
+        <div class="tip">💡 <strong>Check cold tolerance:</strong> Each plant's "hardy_c" value is in the Plant Dictionary. ≥ 5°C means tropical — must protect; ≤ 0°C means hardy — ignore.</div>`,
+      relevant: [
+        { arr: tender, zh: "寒流時最需要保護的植物：", en: "Plants most needing winter protection:" },
+      ],
+    },
+
+    {
+      icon: "🌡", id: "microclimate",
+      title_zh: "微氣候觀察",                        title_en: "Microclimate Mapping",
+      sub_zh: "同一個空間，每個角落都不一樣",        sub_en: "Same space, every corner is different",
+      body_zh: `
+        <h4>為什麼重要？</h4>
+        <p>同一個 5 m² 陽台，南牆邊可能比北角溫暖 5-10°C、乾燥 30%；同一個庭院，大樹下與草坪上的微氣候截然不同。瞭解你的微氣候 = 把對的植物種在對的位置。</p>
+        <h4>陽光地圖（最重要）</h4>
+        <ol>
+          <li>選一個晴朗的日子，每 2 小時拍一張同樣角度的照片（從 7:00 到 17:00）。</li>
+          <li>標記每個區域有多少小時直射陽光。</li>
+          <li>全日照：≥ 6 小時直射；半日照：3-5 小時；遮陰：< 3 小時或散射光。</li>
+        </ol>
+        <h4>風的觀察</h4>
+        <ul>
+          <li>頂樓和開放陽台：常有強風，需要耐風植物（海桐、福木、五節芒）。</li>
+          <li>建物角落會形成「風漩渦」，雙倍蒸發。</li>
+          <li>掛一條輕緞帶觀察 1 週，了解主風向。</li>
+        </ul>
+        <h4>水的觀察</h4>
+        <ul>
+          <li>屋簷邊：雨水排不到，永遠乾燥。種耐旱植物。</li>
+          <li>窗台下方：滴水區，永遠潮濕。種喜濕植物。</li>
+          <li>下雨後 2 天再看 — 哪裡還有水痕？那是排水不良點。</li>
+        </ul>
+        <h4>熱的觀察</h4>
+        <ul>
+          <li>南牆/西牆邊：白天蓄熱，夜溫高 — 適合熱帶植物。</li>
+          <li>北角：常溫低 2-3°C — 春天較晚發芽，但夏日涼爽。</li>
+          <li>水泥地反射熱 — 比草地高 5-8°C。</li>
+        </ul>
+        <div class="tip">💡 <strong>畫一張地圖：</strong>A4 紙繪出空間，用顏色標記光線（黃色 = 強光、橘 = 中、藍 = 陰）、風（箭頭）、水（藍點）、熱（紅）。這張地圖比任何「全日照」標籤都精準。</div>`,
+      body_en: `
+        <h4>Why it matters</h4>
+        <p>The same 5 m² balcony can be 5-10°C warmer and 30% drier at the south wall than at the north corner. The same yard has wildly different microclimates under a tree vs over the lawn. Mapping your microclimate = right plant, right spot.</p>
+        <h4>Sun mapping (most important)</h4>
+        <ol>
+          <li>Pick a clear day. Photograph from the same angle every 2 hours, 7am to 5pm.</li>
+          <li>Mark how many hours of direct sun each zone receives.</li>
+          <li>Full sun: ≥ 6 hours direct. Part sun: 3-5 hours. Shade: < 3 hours or diffused.</li>
+        </ol>
+        <h4>Wind</h4>
+        <ul>
+          <li>Rooftops and open balconies often face strong wind — pick wind-tolerant species (海桐, 福木, 五節芒).</li>
+          <li>Building corners create "wind vortices" — evaporation doubles.</li>
+          <li>Tie a light ribbon and observe for a week to learn the prevailing direction.</li>
+        </ul>
+        <h4>Water</h4>
+        <ul>
+          <li>Under eaves: rain never reaches — permanently dry. Plant drought-lovers.</li>
+          <li>Under a windowsill: drip zone — permanently moist. Plant moisture-lovers.</li>
+          <li>Look 2 days after rain — where are wet spots? That's poor drainage.</li>
+        </ul>
+        <h4>Heat</h4>
+        <ul>
+          <li>South / west wall: stores daytime heat, warmer at night — suits tropicals.</li>
+          <li>North corner: 2-3°C cooler — slower spring bud break, but cooler summer.</li>
+          <li>Concrete reflects heat — 5-8°C hotter than grass.</li>
+        </ul>
+        <div class="tip">💡 <strong>Draw a map:</strong> Sketch your space on A4 paper. Color the light (yellow = bright, orange = medium, blue = shade), wind (arrows), water (blue dots), heat (red). This map beats any "full sun" label.</div>`,
+      relevant: [],
+    },
+  ];
+
+  return `
+    <h2 class="subtitle" data-zh="🎓 養護教學 · Maintenance Tutorials" data-en="🎓 Maintenance Tutorials">🎓 養護教學 · Maintenance Tutorials</h2>
+    <p class="lead-small"
+       data-zh="8 個園藝基本功，每個都連結到你景觀中的具體植物。第一次照顧植物的人讀完這 8 章，就能照顧出健康的花園。"
+       data-en="8 essential gardening skills, each linked to plants in your design. For first-time gardeners — read these 8 chapters and you can grow a healthy garden.">
+       8 個園藝基本功，每個都連結到你景觀中的具體植物。第一次照顧植物的人讀完這 8 章，就能照顧出健康的花園。</p>
+
+    <div class="tut-grid">
+      ${topics.map((tp) => `
+        <div class="tut-card" data-tut="${tp.id}">
+          <div class="tut-icon">${tp.icon}</div>
+          <div class="tut-title" data-zh="${tp.title_zh}" data-en="${tp.title_en}">${tp.title_zh}</div>
+          <div class="tut-sub" data-zh="${tp.sub_zh}" data-en="${tp.sub_en}">${tp.sub_zh}</div>
+          <div class="tut-summary" data-zh="點開閱讀詳細步驟 →" data-en="Tap to read the full guide →">點開閱讀詳細步驟 →</div>
+          <div class="tut-body" style="display:none;"
+               data-zh-html='${escapeAttr(tp.body_zh)}'
+               data-en-html='${escapeAttr(tp.body_en)}'></div>
+          <div class="tut-relevant" style="display:none;">
+            ${(tp.relevant || []).map(r => plantsRow(r.arr, r.zh, r.en)).join("")}
+          </div>
+        </div>`).join("")}
+    </div>`;
+}
+
+function escapeAttr(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function wireTutorials() {
+  document.querySelectorAll(".tut-card").forEach((card) => {
+    card.addEventListener("click", (e) => {
+      // Plant pill clicks open drawer — let them through
+      if (e.target.closest(".m-pill")) return;
+      const body = card.querySelector(".tut-body");
+      const relevant = card.querySelector(".tut-relevant");
+      const summary = card.querySelector(".tut-summary");
+      const isOpen = card.classList.toggle("open");
+      if (isOpen) {
+        body.style.display = "block";
+        body.innerHTML = body.getAttribute(`data-${state.lang}-html`);
+        relevant.style.display = "block";
+        summary.dataset.zh = "點此收起 ↑";
+        summary.dataset.en = "Tap to collapse ↑";
+      } else {
+        body.style.display = "none";
+        relevant.style.display = "none";
+        summary.dataset.zh = "點開閱讀詳細步驟 →";
+        summary.dataset.en = "Tap to read the full guide →";
+      }
+      summary.textContent = summary.dataset[state.lang];
+    });
+  });
+  // Plant chips open drawer
+  document.querySelectorAll(".tut-plants .m-pill[data-id]").forEach((el) =>
+    el.addEventListener("click", (e) => { e.stopPropagation(); openDrawer(el.dataset.id); }));
+}
+
 // ── TAB: BLOOM CALENDAR ─────────────────────────────────────
 function renderCalendar(recs) {
   const top = recs.slice(0, 8);
@@ -6742,6 +7499,10 @@ window.copyShareLink = async function(btn) {
 // ─────────────────────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────────────────────
+// Try restoring from URL hash (shared / bookmarked) or localStorage before first render.
+// If hash is present → go straight to the restored result page.
+// If only localStorage → stay on home but show a "welcome back" banner offering to resume.
+tryRestoreDashboard();
 updateLineShare();
 render();
 </script>
