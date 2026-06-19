@@ -658,6 +658,139 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* PHOTO-ASSIST — inline per-question helper inside wizard steps */
+  .qphoto-row {
+    margin-top: 22px;
+    text-align: center;
+  }
+  .qphoto-toggle {
+    background: transparent;
+    border: 1px dashed var(--sage);
+    color: var(--sage-deep);
+    font-family: var(--serif);
+    font-size: 13.5px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .qphoto-toggle:hover {
+    background: rgba(138,154,123,0.1);
+    border-style: solid;
+    color: var(--forest);
+  }
+  .qphoto-panel {
+    margin: 16px auto 0;
+    max-width: 520px;
+    padding: 16px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    text-align: left;
+  }
+  .qphoto-panel .qphoto-head {
+    font-family: var(--serif);
+    font-size: 14px;
+    color: var(--forest);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  .qphoto-panel .qphoto-sub {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.55;
+    margin-bottom: 12px;
+  }
+  .qphoto-dz {
+    display: block;
+    border: 1.5px dashed var(--line);
+    border-radius: 12px;
+    padding: 18px 14px;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(255,255,255,0.4);
+    transition: all .2s;
+  }
+  .qphoto-dz:hover { border-color: var(--sage); background: rgba(255,255,255,0.7); }
+  .qphoto-dz .ic { font-size: 28px; line-height: 1; margin-bottom: 6px; }
+  .qphoto-dz .lb { font-size: 13.5px; color: var(--forest); font-family: var(--serif); }
+  .qphoto-dz .sb { font-size: 11.5px; color: var(--ink-soft); margin-top: 4px; }
+  .qphoto-have {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .qphoto-have img {
+    width: 64px; height: 64px; object-fit: cover;
+    border-radius: 8px; flex-shrink: 0;
+    box-shadow: 0 4px 10px -4px rgba(44,53,38,0.3);
+  }
+  .qphoto-have .info { flex: 1; min-width: 0; }
+  .qphoto-have .info .ttl {
+    font-family: var(--serif); font-size: 13px; color: var(--forest); font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .qphoto-have .info .sub { font-size: 11.5px; color: var(--ink-soft); }
+  .qphoto-have .acts { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+  .qphoto-have .acts button {
+    background: transparent; border: none; color: var(--sage-deep);
+    font-size: 11.5px; cursor: pointer; padding: 2px 6px;
+    font-family: var(--sans);
+  }
+  .qphoto-have .acts button:hover { color: var(--forest); text-decoration: underline; }
+  .qphoto-status {
+    margin-top: 10px; font-size: 12.5px;
+    font-family: var(--serif); font-style: italic; color: var(--ink-soft);
+    min-height: 18px;
+  }
+  .qphoto-status.err { color: #B23A30; font-style: normal; }
+  .qphoto-status.ok { color: var(--sage-deep); font-style: normal; font-weight: 600; }
+  .qphoto-analyze-btn {
+    margin-top: 10px;
+    background: var(--forest); color: var(--paper);
+    border: 1px solid var(--forest);
+    padding: 8px 18px; border-radius: 999px;
+    font-size: 13px; cursor: pointer; font-family: var(--sans);
+    transition: all .2s;
+  }
+  .qphoto-analyze-btn:hover { background: var(--forest-soft); }
+  .qphoto-analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* AI suggestion banner above option cards */
+  .ai-suggest-banner {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin: 0 auto 16px;
+    padding: 7px 14px;
+    background: linear-gradient(135deg, rgba(110,126,96,0.15), rgba(196,160,76,0.12));
+    border: 1px solid var(--sage);
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--forest);
+    font-family: var(--serif);
+  }
+  .ai-suggest-banner .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--sage-deep);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.45; } }
+  .ai-suggest-row { text-align: center; }
+  /* Highlight the suggested card */
+  .card-opt.ai-suggested {
+    border-color: var(--sage-deep);
+    box-shadow: 0 0 0 2px rgba(110,126,96,0.25), 0 14px 28px -16px rgba(44,53,38,0.3);
+    position: relative;
+  }
+  .card-opt.ai-suggested::after {
+    content: "AI";
+    position: absolute; top: -8px; right: -6px;
+    background: var(--sage-deep); color: var(--paper);
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em;
+    padding: 2px 7px; border-radius: 999px;
+    font-family: var(--sans);
+  }
+
   /* HOMEPAGE — the friendly landing before the wizard */
   .home-hero {
     text-align: center;
@@ -3781,6 +3914,15 @@ const state = {
   dictEdibleOnly: false, // used by "可食植物" quick tool
   dictCoastalOnly: false,// used by "耐鹽風" quick tool
   dictThisMonth: false,  // used by "本月可種" — show plants blooming/fruiting this month
+  // ── Wizard photo-assist (per-question photo helper) ──
+  // One photo is reused across all wizard steps. Each step asks a different
+  // focused question of Pollinations.ai vision. Suggestions are highlighted
+  // above the option cards — user can click to accept or pick differently.
+  wizardPhotoDataUrl: null,   // shared across all wizard steps
+  wizardPhotoOpen: {},        // { space: bool, details: bool, sun: bool } — is the inline upload panel open?
+  wizardPhotoBusy: {},        // { space: bool, details: bool, sun: bool } — request in-flight?
+  wizardPhotoError: {},       // { space: "msg", ... } — last error per step, "" if none
+  wizardPhotoSuggest: {},     // { space: "balcony", sun: "part", details: {width,depth,orientation,coastal} }
   lang: "zh",
 };
 
@@ -4661,14 +4803,17 @@ function applyQuickFilter(kind) {
 }
 
 function renderSpace() {
+  const suggested = state.wizardPhotoSuggest?.space;
   app.innerHTML = `
     <div class="fade-up">
       <div class="kicker" data-zh="第 1 題（共 5 題）" data-en="Question 1 of 5">第 1 題（共 5 題）</div>
       <h1 class="title" data-zh="你想種在哪裡？" data-en="Where will you plant?">你想種在哪裡？</h1>
       <p class="lead" data-zh="先從這個簡單的問題開始 — 你的種植空間是哪一種？" data-en="Let's start with the easy question — what kind of space is yours?">先從這個簡單的問題開始 — 你的種植空間是哪一種？</p>
+      ${suggestBanner("space", suggested)}
       <div class="grid cols-2">
-        ${SPACE_OPTIONS.map(o => optCard(o, state.space === o.key)).join("")}
+        ${SPACE_OPTIONS.map(o => optCardWithSuggest(o, state.space === o.key, suggested === o.key)).join("")}
       </div>
+      ${qPhotoHTML("space")}
       <div style="margin-top: 28px; text-align: center;">
         <button class="est-toggle" id="browseAllBtn" type="button" style="font-size: 13.5px;">
           📖 <span data-zh="或：先瀏覽全部 ${PLANTS.length} 種植物 →" data-en="Or: browse all ${PLANTS.length} plants first →">或：先瀏覽全部 ${PLANTS.length} 種植物 →</span>
@@ -4676,6 +4821,7 @@ function renderSpace() {
       </div>
     </div>`;
   wireOptCards("space");
+  wireQPhoto("space");
   document.getElementById("browseAllBtn")?.addEventListener("click", () => {
     // Jump to result page in "dict" tab so the user can browse without completing the wizard.
     // Pre-fill defaults so scorePlants doesn't crash, and switch directly to the dictionary view.
@@ -5413,16 +5559,20 @@ function escapeHtml(s) {
 }
 
 function renderSun() {
+  const suggested = state.wizardPhotoSuggest?.sun;
   app.innerHTML = `
     <div class="fade-up">
       <div class="kicker" data-zh="第 3 題（共 5 題）" data-en="Question 3 of 5">第 3 題（共 5 題）</div>
       <h1 class="title" data-zh="陽光夠嗎？" data-en="How sunny is it?">陽光夠嗎？</h1>
       <p class="lead" data-zh="走到你的空間，看看陽光直射的時間 — 大概就好。" data-en="Stand in your space and check how much direct sun it gets — rough estimate is fine.">走到你的空間，看看陽光直射的時間 — 大概就好。</p>
+      ${suggestBanner("sun", suggested)}
       <div class="grid cols-3">
-        ${SUN_OPTIONS.map(o => optCard(o, state.sun === o.key, sunIcon(o.key, state.sun === o.key))).join("")}
+        ${SUN_OPTIONS.map(o => optCardWithSuggest(o, state.sun === o.key, suggested === o.key, sunIcon(o.key, state.sun === o.key))).join("")}
       </div>
+      ${qPhotoHTML("sun")}
     </div>`;
   wireOptCards("sun");
+  wireQPhoto("sun");
 }
 
 function renderWater() {
@@ -5461,6 +5611,253 @@ function optCard(opt, active, iconHtml, checkable) {
       </div>
       <span class="card-opt-sub" data-zh="${opt.sub_zh}" data-en="${opt.sub_en}">${opt.sub_zh}</span>
     </button>`;
+}
+
+// Variant that adds the "AI suggested" ribbon when the AI picked this card.
+function optCardWithSuggest(opt, active, isSuggested, iconHtml, checkable) {
+  const cls = `card-opt ${active ? "active" : ""} ${isSuggested && !active ? "ai-suggested" : ""}`;
+  return `
+    <button class="${cls}" data-key="${opt.key}">
+      ${iconHtml ? `<div class="card-opt-icon">${iconHtml}</div>` : ""}
+      <div class="card-opt-row">
+        <span class="card-opt-label" data-zh="${opt.zh}" data-en="${opt.en}">${opt.zh}</span>
+        ${checkable ? `<span class="check-dot">${active ? "✓" : ""}</span>` : ""}
+      </div>
+      <span class="card-opt-sub" data-zh="${opt.sub_zh}" data-en="${opt.sub_en}">${opt.sub_zh}</span>
+    </button>`;
+}
+
+// ── Wizard photo-assist ─────────────────────────────────────
+// A small, focused photo upload inline on each wizard step. ONE photo is
+// reused across all steps (state.wizardPhotoDataUrl). A single Pollinations
+// call returns a JSON with everything (space / sun / dimensions / orientation
+// / coastal) and each step shows only its relevant field as a suggestion.
+//
+// Why ONE call instead of one per step: the defender agent flagged 4 sequential
+// 15-30s API calls = 2 minutes of spinners. We pay the API cost once.
+
+// Human-friendly cardinal label for the AI suggestion banner.
+function aiSuggestLabel(stepKey, val) {
+  if (val == null) return "";
+  if (stepKey === "space") return spaceZh(val);
+  if (stepKey === "sun")   return ({ full:"全日照", part:"半日照", shade:"遮陰" })[val] || val;
+  return String(val);
+}
+function aiSuggestLabelEn(stepKey, val) {
+  if (val == null) return "";
+  if (stepKey === "space") return spaceEn(val);
+  if (stepKey === "sun")   return ({ full:"Full sun", part:"Part sun", shade:"Shade" })[val] || val;
+  return String(val);
+}
+
+// Inline AI suggestion banner above option cards.
+function suggestBanner(stepKey, suggested) {
+  if (!suggested) return "";
+  const zh = aiSuggestLabel(stepKey, suggested);
+  const en = aiSuggestLabelEn(stepKey, suggested);
+  return `
+    <div class="ai-suggest-row">
+      <div class="ai-suggest-banner">
+        <span class="dot"></span>
+        <span data-zh="AI 看照片建議：${zh}" data-en="AI suggests from your photo: ${en}">AI 看照片建議：${zh}</span>
+      </div>
+    </div>`;
+}
+
+// Inline photo upload panel — small footprint, only opens when user taps the toggle.
+function qPhotoHTML(stepKey) {
+  const has = !!state.wizardPhotoDataUrl;
+  const open = !!state.wizardPhotoOpen[stepKey];
+  const busy = !!state.wizardPhotoBusy[stepKey];
+  const err  = state.wizardPhotoError[stepKey] || "";
+
+  // If already analyzed and the toggle isn't open, just show the tiny re-open link.
+  if (state.wizardPhotoSuggest && state.wizardPhotoSuggest[stepKey] != null && !open) {
+    return `
+      <div class="qphoto-row">
+        <button class="qphoto-toggle" type="button" data-qphoto-toggle="${stepKey}">
+          🔄 <span data-zh="換照片或重新分析" data-en="Use a different photo">換照片或重新分析</span>
+        </button>
+      </div>`;
+  }
+
+  if (!open) {
+    return `
+      <div class="qphoto-row">
+        <button class="qphoto-toggle" type="button" data-qphoto-toggle="${stepKey}">
+          📸 <span data-zh="不確定？拍照讓 AI 幫你選" data-en="Not sure? Snap a photo and let AI suggest">不確定？拍照讓 AI 幫你選</span>
+        </button>
+      </div>`;
+  }
+
+  // Open panel: either upload zone or preview + analyze button
+  const inner = has ? `
+    <div class="qphoto-have">
+      <img src="${state.wizardPhotoDataUrl}" alt="${t('你上傳的照片','Your photo')}" />
+      <div class="info">
+        <div class="ttl" data-zh="這張照片會用在所有問題" data-en="This photo helps with every question">這張照片會用在所有問題</div>
+        <div class="sub" data-zh="AI 已記住，下一題不用再傳" data-en="AI remembers it — no re-upload needed">AI 已記住，下一題不用再傳</div>
+      </div>
+      <div class="acts">
+        <button type="button" data-qphoto-swap><span data-zh="🔄 換一張" data-en="🔄 Swap">🔄 換一張</span></button>
+        <button type="button" data-qphoto-close><span data-zh="✕ 收起" data-en="✕ Close">✕ 收起</span></button>
+      </div>
+    </div>
+    <button class="qphoto-analyze-btn" type="button" data-qphoto-analyze ${busy ? "disabled" : ""}>
+      ${busy
+        ? `<span class="photo-spinner"></span><span data-zh="AI 分析中…" data-en="AI thinking…">AI 分析中…</span>`
+        : `<span data-zh="✨ 用這張照片，給我建議" data-en="✨ Get an AI suggestion">✨ 用這張照片，給我建議</span>`}
+    </button>` : `
+    <label class="qphoto-dz" for="qphotoInput-${stepKey}">
+      <div class="ic">📸</div>
+      <div class="lb" data-zh="點此拍照或上傳" data-en="Tap to take or upload a photo">點此拍照或上傳</div>
+      <div class="sb" data-zh="一張照片會用在所有問題，不用每題重傳" data-en="One photo helps with every question — no re-upload">一張照片會用在所有問題，不用每題重傳</div>
+    </label>
+    <input id="qphotoInput-${stepKey}" type="file" accept="image/*" capture="environment" style="display:none;" data-qphoto-input="${stepKey}" />`;
+
+  return `
+    <div class="qphoto-row">
+      <button class="qphoto-toggle" type="button" data-qphoto-toggle="${stepKey}">
+        📸 <span data-zh="收起照片助手" data-en="Close photo helper">收起照片助手</span>
+      </button>
+      <div class="qphoto-panel">
+        <div class="qphoto-head" data-zh="📸 照片助手" data-en="📸 Photo helper">📸 照片助手</div>
+        <div class="qphoto-sub"
+             data-zh="拍一張你想種植空間的照片，AI 會為你判斷這題與後續問題的答案。"
+             data-en="Snap a photo of your space — AI will suggest answers to this question and the next ones.">
+             拍一張你想種植空間的照片，AI 會為你判斷這題與後續問題的答案。
+        </div>
+        ${inner}
+        <div class="qphoto-status ${err ? "err" : ""}" data-qphoto-status="${stepKey}">${err || ""}</div>
+      </div>
+    </div>`;
+}
+
+function wireQPhoto(stepKey) {
+  // Toggle
+  document.querySelectorAll(`[data-qphoto-toggle="${stepKey}"]`).forEach(el => {
+    el.addEventListener("click", () => {
+      state.wizardPhotoOpen[stepKey] = !state.wizardPhotoOpen[stepKey];
+      rerenderCurrentStep();
+    });
+  });
+  // File input
+  const fi = document.querySelector(`[data-qphoto-input="${stepKey}"]`);
+  if (fi) fi.addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    if (f) handleWizardPhotoFile(f, stepKey);
+  });
+  // Swap → clear existing photo, re-open upload
+  document.querySelectorAll(`[data-qphoto-swap]`).forEach(el => {
+    el.addEventListener("click", () => {
+      state.wizardPhotoDataUrl = null;
+      state.wizardPhotoSuggest = {};
+      rerenderCurrentStep();
+    });
+  });
+  // Close panel
+  document.querySelectorAll(`[data-qphoto-close]`).forEach(el => {
+    el.addEventListener("click", () => {
+      state.wizardPhotoOpen[stepKey] = false;
+      rerenderCurrentStep();
+    });
+  });
+  // Analyze
+  document.querySelectorAll(`[data-qphoto-analyze]`).forEach(el => {
+    el.addEventListener("click", () => analyzeWizardPhoto(stepKey));
+  });
+}
+
+function rerenderCurrentStep() {
+  if (state.step === 0) renderSpace();
+  else if (state.step === 1) renderDetails();
+  else if (state.step === 2) renderSun();
+  applyLanguage();
+}
+
+function handleWizardPhotoFile(file, stepKey) {
+  if (!file.type.startsWith("image/")) {
+    state.wizardPhotoError[stepKey] = t("不支援的檔案格式 — 請選擇圖片", "Unsupported file — pick an image");
+    rerenderCurrentStep();
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 1024;
+      const scale = img.width > maxW ? maxW / img.width : 1;
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      state.wizardPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      state.wizardPhotoError[stepKey] = "";
+      rerenderCurrentStep();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// One Pollinations call → JSON with every field every wizard step might want.
+// Step-specific consumers read just their field from state.wizardPhotoSuggest.
+async function analyzeWizardPhoto(stepKey) {
+  if (!state.wizardPhotoDataUrl) return;
+  state.wizardPhotoBusy[stepKey] = true;
+  state.wizardPhotoError[stepKey] = "";
+  rerenderCurrentStep();
+
+  const systemPrompt = `You are a landscape design assistant analyzing a photo of a planting space in Taiwan. Output ONLY valid JSON, no markdown:
+{
+  "space": "balcony" | "rooftop" | "yard" | "indoor",
+  "sun": "full" | "part" | "shade",
+  "estimated_width_m": number,
+  "estimated_depth_m": number,
+  "orientation_guess": "N" | "E" | "S" | "W" | "unknown",
+  "coastal": true | false
+}`;
+
+  try {
+    const resp = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "openai",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: [
+            { type: "text", text: "Analyze this photo and respond with ONLY the JSON object." },
+            { type: "image_url", image_url: { url: state.wizardPhotoDataUrl } },
+          ]},
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!resp.ok) throw new Error("API " + resp.status);
+    const data = await resp.json();
+    const text = data?.choices?.[0]?.message?.content || "";
+    const jsonText = (text.match(/\{[\s\S]*\}/) || [text])[0];
+    const parsed = JSON.parse(jsonText);
+    state.wizardPhotoSuggest = {
+      space: parsed.space,
+      sun: parsed.sun,
+      details: {
+        widthM: parsed.estimated_width_m,
+        depthM: parsed.estimated_depth_m,
+        orientation: parsed.orientation_guess !== "unknown" ? parsed.orientation_guess : null,
+        coastal: !!parsed.coastal,
+      },
+    };
+    state.wizardPhotoBusy[stepKey] = false;
+    state.wizardPhotoOpen[stepKey] = false;   // collapse the panel — suggestion is now visible above the cards
+    rerenderCurrentStep();
+  } catch (err) {
+    state.wizardPhotoBusy[stepKey] = false;
+    state.wizardPhotoError[stepKey] = t("AI 暫時無法判斷，請手動選擇", "AI couldn't analyze — pick manually");
+    rerenderCurrentStep();
+  }
 }
 
 function sunIcon(key, active) {
