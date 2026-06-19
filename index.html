@@ -595,6 +595,71 @@
   }
   .welcome-back .actions button.primary { background: var(--forest); color: var(--paper); border-color: var(--forest); }
 
+  /* SHARED-LINK CONFLICT — when a #d= link arrives over an existing local design */
+  .share-conflict {
+    max-width: 880px; margin: 16px auto; padding: 16px 20px;
+    background: linear-gradient(135deg, rgba(196,160,76,0.18), rgba(110,126,96,0.10));
+    border: 1px solid var(--clay);
+    border-left: 4px solid var(--clay);
+    border-radius: 14px;
+    font-size: 13.5px; color: var(--forest);
+  }
+  .share-conflict .sc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .share-conflict .sc-head .icon { font-size: 22px; }
+  .share-conflict .sc-head strong { font-family: var(--serif); font-size: 15px; color: var(--forest); }
+  .share-conflict .sc-body { font-size: 12.5px; color: var(--ink-soft); line-height: 1.55; font-family: var(--serif); margin-bottom: 12px; }
+  .share-conflict .sc-compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    margin: 10px 0 12px; font-size: 11.5px;
+  }
+  @media (max-width: 520px) { .share-conflict .sc-compare { grid-template-columns: 1fr; } }
+  .share-conflict .sc-card {
+    background: rgba(255,255,255,0.55); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; line-height: 1.5;
+  }
+  .share-conflict .sc-card .label {
+    display: block; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--sage-deep); margin-bottom: 2px; font-weight: 600;
+  }
+  .share-conflict .sc-card .summary { color: var(--forest); font-weight: 500; }
+  .share-conflict .sc-card .meta { color: var(--ink-soft); font-size: 11px; font-style: italic; margin-top: 2px; }
+  .share-conflict .sc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .share-conflict .sc-actions button {
+    padding: 8px 14px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 600; cursor: pointer;
+    font-family: inherit; border: 1px solid var(--line);
+    background: rgba(255,255,255,0.7); color: var(--forest);
+    transition: background 0.15s, color 0.15s;
+  }
+  .share-conflict .sc-actions button:hover { background: rgba(255,255,255,0.95); }
+  .share-conflict .sc-actions button.primary { background: var(--forest); color: var(--paper); border-color: var(--forest); }
+  .share-conflict .sc-actions button.primary:hover { background: var(--sage-deep); }
+  .share-conflict .sc-actions button.warn { color: var(--clay); border-color: var(--clay); }
+
+  /* Viewing-shared notice — sits above the result page's hero when the user clicked
+     "View shared design" in the conflict banner. Keeps the local design safe and
+     gives one-tap paths to commit or go back. */
+  .viewing-shared-bar {
+    max-width: 880px; margin: 0 auto 14px; padding: 10px 14px;
+    background: rgba(110,126,96,0.10);
+    border: 1px dashed var(--sage-deep);
+    border-radius: 12px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 12.5px; color: var(--forest);
+  }
+  .viewing-shared-bar .vs-text { flex: 1; min-width: 220px; line-height: 1.5; font-family: var(--serif); }
+  .viewing-shared-bar .vs-text strong { color: var(--forest); }
+  .viewing-shared-bar .vs-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .viewing-shared-bar .vs-actions button {
+    padding: 5px 10px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600; cursor: pointer;
+    font-family: inherit; border: 1px solid var(--line);
+    background: rgba(255,255,255,0.7); color: var(--forest);
+  }
+  .viewing-shared-bar .vs-actions button.primary {
+    background: var(--forest); color: var(--paper); border-color: var(--forest);
+  }
+
   /* TUTORIALS tab */
   .tut-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
   @media (min-width: 720px) { .tut-grid { grid-template-columns: 1fr 1fr; } }
@@ -4245,14 +4310,54 @@ function pushHashFromState() {
 }
 
 // On result page reach, save to localStorage + bump URL hash so a bookmark works.
+// Guard: when the user is *viewing* a friend's shared design but hasn't committed to it,
+// we must NOT overwrite their saved local design. The conflict banner's "Save as my new
+// design" button is the explicit opt-in path that does write.
 function persistDashboard() {
-  saveToLocal();
+  if (!state.viewingShared) {
+    saveToLocal();
+  }
   pushHashFromState();
 }
 
-// On boot: check URL hash first (shared link wins), then localStorage.
+// Compare two snapshots on the fields that constitute a "design".
+// Returns true when the meaningful inputs differ — savedAt and qty drift alone don't count.
+function snapshotsDiffer(a, b) {
+  if (!a || !b) return !!(a || b);
+  const norm = (s) => JSON.stringify({
+    space: s.space || "",
+    sun: s.sun || "",
+    water: s.water || "",
+    goals: Array.isArray(s.goals) ? [...s.goals].sort() : [],
+    address: s.address || "",
+    widthM: s.widthM ?? null,
+    depthM: s.depthM ?? null,
+    orientation: s.orientation || "",
+    nativeOnly: !!s.nativeOnly,
+  });
+  return norm(a) !== norm(b);
+}
+
+// On boot: check URL hash first (shared link), then localStorage.
+//   • Hash only → apply, jump to result (sharer's first-time link or your own bookmark).
+//   • Local only → stay on home, show welcome-back banner.
+//   • Hash + identical local → apply hash silently (re-opening your own shared link).
+//   • Hash + DIFFERENT local → STOP. Don't clobber. Show a conflict UI so the user
+//     can choose: View shared / Keep mine / Save shared as a copy. This prevents
+//     silent data loss when a friend's link arrives on top of your existing design.
 function tryRestoreDashboard() {
   const fromHash = decodeHash(location.hash);
+  const fromLocal = loadFromLocal();
+
+  if (fromHash && fromLocal && snapshotsDiffer(fromHash, fromLocal)) {
+    // Conflict — don't touch storage, don't change view. Let the homepage banner ask.
+    state.pendingSharedSnapshot = fromHash;
+    state.pendingSnapshot = fromLocal;
+    state.shareConflict = true;
+    state.restoredFrom = "conflict";
+    return true;
+  }
+
   if (fromHash) {
     applySnapshot(fromHash);
     state.view = "wizard";
@@ -4262,7 +4367,6 @@ function tryRestoreDashboard() {
     initShoppingQty();
     return true;
   }
-  const fromLocal = loadFromLocal();
   if (fromLocal) {
     // Don't auto-jump to result on localStorage restore — show banner on home offering to resume.
     state.pendingSnapshot = fromLocal;
@@ -4272,8 +4376,21 @@ function tryRestoreDashboard() {
   return false;
 }
 
+// One-line human summary of a snapshot — used in the conflict banner's compare cards.
+function summarizeSnapshot(s) {
+  if (!s) return "—";
+  const space = spaceZh(s.space);
+  const area = (Number(s.widthM || 0) * Number(s.depthM || 0)).toFixed(1);
+  const sunMap = { full: "全日照", part: "半日照", shade: "遮蔭" };
+  const sunMapEn = { full: "Full sun", part: "Part sun", shade: "Shade" };
+  const sun = state.lang === "zh" ? (sunMap[s.sun] || "") : (sunMapEn[s.sun] || "");
+  return `${space} · ${area} m²${sun ? " · " + sun : ""}`;
+}
+
 // Welcome-back banner on the homepage when localStorage has a saved design.
+// If a shared-link conflict was detected, render that instead — same slot, higher stakes.
 function renderWelcomeBackBanner() {
+  if (state.shareConflict) return renderShareConflictBanner();
   if (!state.pendingSnapshot) return "";
   const s = state.pendingSnapshot;
   const spaceLabel = spaceZh(s.space);
@@ -4292,6 +4409,50 @@ function renderWelcomeBackBanner() {
       <div class="actions">
         <button class="primary" id="resumeBtn"><span data-zh="繼續使用" data-en="Resume">繼續使用</span></button>
         <button id="discardBtn"><span data-zh="重新開始" data-en="Start fresh">重新開始</span></button>
+      </div>
+    </div>`;
+}
+
+// Shared-link conflict banner — appears when a friend's #d= URL arrives over your own saved design.
+// Three explicit choices, no silent clobber. Uses textContent-safe interpolation since
+// summarizeSnapshot output may include user-typed address.
+function renderShareConflictBanner() {
+  const shared = state.pendingSharedSnapshot;
+  const local = state.pendingSnapshot;
+  const sharedSummary = summarizeSnapshot(shared);
+  const localSummary = summarizeSnapshot(local);
+  const localAgo = humanizeTimeAgo(local && local.savedAt);
+  // Escape for safe insertion into HTML — these strings include user-entered fields like address indirectly.
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  })[c]);
+  return `
+    <div class="share-conflict" id="shareConflict" role="alertdialog" aria-labelledby="scTitle" aria-describedby="scBody">
+      <div class="sc-head">
+        <span class="icon" aria-hidden="true">🔗</span>
+        <strong id="scTitle" data-zh="有人分享了一個設計給你" data-en="A shared design has arrived">有人分享了一個設計給你</strong>
+      </div>
+      <p class="sc-body" id="scBody"
+         data-zh="這個分享連結含有與你目前儲存的設計不同的方案。為了不覆蓋你的成果，先請你選擇下一步。"
+         data-en="This link carries a design different from the one you have saved. To avoid overwriting your work, pick what to do next.">
+         這個分享連結含有與你目前儲存的設計不同的方案。為了不覆蓋你的成果，先請你選擇下一步。
+      </p>
+      <div class="sc-compare" aria-hidden="false">
+        <div class="sc-card">
+          <span class="label" data-zh="你目前的設計" data-en="Your saved design">你目前的設計</span>
+          <span class="summary">${esc(localSummary)}</span>
+          <span class="meta" data-zh="${esc(localAgo)} 前儲存" data-en="saved ${esc(localAgo)} ago">${esc(localAgo)} 前儲存</span>
+        </div>
+        <div class="sc-card">
+          <span class="label" data-zh="分享連結內的設計" data-en="Design in the shared link">分享連結內的設計</span>
+          <span class="summary">${esc(sharedSummary)}</span>
+          <span class="meta" data-zh="僅在此分頁開啟，尚未儲存" data-en="open in this tab only, not yet saved">僅在此分頁開啟，尚未儲存</span>
+        </div>
+      </div>
+      <div class="sc-actions">
+        <button class="primary" id="scViewSharedBtn"><span data-zh="查看分享的設計" data-en="View shared design">查看分享的設計</span></button>
+        <button id="scKeepMineBtn"><span data-zh="保留我的，丟掉分享連結" data-en="Keep mine, drop the link">保留我的，丟掉分享連結</span></button>
+        <button id="scSaveCopyBtn"><span data-zh="把分享的存成我的新設計" data-en="Save shared as my new design">把分享的存成我的新設計</span></button>
       </div>
     </div>`;
 }
@@ -4564,6 +4725,59 @@ function renderHome() {
       state.pendingSnapshot = null;
       history.replaceState(null, "", location.pathname);
       render();
+    });
+  }
+
+  // Shared-link conflict banner — 3 explicit choices, no silent clobber.
+  const viewSharedBtn = document.getElementById("scViewSharedBtn");
+  if (viewSharedBtn) {
+    viewSharedBtn.addEventListener("click", () => {
+      // View the shared design without touching localStorage.
+      // Keeps the user's saved design safe — they can return to it later via "Resume" (we still have it).
+      // To avoid the result page calling persistDashboard() and overwriting local with the shared one,
+      // we leave state.shareConflict on; persistDashboard() honors it as a guard.
+      const shared = state.pendingSharedSnapshot;
+      applySnapshot(shared);
+      // Important: don't clear pendingSnapshot; the user might still want to keep theirs after viewing.
+      state.view = "wizard";
+      state.step = 5;
+      state.resultTab = "preview";
+      state.viewingShared = true;            // Banner on result page will say "viewing shared, not saved".
+      initShoppingQty();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+  const keepMineBtn = document.getElementById("scKeepMineBtn");
+  if (keepMineBtn) {
+    keepMineBtn.addEventListener("click", () => {
+      // Drop the shared link, restore the welcome-back banner offering to resume the local design.
+      state.pendingSharedSnapshot = null;
+      state.shareConflict = false;
+      state.viewingShared = false;
+      // Strip the #d= from the URL so a refresh won't re-trigger the conflict.
+      history.replaceState(null, "", location.pathname);
+      render();
+    });
+  }
+  const saveCopyBtn = document.getElementById("scSaveCopyBtn");
+  if (saveCopyBtn) {
+    saveCopyBtn.addEventListener("click", () => {
+      // Replace the local design with the shared one and open the result page.
+      // This is a destructive choice — the user explicitly opted in.
+      const shared = state.pendingSharedSnapshot;
+      applySnapshot(shared);
+      state.pendingSharedSnapshot = null;
+      state.pendingSnapshot = null;
+      state.shareConflict = false;
+      state.viewingShared = false;
+      saveToLocal();             // Persist now, before render() opens the result page.
+      state.view = "wizard";
+      state.step = 5;
+      state.resultTab = "preview";
+      initShoppingQty();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
     });
   }
 }
@@ -6234,8 +6448,26 @@ function renderResult() {
   const locText_zh = det?.county ? `${det.county}的` : "";
   const locText_en = det?.county ? `${det.county}'s ` : "";
 
+  // Shared-design viewing bar — only when user clicked "View shared" in the conflict banner.
+  // It reminds them their own design is safe and offers two recoveries: commit shared or back to mine.
+  const viewingSharedBar = state.viewingShared ? `
+      <div class="viewing-shared-bar" role="status">
+        <span class="vs-text">
+          <strong data-zh="正在預覽分享的設計" data-en="Previewing a shared design">正在預覽分享的設計</strong>
+          <span data-zh=" · 你的設計仍安全保存，沒有被覆蓋。"
+                data-en=" · Your own design is still safe, not overwritten.">
+                · 你的設計仍安全保存，沒有被覆蓋。
+          </span>
+        </span>
+        <span class="vs-actions">
+          <button class="primary" id="vsSaveBtn"><span data-zh="存成我的新設計" data-en="Save as my new design">存成我的新設計</span></button>
+          <button id="vsBackBtn"><span data-zh="回到我的設計" data-en="Back to mine">回到我的設計</span></button>
+        </span>
+      </div>` : "";
+
   app.innerHTML = `
     <div class="fade-up">
+      ${viewingSharedBar}
       <div class="kicker" data-zh="你的專屬配置 · GENERATED" data-en="Your custom plan · GENERATED">你的專屬配置 · GENERATED</div>
       <h1 class="title"
          data-zh="${locText_zh}${area} m² 的<br/>原生植物復層景觀"
@@ -6288,6 +6520,33 @@ function renderResult() {
 
   app.querySelectorAll(".tab").forEach((t) => {
     t.addEventListener("click", () => { state.resultTab = t.dataset.tab; renderTabPanel(recs, layers); applyLanguage(); });
+  });
+
+  // Viewing-shared bar actions (only present when state.viewingShared is true)
+  document.getElementById("vsSaveBtn")?.addEventListener("click", () => {
+    // Commit the shared design as the user's new local design.
+    state.viewingShared = false;
+    state.pendingSharedSnapshot = null;
+    state.pendingSnapshot = null;
+    state.shareConflict = false;
+    saveToLocal();
+    pushHashFromState();
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  document.getElementById("vsBackBtn")?.addEventListener("click", () => {
+    // Restore the user's own saved design and return to the result page.
+    // pendingSnapshot still holds it because the conflict path never cleared it.
+    const mine = state.pendingSnapshot || loadFromLocal();
+    if (mine) applySnapshot(mine);
+    state.viewingShared = false;
+    state.pendingSharedSnapshot = null;
+    state.shareConflict = false;
+    state.pendingSnapshot = null;
+    history.replaceState(null, "", location.pathname);
+    initShoppingQty();
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   document.getElementById("nativeFilterBtn")?.addEventListener("click", () => {
