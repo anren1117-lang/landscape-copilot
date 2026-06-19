@@ -200,6 +200,78 @@
   .orient-btn .compass { font-size: 18px; font-family: var(--serif); font-weight: 700; }
   .orient-btn .label { font-size: 12px; color: var(--ink-soft); }
   .orient-btn.active .label { color: rgba(237,234,224,0.8); }
+  /* AI-suggested orientation — matches .card-opt.ai-suggested treatment */
+  .orient-btn.ai-suggested:not(.active) {
+    border-color: var(--sage-deep);
+    box-shadow: 0 0 0 2px rgba(110,126,96,0.25), 0 8px 16px -10px rgba(44,53,38,0.3);
+    position: relative;
+  }
+  .orient-btn.ai-suggested:not(.active)::after {
+    content: "AI";
+    position: absolute; top: -8px; right: -6px;
+    background: var(--sage-deep); color: var(--paper);
+    font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+    padding: 2px 6px; border-radius: 999px;
+    font-family: var(--sans);
+  }
+
+  /* AI photo-suggestion card for Details step — shows extracted W/D/orientation/coastal
+     with a single Apply button. Kinfolk palette: paper background, sage accents. */
+  .ai-details-suggest {
+    margin: 4px 0 18px;
+    background: linear-gradient(135deg, rgba(110,126,96,0.10), rgba(196,160,76,0.08));
+    border: 1px solid var(--sage);
+    border-radius: 14px;
+    padding: 14px 16px 12px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .ai-details-suggest .hd {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--serif); font-size: 13.5px; color: var(--forest); font-weight: 600;
+  }
+  .ai-details-suggest .hd .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--sage-deep);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .ai-details-suggest .items {
+    display: flex; flex-wrap: wrap; gap: 6px 8px;
+  }
+  .ai-details-suggest .item {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(110,126,96,0.25);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px; color: var(--forest);
+    font-family: var(--sans);
+  }
+  .ai-details-suggest .item .k { color: var(--ink-soft); font-size: 11px; }
+  .ai-details-suggest .item .v { font-weight: 600; }
+  .ai-details-suggest .acts {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .ai-details-suggest .apply-btn {
+    background: var(--forest); color: var(--paper);
+    border: none; border-radius: 999px;
+    padding: 7px 16px;
+    font-size: 12.5px; font-family: var(--sans); font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .ai-details-suggest .apply-btn:hover { background: var(--sage-deep); transform: translateY(-1px); }
+  .ai-details-suggest .dismiss-btn {
+    background: transparent; color: var(--ink-soft);
+    border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; font-family: var(--sans); cursor: pointer;
+    transition: all .2s;
+  }
+  .ai-details-suggest .dismiss-btn:hover { color: var(--ink); border-color: var(--ink-soft); }
+  .ai-details-suggest .applied-msg {
+    font-family: var(--serif); font-style: italic;
+    font-size: 12.5px; color: var(--sage-deep);
+  }
 
   /* fixed navigation footer */
   footer.nav {
@@ -3934,6 +4006,7 @@ const state = {
   wizardPhotoBusy: {},        // { space: bool, details: bool, sun: bool } — request in-flight?
   wizardPhotoError: {},       // { space: "msg", ... } — last error per step, "" if none
   wizardPhotoSuggest: {},     // { space: "balcony", sun: "part", details: {width,depth,orientation,coastal} }
+  wizardPhotoSuggestActed: {}, // { details: "applied" | "dismissed" } — suppress the banner after the user has reacted
   lang: "zh",
 };
 
@@ -4908,6 +4981,13 @@ function renderDetails() {
     S: { zh:"日照最好", en:"Best sun" },
     W: { zh:"午後強光", en:"Hot afternoon" },
   };
+  // AI photo-suggested orientation gets the "AI" ribbon if the user hasn't acted yet.
+  const suggestedOrient =
+    state.wizardPhotoSuggest?.details?.orientation &&
+    state.wizardPhotoSuggestActed?.details !== "applied" &&
+    state.wizardPhotoSuggestActed?.details !== "dismissed"
+      ? state.wizardPhotoSuggest.details.orientation
+      : null;
 
   app.innerHTML = `
     <div class="fade-up">
@@ -4917,6 +4997,8 @@ function renderDetails() {
          data-zh="不知道也沒關係 — 直接按「繼續」用預設值即可。提供越多細節，配置會越準。"
          data-en="Not sure? Just hit Continue — we'll use defaults. The more you share, the more accurate the plan.">
          不知道也沒關係 — 直接按「繼續」用預設值即可。提供越多細節，配置會越準。</p>
+
+      ${detailsSuggestBanner()}
 
       <div class="detail-grid">
 
@@ -4971,7 +5053,7 @@ function renderDetails() {
                 主要陽光從哪一面進來？俯瞰圖會根據朝向擺放陽光指示，並調整植物的種植順序。</span>
           <div class="orient-row">
             ${["N","E","S","W"].map(k => `
-              <button class="orient-btn ${state.orientation === k ? "active" : ""}" data-orient="${k}">
+              <button class="orient-btn ${state.orientation === k ? "active" : ""} ${suggestedOrient === k ? "ai-suggested" : ""}" data-orient="${k}">
                 <span class="compass">${orientLabels[k][state.lang]}</span>
                 <span class="label" data-zh="${orientHints[k].zh}" data-en="${orientHints[k].en}">${orientHints[k].zh}</span>
               </button>
@@ -4984,6 +5066,8 @@ function renderDetails() {
         </div>
 
       </div>
+
+      ${qPhotoHTML("details")}
     </div>`;
 
   wireDetails();
@@ -5606,6 +5690,38 @@ function wireDetails() {
 
   // If the compass is currently open, wire its inner controls now
   if (state.compassOpen) wireCompass();
+
+  // Wire the inline photo helper (same one used on Space + Sun)
+  wireQPhoto("details");
+
+  // AI photo-suggestion: Apply pushes the AI's estimated width/depth/orientation/coastal
+  // into the live form state, then re-renders this step so the inputs visibly update.
+  document.getElementById("applyDetailsSuggestBtn")?.addEventListener("click", () => {
+    const s = state.wizardPhotoSuggest?.details;
+    if (!s) return;
+    if (typeof s.widthM === "number" && isFinite(s.widthM) && s.widthM > 0) {
+      state.widthM = Math.round(s.widthM * 10) / 10;
+    }
+    if (typeof s.depthM === "number" && isFinite(s.depthM) && s.depthM > 0) {
+      state.depthM = Math.round(s.depthM * 10) / 10;
+    }
+    if (s.orientation && ["N","E","S","W"].includes(s.orientation)) {
+      state.orientation = s.orientation;
+    }
+    if (s.coastal) {
+      // Merge coastal into state.detected without nuking an existing geocoded location.
+      state.detected = state.detected
+        ? { ...state.detected, coastal: true }
+        : { county: null, zone: "C", coastal: true };
+    }
+    state.wizardPhotoSuggestActed = { ...(state.wizardPhotoSuggestActed || {}), details: "applied" };
+    renderDetails(); applyLanguage();
+  });
+
+  document.getElementById("dismissDetailsSuggestBtn")?.addEventListener("click", () => {
+    state.wizardPhotoSuggestActed = { ...(state.wizardPhotoSuggestActed || {}), details: "dismissed" };
+    renderDetails(); applyLanguage();
+  });
 }
 
 function escapeHtml(s) {
@@ -5718,6 +5834,72 @@ function suggestBanner(stepKey, suggested) {
     </div>`;
 }
 
+// Details step has a structured suggestion (width/depth/orientation/coastal)
+// rather than a single key, so it gets its own card with a single Apply button.
+// We render this above the form fields so the AI's work from the Space step
+// finally surfaces somewhere the user can see and use.
+function detailsSuggestBanner() {
+  const s = state.wizardPhotoSuggest?.details;
+  if (!s) return "";
+  const acted = state.wizardPhotoSuggestActed?.details;
+  if (acted === "dismissed") return "";
+
+  const ORIENT_ZH = { N:"北 · 日照最少", E:"東 · 晨光柔和", S:"南 · 日照最好", W:"西 · 午後強光" };
+  const ORIENT_EN = { N:"N · least sun",  E:"E · soft morning", S:"S · best sun", W:"W · hot afternoon" };
+
+  const w = (typeof s.widthM === "number" && isFinite(s.widthM) && s.widthM > 0) ? s.widthM.toFixed(1) : null;
+  const d = (typeof s.depthM === "number" && isFinite(s.depthM) && s.depthM > 0) ? s.depthM.toFixed(1) : null;
+  const orient = (s.orientation && ORIENT_ZH[s.orientation]) ? s.orientation : null;
+  const coastal = !!s.coastal;
+
+  if (!w && !d && !orient && !coastal) return "";
+
+  if (acted === "applied") {
+    return `
+      <div class="ai-details-suggest" data-details-suggest>
+        <div class="hd"><span class="dot"></span>
+          <span data-zh="已套用 AI 照片建議" data-en="AI photo suggestion applied">已套用 AI 照片建議</span>
+        </div>
+        <div class="applied-msg"
+             data-zh="若要修改任何欄位，直接編輯即可。"
+             data-en="Edit any field below to override.">
+             若要修改任何欄位，直接編輯即可。
+        </div>
+      </div>`;
+  }
+
+  const items = [];
+  if (w && d) {
+    items.push(`<span class="item"><span class="k" data-zh="尺寸" data-en="Size">尺寸</span><span class="v">${w} × ${d} m</span></span>`);
+  } else if (w) {
+    items.push(`<span class="item"><span class="k" data-zh="寬" data-en="Width">寬</span><span class="v">${w} m</span></span>`);
+  } else if (d) {
+    items.push(`<span class="item"><span class="k" data-zh="深" data-en="Depth">深</span><span class="v">${d} m</span></span>`);
+  }
+  if (orient) {
+    items.push(`<span class="item"><span class="k" data-zh="朝向" data-en="Faces">朝向</span><span class="v" data-zh="${ORIENT_ZH[orient]}" data-en="${ORIENT_EN[orient]}">${ORIENT_ZH[orient]}</span></span>`);
+  }
+  if (coastal) {
+    items.push(`<span class="item"><span class="v" data-zh="🌊 近海岸（偏好耐鹽植物）" data-en="🌊 Coastal (prefer salt-tolerant)">🌊 近海岸（偏好耐鹽植物）</span></span>`);
+  }
+
+  return `
+    <div class="ai-details-suggest" data-details-suggest>
+      <div class="hd"><span class="dot"></span>
+        <span data-zh="AI 從你的照片估算" data-en="AI estimated from your photo">AI 從你的照片估算</span>
+      </div>
+      <div class="items">${items.join("")}</div>
+      <div class="acts">
+        <button type="button" class="apply-btn" id="applyDetailsSuggestBtn">
+          <span data-zh="✓ 套用這些建議" data-en="✓ Apply these">✓ 套用這些建議</span>
+        </button>
+        <button type="button" class="dismiss-btn" id="dismissDetailsSuggestBtn">
+          <span data-zh="略過" data-en="Skip">略過</span>
+        </button>
+      </div>
+    </div>`;
+}
+
 // Inline photo upload panel — small footprint, only opens when user taps the toggle.
 function qPhotoHTML(stepKey) {
   const has = !!state.wizardPhotoDataUrl;
@@ -5807,6 +5989,7 @@ function wireQPhoto(stepKey) {
     el.addEventListener("click", () => {
       state.wizardPhotoDataUrl = null;
       state.wizardPhotoSuggest = {};
+      state.wizardPhotoSuggestActed = {};  // a new photo deserves a fresh banner
       rerenderCurrentStep();
     });
   });
@@ -5911,6 +6094,8 @@ async function analyzeWizardPhoto(stepKey) {
         coastal: !!parsed.coastal,
       },
     };
+    // Fresh analysis → re-show the Details Apply banner even if the user dismissed last time.
+    state.wizardPhotoSuggestActed = {};
     state.wizardPhotoBusy[stepKey] = false;
     state.wizardPhotoOpen[stepKey] = false;   // collapse the panel — suggestion is now visible above the cards
     rerenderCurrentStep();
