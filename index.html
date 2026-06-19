@@ -757,6 +757,16 @@
   }
   .qphoto-analyze-btn:hover { background: var(--forest-soft); }
   .qphoto-analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* Cancel link beside the analyze button while the vision call is in flight */
+  .qphoto-cancel-btn {
+    margin-top: 8px; margin-left: 10px;
+    background: transparent; color: var(--ink-soft);
+    border: 1px solid var(--line);
+    padding: 7px 14px; border-radius: 999px;
+    font-size: 12.5px; cursor: pointer; font-family: var(--sans);
+    transition: all .2s;
+  }
+  .qphoto-cancel-btn:hover { color: var(--ink); border-color: var(--ink-soft); background: rgba(255,255,255,0.5); }
   /* AI suggestion banner above option cards */
   .ai-suggest-banner {
     display: inline-flex; align-items: center; gap: 8px;
@@ -3918,6 +3928,7 @@ const state = {
   // One photo is reused across all wizard steps. Each step asks a different
   // focused question of Pollinations.ai vision. Suggestions are highlighted
   // above the option cards — user can click to accept or pick differently.
+  photoBusy: false,           // photo-flow vision call in flight (for Cancel button)
   wizardPhotoDataUrl: null,   // shared across all wizard steps
   wizardPhotoOpen: {},        // { space: bool, details: bool, sun: bool } — is the inline upload panel open?
   wizardPhotoBusy: {},        // { space: bool, details: bool, sun: bool } — request in-flight?
@@ -4522,11 +4533,16 @@ function renderPhotoFlow() {
         ${hasPhoto ? `
           <div class="photo-preview-wrap">
             <img class="photo-preview" id="photoPreview" src="${state.photoDataUrl}" alt="${t('你的空間照片', 'Your space photo')}" />
-            <div class="photo-analyze-status ${state.photoStatusKind}" id="photoStatus">${state.photoStatus}</div>
+            <div class="photo-analyze-status ${state.photoStatusKind}" id="photoStatus">${state.photoBusy ? `<span class="photo-spinner"></span>` : ""}${state.photoStatus}</div>
             ${!hasAnalysis ? `
               <div class="photo-actions">
-                <button class="btn" id="analyzeBtn">✨ <span data-zh="開始分析" data-en="Analyze">開始分析</span></button>
-                <button class="btn ghost" id="reuploadBtn">🔄 <span data-zh="重新選擇" data-en="Choose another">重新選擇</span></button>
+                ${state.photoBusy ? `
+                  <button class="btn" id="analyzeBtn" disabled>✨ <span data-zh="分析中…" data-en="Analyzing…">分析中…</span></button>
+                  <button class="btn ghost" id="cancelAnalyzeBtn" onclick="cancelVisionRequest()">✕ <span data-zh="取消分析" data-en="Cancel">取消分析</span></button>
+                ` : `
+                  <button class="btn" id="analyzeBtn">✨ <span data-zh="開始分析" data-en="Analyze">開始分析</span></button>
+                  <button class="btn ghost" id="reuploadBtn">🔄 <span data-zh="重新選擇" data-en="Choose another">重新選擇</span></button>
+                `}
               </div>` : ""}
           </div>
         ` : `
@@ -4659,14 +4675,37 @@ function handlePhotoFile(file) {
   reader.readAsDataURL(file);
 }
 
+// Vision-call lifecycle helpers — single in-flight AbortController + 30s timeout
+// so the wizard / photo flow can never get stuck on a slow or stalled
+// Pollinations response. User-facing Cancel buttons call `cancelVisionRequest`.
+const VISION_TIMEOUT_MS = 30_000;
+let visionAbort = null;
+function startVisionRequest() {
+  // If something is already running (shouldn't be, but defensively), abort it.
+  if (visionAbort) { try { visionAbort.abort("superseded"); } catch (_) {} }
+  const controller = new AbortController();
+  const timer = setTimeout(() => { try { controller.abort("timeout"); } catch (_) {} }, VISION_TIMEOUT_MS);
+  visionAbort = controller;
+  visionAbort._timer = timer;
+  return controller;
+}
+function endVisionRequest(controller) {
+  if (controller && controller._timer) clearTimeout(controller._timer);
+  if (visionAbort === controller) visionAbort = null;
+}
+window.cancelVisionRequest = function () {
+  if (visionAbort) { try { visionAbort.abort("user_cancel"); } catch (_) {} }
+};
+
 // Call Pollinations.ai vision endpoint to analyze the photo and return JSON.
 async function analyzePhoto() {
   const btn = document.getElementById("analyzeBtn");
   if (btn) btn.disabled = true;
   state.photoStatus = t("分析中… 約 15-30 秒", "Analyzing… 15-30s");
   state.photoStatusKind = "";
-  const statusEl = document.getElementById("photoStatus");
-  if (statusEl) { statusEl.className = "photo-analyze-status"; statusEl.innerHTML = `<span class="photo-spinner"></span>${state.photoStatus}`; }
+  state.photoBusy = true;
+  renderPhotoFlow();
+  applyLanguage();
 
   const systemPrompt = `You are a landscape design assistant in Taiwan analyzing a photo of someone's planting space. Output ONLY valid JSON, no markdown, no commentary. Use this exact schema:
 {
@@ -4680,10 +4719,12 @@ async function analyzePhoto() {
 }`;
   const userPrompt = `Analyze this photo of a planting space in Taiwan and respond with ONLY the JSON object.`;
 
+  const controller = startVisionRequest();
   try {
     const resp = await fetch("https://text.pollinations.ai/openai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         model: "openai",
         messages: [
@@ -4705,13 +4746,26 @@ async function analyzePhoto() {
     state.photoAnalysis = parsed;
     state.photoStatus = t("✓ 分析完成", "✓ Analysis complete");
     state.photoStatusKind = "ok";
+    state.photoBusy = false;
     renderPhotoFlow();
     applyLanguage();
   } catch (err) {
-    state.photoStatus = t("分析失敗 — 可改用「回答問題」流程", "Analysis failed — try the questions wizard");
-    state.photoStatusKind = "err";
-    if (statusEl) { statusEl.className = "photo-analyze-status err"; statusEl.textContent = state.photoStatus; }
-    if (btn) btn.disabled = false;
+    state.photoBusy = false;
+    const reason = controller.signal.reason;
+    if (reason === "user_cancel") {
+      state.photoStatus = t("已取消分析", "Analysis cancelled");
+      state.photoStatusKind = "err";
+    } else if (reason === "timeout") {
+      state.photoStatus = t("AI 回應太久 — 可重試或改用「回答問題」流程", "AI took too long — retry or use the questions wizard");
+      state.photoStatusKind = "err";
+    } else {
+      state.photoStatus = t("分析失敗 — 可改用「回答問題」流程", "Analysis failed — try the questions wizard");
+      state.photoStatusKind = "err";
+    }
+    renderPhotoFlow();
+    applyLanguage();
+  } finally {
+    endVisionRequest(controller);
   }
 }
 
@@ -5707,7 +5761,8 @@ function qPhotoHTML(stepKey) {
       ${busy
         ? `<span class="photo-spinner"></span><span data-zh="AI 分析中…" data-en="AI thinking…">AI 分析中…</span>`
         : `<span data-zh="✨ 用這張照片，給我建議" data-en="✨ Get an AI suggestion">✨ 用這張照片，給我建議</span>`}
-    </button>` : `
+    </button>
+    ${busy ? `<button class="qphoto-cancel-btn" type="button" data-qphoto-cancel><span data-zh="✕ 取消分析" data-en="✕ Cancel">✕ 取消分析</span></button>` : ""}` : `
     <label class="qphoto-dz" for="qphotoInput-${stepKey}">
       <div class="ic">📸</div>
       <div class="lb" data-zh="點此拍照或上傳" data-en="Tap to take or upload a photo">點此拍照或上傳</div>
@@ -5766,6 +5821,10 @@ function wireQPhoto(stepKey) {
   document.querySelectorAll(`[data-qphoto-analyze]`).forEach(el => {
     el.addEventListener("click", () => analyzeWizardPhoto(stepKey));
   });
+  // Cancel in-flight analysis
+  document.querySelectorAll(`[data-qphoto-cancel]`).forEach(el => {
+    el.addEventListener("click", () => { if (typeof cancelVisionRequest === "function") cancelVisionRequest(); });
+  });
 }
 
 function rerenderCurrentStep() {
@@ -5819,10 +5878,12 @@ async function analyzeWizardPhoto(stepKey) {
   "coastal": true | false
 }`;
 
+  const controller = startVisionRequest();
   try {
     const resp = await fetch("https://text.pollinations.ai/openai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         model: "openai",
         messages: [
@@ -5855,8 +5916,17 @@ async function analyzeWizardPhoto(stepKey) {
     rerenderCurrentStep();
   } catch (err) {
     state.wizardPhotoBusy[stepKey] = false;
-    state.wizardPhotoError[stepKey] = t("AI 暫時無法判斷，請手動選擇", "AI couldn't analyze — pick manually");
+    const reason = controller.signal.reason;
+    if (reason === "user_cancel") {
+      state.wizardPhotoError[stepKey] = t("已取消，可手動選擇", "Cancelled — pick manually");
+    } else if (reason === "timeout") {
+      state.wizardPhotoError[stepKey] = t("AI 回應太久，可重試或手動選擇", "AI took too long — retry or pick manually");
+    } else {
+      state.wizardPhotoError[stepKey] = t("AI 暫時無法判斷，請手動選擇", "AI couldn't analyze — pick manually");
+    }
     rerenderCurrentStep();
+  } finally {
+    endVisionRequest(controller);
   }
 }
 
