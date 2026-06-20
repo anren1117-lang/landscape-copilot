@@ -1562,10 +1562,55 @@
     footer.nav { padding: 14px 20px; }
   }
 
+  /* QR MODAL — same overlay pattern as drawer, but centered */
+  .qr-overlay {
+    position: fixed; inset: 0; z-index: 25;
+    background: rgba(44,53,38,0.4);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .qr-modal {
+    background: var(--paper-warm);
+    border-radius: 18px;
+    padding: 28px 28px 22px;
+    width: min(340px, 92vw);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.35);
+    position: relative;
+    text-align: center;
+  }
+  .qr-close {
+    position: absolute; top: 12px; right: 14px;
+    background: none; border: none; font-size: 18px;
+    color: var(--ink-soft); cursor: pointer; padding: 4px 8px;
+  }
+  .qr-title { font-family: var(--serif); font-size: 19px; font-weight: 600; color: var(--forest); margin: 0 0 14px; }
+  .qr-img-wrap {
+    width: 240px; height: 240px; margin: 0 auto 16px;
+    background: white; border-radius: 10px; padding: 8px;
+    border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qr-img-wrap img { width: 100%; height: 100%; display: block; }
+  .qr-url {
+    font-size: 11px; color: var(--ink-soft);
+    word-break: break-all; line-height: 1.5;
+    background: rgba(110,126,96,0.06); padding: 8px 10px; border-radius: 6px;
+    margin-bottom: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    max-height: 60px; overflow-y: auto; text-align: left;
+  }
+  .qr-foot { font-size: 10.5px; color: var(--clay); font-style: italic; font-family: var(--serif); line-height: 1.5; }
+
+  /* PRINT BUNDLE — hidden on screen, only visible when printResultBundle() injects it */
+  .print-bundle { display: none; }
+  .print-bundle .pb-section { margin-bottom: 22px; }
+  .print-bundle .pb-h2 { font-family: var(--serif); font-size: 18px; color: var(--forest); margin: 0 0 10px; border-bottom: 2px solid #c9c2a8; padding-bottom: 4px; }
+  .print-bundle .pb-meta { font-size: 12px; color: var(--ink-soft); margin-bottom: 14px; }
+
   /* PRINT — clean A4 layout */
   @media print {
     body { background: white; padding-bottom: 0; }
-    .grain, .glow-tl, .glow-br, .screen-bar, footer.nav, .tabs, .drawer-overlay { display: none !important; }
+    .grain, .glow-tl, .glow-br, .screen-bar, footer.nav, .tabs, .drawer-overlay, .qr-overlay { display: none !important; }
     main.body { max-width: none; padding: 0 12mm; }
     header.brand { padding: 12mm 12mm 0; }
     .card-opt, .layer-row, .rec-card, .plan-frame, .cal-frame, .shop-frame {
@@ -1576,6 +1621,13 @@
     .rec-grid { grid-template-columns: 1fr 1fr; }
     .tab-panel { page-break-inside: avoid; }
     .tab-panel + .tab-panel { page-break-before: always; }
+
+    /* When the print bundle is mounted, hide the live result view and show only
+       the curated bundle so users get rec cards + 3D + care calendar in one PDF. */
+    body.printing-bundle main.body > .fade-up { display: none !important; }
+    body.printing-bundle .print-bundle { display: block !important; }
+    body.printing-bundle .print-bundle .pb-section { page-break-inside: avoid; }
+    body.printing-bundle .print-bundle .pb-section + .pb-section { page-break-before: always; }
   }
 </style>
 </head>
@@ -1595,7 +1647,8 @@
     <button class="btn text" id="langToggle" aria-label="Toggle language / 切換語言">English</button>
     <button class="btn ghost" id="shareLinkBtn" onclick="copyShareLink(this)" aria-label="Copy share link / 複製連結">🔗 <span data-zh="複製連結" data-en="Copy link">複製連結</span></button>
     <a class="btn line" id="lineShareBtn" href="#" target="_blank" rel="noopener" aria-label="Share to LINE / 分享到 LINE">💬 LINE</a>
-    <button class="btn ghost" onclick="window.print()" aria-label="Print or export PDF / 列印或匯出 PDF">📄 <span data-zh="列印 / PDF" data-en="Print / PDF">列印 / PDF</span></button>
+    <button class="btn ghost" id="qrShareBtn" onclick="openQRModal()" aria-label="Show QR code for share link / 顯示分享連結 QR Code">📱 <span data-zh="QR Code" data-en="QR Code">QR Code</span></button>
+    <button class="btn ghost" onclick="printResultBundle()" aria-label="Print or export PDF / 列印或匯出 PDF">📄 <span data-zh="列印 / PDF" data-en="Print / PDF">列印 / PDF</span></button>
   </div>
 </div>
 
@@ -4677,7 +4730,26 @@ function setPref(id, kind) {
     try {
       const recs = scorePlants().filter(p => p.score >= 30);
       const host = document.getElementById("tabPanel");
-      if (host && state.resultTab === "dict") { host.innerHTML = renderDictionary(); wireDictionary(); applyLanguage(); }
+      if (host && state.resultTab === "dict") {
+        // Preserve the dictionary search input value + caret + focus across
+        // language toggle re-render. The search field is re-rendered from
+        // state.dictQuery (so the typed text survives), but the DOM node is
+        // replaced — so focus + selection range need to be restored manually.
+        const prevSearch = document.getElementById("dictSearch");
+        const hadFocus = prevSearch && document.activeElement === prevSearch;
+        const selStart = prevSearch ? prevSearch.selectionStart : null;
+        const selEnd   = prevSearch ? prevSearch.selectionEnd   : null;
+        host.innerHTML = renderDictionary();
+        wireDictionary();
+        applyLanguage();
+        if (hadFocus) {
+          const next = document.getElementById("dictSearch");
+          if (next) {
+            next.focus();
+            try { next.setSelectionRange(selStart ?? next.value.length, selEnd ?? next.value.length); } catch (e) {}
+          }
+        }
+      }
     } catch (e) {}
   }
 }
@@ -9235,7 +9307,25 @@ window.exportCareICS = function () {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `landscape-care-${state.space || "garden"}.ics`;
+  // Filename — prefer the active design's user-chosen name so multiple downloads
+  // don't collide / overwrite each other in the Downloads folder. Falls back to
+  // the space type (balcony / yard / …) when the user hasn't saved a named design.
+  const slugify = (s) => String(s || "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\w一-鿿-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  let nameBase = "";
+  try {
+    const list = loadDesignList();
+    if (list && list.activeId) {
+      const active = list.designs.find(d => d.id === list.activeId);
+      if (active && active.name) nameBase = slugify(active.name);
+    }
+  } catch (e) {}
+  if (!nameBase) nameBase = slugify(state.space || "garden");
+  a.download = `landscape-care-${nameBase || "garden"}.ics`;
   a.click();
   URL.revokeObjectURL(url);
 };
@@ -10915,6 +11005,138 @@ window.copyShareLink = async function(btn) {
     setTimeout(() => { btn.innerHTML = original; applyLanguage(); }, 1800);
   } catch (e) {
     prompt(state.lang === "zh" ? "請手動複製此連結：" : "Please copy this link:", location.href);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// QR code modal — uses the public qrserver.com API (no JS lib needed).
+// Opt-in: only called when the user clicks 📱 QR Code, and the modal footer
+// discloses the external dependency.
+// ─────────────────────────────────────────────────────────────
+window.openQRModal = function () {
+  closeQRModal(); // ensure single instance
+  const url = location.href;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(url)}`;
+  const titleText = state.lang === "zh" ? "分享連結 QR Code" : "Share link QR code";
+  const closeText = state.lang === "zh" ? "關閉" : "Close";
+  const altText   = state.lang === "zh" ? "分享連結的 QR Code 圖片" : "QR code image for share link";
+  const footText  = state.lang === "zh"
+    ? "QR 圖片由 qrserver.com 即時產生（外部服務）。"
+    : "QR image generated on demand by qrserver.com (external service).";
+  const overlay = document.createElement("div");
+  overlay.className = "qr-overlay";
+  overlay.id = "qrOverlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", titleText);
+  overlay.innerHTML = `
+    <div class="qr-modal" id="qrModal">
+      <button class="qr-close" id="qrCloseBtn" aria-label="${closeText}">✕</button>
+      <h3 class="qr-title">${titleText}</h3>
+      <div class="qr-img-wrap">
+        <img src="${qrSrc}" alt="${altText}" loading="lazy" width="240" height="240" />
+      </div>
+      <div class="qr-url" aria-label="${state.lang === "zh" ? "分享連結網址" : "Share URL"}">${escapeHtml(url)}</div>
+      <button class="btn ghost" id="qrCloseFootBtn">✕ ${closeText}</button>
+      <p class="qr-foot" style="margin-top:14px;">${footText}</p>
+    </div>`;
+  // Close on overlay click (but not on inner modal click)
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeQRModal(); });
+  document.body.appendChild(overlay);
+  document.getElementById("qrCloseBtn").addEventListener("click", closeQRModal);
+  document.getElementById("qrCloseFootBtn").addEventListener("click", closeQRModal);
+  // ESC to close
+  document.addEventListener("keydown", qrEscHandler);
+};
+function qrEscHandler(e) { if (e.key === "Escape") closeQRModal(); }
+window.closeQRModal = function () {
+  const o = document.getElementById("qrOverlay");
+  if (o) o.remove();
+  document.removeEventListener("keydown", qrEscHandler);
+};
+
+// ─────────────────────────────────────────────────────────────
+// Print result bundle (A2): when on the results page, instead of printing only
+// the visible tab, mount a hidden "print bundle" containing the most useful
+// subset (top rec cards + 3D view + care calendar). Print the bundle, then
+// remove it. Outside the results page we fall back to plain window.print().
+// ─────────────────────────────────────────────────────────────
+window.printResultBundle = function () {
+  // Only build the bundle when we're actually on the result tabs view —
+  // elsewhere (home / wizard / photo / pitch print) keep native behavior.
+  const onResult = state.view === "wizard" && state.step === 5;
+  if (!onResult) { window.print(); return; }
+
+  let bundle = null;
+  let cleanup = () => {};
+  try {
+    const scored = scorePlants();
+    const all = scored.filter(p => p.score >= 30);
+    const recs = state.nativeOnly ? all.filter(p => p.native) : all;
+    const layers = buildLayers(state.nativeOnly ? scored.filter(p => p.native) : scored);
+
+    // Build the three sections. render3D / renderCareCalendar return HTML strings.
+    // Top 8 rec cards (concise summary — full rec-grid is in the live view too).
+    const topRecs = recs.slice(0, 8);
+    const sectionTitle = (zh, en) => `<h2 class="pb-h2">${state.lang === "zh" ? zh : en}</h2>`;
+
+    const recCardsHTML = `
+      <section class="pb-section">
+        ${sectionTitle("推薦植物 · Top " + topRecs.length, "Recommended plants · Top " + topRecs.length)}
+        <div class="rec-grid">
+          ${topRecs.map(p => {
+            const name = state.lang === "zh" ? p.zh : p.en;
+            const latin = p.latin || "";
+            const matchLabel = state.lang === "zh" ? "適配" : "Match";
+            const nativeLabel = p.native ? (state.lang === "zh" ? "🌱 原生" : "🌱 Native") : (state.lang === "zh" ? "🌍 外來" : "🌍 Intro");
+            return `
+              <div class="rec-card" style="padding:14px 16px;">
+                <div style="font-family:var(--serif);font-size:17px;font-weight:600;color:var(--forest);">${escapeHtml(name)}</div>
+                <div style="font-size:12px;color:var(--ink-soft);font-style:italic;">${escapeHtml(latin)}</div>
+                <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;">${nativeLabel} · ${matchLabel} ${p.score}</div>
+              </div>`;
+          }).join("")}
+        </div>
+      </section>`;
+
+    const threeDHTML = `
+      <section class="pb-section">
+        ${sectionTitle("3D 視角", "3D view")}
+        ${render3D(layers, recs, recs)}
+      </section>`;
+
+    const careHTML = `
+      <section class="pb-section">
+        ${sectionTitle("養護月曆", "Care calendar")}
+        ${renderCareCalendar(recs)}
+      </section>`;
+
+    bundle = document.createElement("div");
+    bundle.className = "print-bundle";
+    bundle.id = "printBundle";
+    bundle.innerHTML = recCardsHTML + threeDHTML + careHTML;
+    document.body.appendChild(bundle);
+    document.body.classList.add("printing-bundle");
+    // Apply current language to the freshly inserted nodes.
+    try { applyLanguage(); } catch (e) {}
+
+    cleanup = () => {
+      document.body.classList.remove("printing-bundle");
+      if (bundle && bundle.parentNode) bundle.parentNode.removeChild(bundle);
+    };
+
+    // afterprint fires after the print dialog closes (Chrome/Safari/FF).
+    const onAfter = () => { window.removeEventListener("afterprint", onAfter); cleanup(); };
+    window.addEventListener("afterprint", onAfter);
+    // Belt-and-suspenders: also schedule a delayed cleanup in case afterprint
+    // never fires (some browsers under print-to-PDF).
+    setTimeout(() => { try { onAfter(); } catch (e) {} }, 15000);
+
+    window.print();
+  } catch (e) {
+    try { cleanup(); } catch (err) {}
+    // Last-resort fallback so the user still gets *some* PDF.
+    window.print();
   }
 };
 
