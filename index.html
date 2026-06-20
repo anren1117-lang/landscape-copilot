@@ -7994,6 +7994,22 @@ function render3D(layers, recs, allRecs) {
       const h = 3 + rnd() * 3;
       tufts.push(`<g opacity="0.55"><line x1="${g.ix.toFixed(1)}" y1="${g.iy.toFixed(1)}" x2="${g.ix.toFixed(1)}" y2="${(g.iy - h).toFixed(1)}" stroke="#8A9A7B" stroke-width="1"/><line x1="${(g.ix - 1.5).toFixed(1)}" y1="${g.iy.toFixed(1)}" x2="${(g.ix - 2).toFixed(1)}" y2="${(g.iy - h * 0.7).toFixed(1)}" stroke="#7E8E6F" stroke-width="0.9"/><line x1="${(g.ix + 1.5).toFixed(1)}" y1="${g.iy.toFixed(1)}" x2="${(g.ix + 2).toFixed(1)}" y2="${(g.iy - h * 0.7).toFixed(1)}" stroke="#7E8E6F" stroke-width="0.9"/></g>`);
     }
+    // R14 #10: scatter a few wild flower dots + 2 small rocks for ground variety.
+    const flowerCols = ["#F6A6C1", "#F5D547", "#E8C7E4", "#FFFFFF"];
+    for (let i = 0; i < 9; i++) {
+      const fx = rnd() * planeW;
+      const fy = rnd() * planeH;
+      const g = project(fx, fy, 0);
+      const fc = flowerCols[i % flowerCols.length];
+      tufts.push(`<circle cx="${g.ix.toFixed(1)}" cy="${(g.iy - 0.5).toFixed(1)}" r="1.4" fill="${fc}" opacity="0.78"/>`);
+    }
+    for (let i = 0; i < 2; i++) {
+      const rx0 = 0.15 + rnd() * 0.70;
+      const ry0 = 0.15 + rnd() * 0.70;
+      const g = project(planeW * rx0, planeH * ry0, 0);
+      tufts.push(`<ellipse cx="${g.ix.toFixed(1)}" cy="${g.iy.toFixed(1)}" rx="3.2" ry="1.6" fill="#A8A292" stroke="#80795F" stroke-width="0.5" opacity="0.85"/>`);
+      tufts.push(`<ellipse cx="${(g.ix - 0.8).toFixed(1)}" cy="${(g.iy - 0.4).toFixed(1)}" rx="1.6" ry="0.8" fill="rgba(255,255,255,0.35)"/>`);
+    }
     groundTexture = tufts.join("");
   } else if (state.space === "rooftop") {
     const rnd = pseudoRand(13);
@@ -8080,16 +8096,22 @@ function render3D(layers, recs, allRecs) {
   // Balcony: small stepping tiles; Indoor: wooden floorboard lines.
   let pathSvg = "";
   if (state.space === "yard") {
+    // R14 #9: vary stone size + slight color variation, so the path doesn't
+    // look like identical stamped copies.
     const stones = [];
     const n = 5;
+    const stoneRnd = pseudoRand(29);
+    const stoneCols = ["#D8D2C2", "#CFC8B6", "#DCD6C6", "#C8C2B0"];
     for (let i = 0; i < n; i++) {
       const t0 = i / (n - 1);
       // meander from front-left toward back-right of plane
       const xR = planeW * (0.18 + t0 * 0.55);
       const yR = planeH * (0.78 - t0 * 0.50 + Math.sin(t0 * Math.PI) * 0.08);
       const g = project(xR, yR, 0);
-      const r = 14 - t0 * 4; // shrink toward back for perspective
-      stones.push(`<ellipse cx="${g.ix.toFixed(1)}" cy="${g.iy.toFixed(1)}" rx="${r.toFixed(1)}" ry="${(r * 0.45).toFixed(1)}" fill="#D8D2C2" stroke="#B5AE9C" stroke-width="0.8" opacity="0.85"/>`);
+      const r = (12 + stoneRnd() * 6) - t0 * 3; // 12–18, shrink toward back
+      const aspect = 0.40 + stoneRnd() * 0.15; // 0.40–0.55
+      const col = stoneCols[i % stoneCols.length];
+      stones.push(`<ellipse cx="${g.ix.toFixed(1)}" cy="${g.iy.toFixed(1)}" rx="${r.toFixed(1)}" ry="${(r * aspect).toFixed(1)}" fill="${col}" stroke="#B5AE9C" stroke-width="0.8" opacity="0.85"/>`);
     }
     pathSvg = stones.join("");
   } else if (state.space === "rooftop") {
@@ -8206,7 +8228,56 @@ function render3D(layers, recs, allRecs) {
     return { p, ground, sortKey: ground.iy };
   }).sort((a, b) => a.sortKey - b.sortKey);
 
-  const plantSvgs = drawList.map(({ p, ground }) => {
+  // ── R14: depth range for atmospheric perspective ─────────────
+  // Plants further from the viewer (lower sortKey) get a subtle whitish
+  // wash to suggest aerial perspective. Skipped for indoor.
+  const sortKeys = drawList.map(d => d.sortKey);
+  const minSort = sortKeys.length ? Math.min(...sortKeys) : 0;
+  const maxSort = sortKeys.length ? Math.max(...sortKeys) : 1;
+  const sortSpan = Math.max(1, maxSort - minSort);
+  const useAerial = state.space !== "indoor";
+
+  // ── R14: lightweight HSL hue-shift used for per-puff color jitter ─
+  function shiftHueHex(hex, deg) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return hex;
+    const n = parseInt(m[1], 16);
+    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    let h = 0, s = 0; const l = (mx + mn) / 2;
+    if (mx !== mn) {
+      const d = mx - mn;
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      switch (mx) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h /= 6;
+    }
+    h = (h + deg / 360 + 1) % 1;
+    function hue2rgb(p, q, t) {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    }
+    let nr, ng, nb;
+    if (s === 0) { nr = ng = nb = l; }
+    else {
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const pq = 2 * l - q;
+      nr = hue2rgb(pq, q, h + 1/3);
+      ng = hue2rgb(pq, q, h);
+      nb = hue2rgb(pq, q, h - 1/3);
+    }
+    const toHex = v => Math.round(v * 255).toString(16).padStart(2, "0");
+    return "#" + toHex(nr) + toHex(ng) + toHex(nb);
+  }
+
+  const plantSvgs = drawList.map(({ p, ground, sortKey }) => {
     const tier = TIER_3D[p.tier] || TIER_3D.G;
     const spreadFactor = Math.max(0.7, Math.min(1.7, (p.spread?.[1] || 1) / 1.5));
     const crownR  = tier.crownR  * spreadFactor;
@@ -8266,22 +8337,25 @@ function render3D(layers, recs, allRecs) {
         [-rx * 0.18,           -ry * 0.55,            0.58, 0.55],
         [ rx * 0.28,            ry * 0.30,            0.55, 0.50],
       ];
-      // jitter for organic feel — small, seeded
-      const parts = puffs.map(([dx, dy, rxm, rym], i) => {
+      // R14 #2: per-puff hue jitter so leaves aren't identical — +/- 8° in HSL.
+      // R14 #3: per-puff sun-facing gradient — sun-side puffs lifted brighter,
+      // shade-side puffs deepened, instead of one global highlight ellipse.
+      const parts = puffs.map(([dx, dy, rxm, rym]) => {
         const jx = (rndP() - 0.5) * rx * 0.18;
         const jy = (rndP() - 0.5) * ry * 0.18;
-        return `<ellipse cx="${(cx + dx + jx).toFixed(1)}" cy="${(cy + dy + jy).toFixed(1)}" rx="${(rx * rxm).toFixed(1)}" ry="${(ry * rym).toFixed(1)}" fill="${baseColor}"/>`;
+        const hueShift = (rndP() - 0.5) * 16; // +/- 8 deg
+        const puffCol = shiftHueHex(baseColor, hueShift);
+        const puffCx = cx + dx + jx;
+        // sun-side puff (sunSign aligned with dx sign) → brighter
+        const onSunSide = (sunSign > 0 ? dx >= 0 : dx <= 0);
+        const lightOverlay = onSunSide
+          ? `<ellipse cx="${(puffCx + sunSign * rx * rxm * 0.20).toFixed(1)}" cy="${(cy + dy + jy - ry * rym * 0.22).toFixed(1)}" rx="${(rx * rxm * 0.55).toFixed(1)}" ry="${(ry * rym * 0.48).toFixed(1)}" fill="rgba(255,250,225,0.22)"/>`
+          : `<ellipse cx="${(puffCx - sunSign * rx * rxm * 0.18).toFixed(1)}" cy="${(cy + dy + jy + ry * rym * 0.22).toFixed(1)}" rx="${(rx * rxm * 0.55).toFixed(1)}" ry="${(ry * rym * 0.45).toFixed(1)}" fill="rgba(0,0,0,0.14)"/>`;
+        return `<ellipse cx="${puffCx.toFixed(1)}" cy="${(cy + dy + jy).toFixed(1)}" rx="${(rx * rxm).toFixed(1)}" ry="${(ry * rym).toFixed(1)}" fill="${puffCol}"/>${lightOverlay}`;
       }).join("");
-      // sun-side highlight + far-side shadow
-      const hiX = cx + sunSign * rx * 0.30;
-      const hiY = cy - ry * 0.30;
-      const shX = cx - sunSign * rx * 0.28;
-      const shY = cy + ry * 0.30;
-      const highlight = `<ellipse cx="${hiX.toFixed(1)}" cy="${hiY.toFixed(1)}" rx="${(rx * 0.45).toFixed(1)}" ry="${(ry * 0.40).toFixed(1)}" fill="rgba(255,255,255,0.32)"/>`;
-      const shade     = `<ellipse cx="${shX.toFixed(1)}" cy="${shY.toFixed(1)}" rx="${(rx * 0.50).toFixed(1)}" ry="${(ry * 0.38).toFixed(1)}" fill="rgba(0,0,0,0.18)"/>`;
       // invisible hit-target ellipse the hover CSS can highlight
       const hit = `<ellipse class="crown-hit" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(rx * 1.05).toFixed(1)}" ry="${(ry * 1.05).toFixed(1)}" fill="none" stroke="transparent" stroke-width="0"/>`;
-      return parts + shade + highlight + hit;
+      return parts + hit;
     }
 
     if (p.tier === "W") {
@@ -8398,15 +8472,25 @@ function render3D(layers, recs, allRecs) {
     }
 
     // Pot under plant on balcony / indoor (terracotta look)
+    // R14 #8: size scales with tier — canopy bigger, shrubs medium, ground smaller.
+    // Color rotates: clay terracotta / ceramic gray / dark stoneware by id-hash.
     let pot = "";
     if ((state.space === "balcony" || state.space === "indoor") && p.tier !== "W") {
-      const potW = Math.max(8, crownR * 0.85);
-      const potH = 8;
+      const tierScale = p.tier === "T" ? 1.2 : (p.tier === "S" ? 1.0 : 0.78);
+      const potW = Math.max(8, crownR * 0.85 * tierScale);
+      const potH = 8 * tierScale;
       const potY = ground.iy - 1;
+      const potPalettes = [
+        { rim: "#6E5638", side: "#A88A6A", base: "#8C6F4E" }, // clay terracotta
+        { rim: "#5C5A56", side: "#A8A6A0", base: "#8C8A84" }, // ceramic gray
+        { rim: "#2E2A24", side: "#5A4E40", base: "#3F362C" }, // dark stoneware
+      ];
+      const potIdx = ((p.id || "p").split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % potPalettes.length;
+      const potCol = potPalettes[potIdx];
       pot = `
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${(potY + potH).toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="#8C6F4E"/>
-        <path d="M${(ground.ix - potW).toFixed(1)},${potY.toFixed(1)} L${(ground.ix - potW * 0.85).toFixed(1)},${(potY + potH).toFixed(1)} L${(ground.ix + potW * 0.85).toFixed(1)},${(potY + potH).toFixed(1)} L${(ground.ix + potW).toFixed(1)},${potY.toFixed(1)} Z" fill="#A88A6A" stroke="#6E5638" stroke-width="0.8"/>
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${potY.toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="#6E5638"/>`;
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${(potY + potH).toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="${potCol.base}"/>
+        <path d="M${(ground.ix - potW).toFixed(1)},${potY.toFixed(1)} L${(ground.ix - potW * 0.85).toFixed(1)},${(potY + potH).toFixed(1)} L${(ground.ix + potW * 0.85).toFixed(1)},${(potY + potH).toFixed(1)} L${(ground.ix + potW).toFixed(1)},${potY.toFixed(1)} Z" fill="${potCol.side}" stroke="${potCol.rim}" stroke-width="0.8"/>
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${potY.toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="${potCol.rim}"/>`;
     }
 
     // ── MASS-PLANTING DRIFT (priority 2) ──────────────────────
@@ -8475,15 +8559,19 @@ function render3D(layers, recs, allRecs) {
         const rad = rndF() * 0.95;
         const fx = cx0 + Math.cos(ang) * rxSpread * rad;
         const fy = cy0 + Math.sin(ang) * rySpread * rad;
-        const r = 1.8 + rndF() * 1.6;
+        // R14 #7: vary stem radius 1.5–3.0 so blooms feel uneven, not uniform.
+        const r = 1.5 + rndF() * 1.5;
         const col = pal[i % pal.length];
-        // 5-petal star pattern: center + 4 small surrounding dots
+        // random per-flower rotation 0–72° so petals don't all face the same way
+        const rot = (rndF() * 72).toFixed(0);
         fparts.push(`<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="${r.toFixed(1)}" fill="${col}" opacity="0.95"/>`);
         if (i % 2 === 0) {
-          fparts.push(`<circle cx="${(fx + r * 0.9).toFixed(1)}" cy="${fy.toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>`);
-          fparts.push(`<circle cx="${(fx - r * 0.9).toFixed(1)}" cy="${fy.toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>`);
-          fparts.push(`<circle cx="${fx.toFixed(1)}" cy="${(fy - r * 0.9).toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>`);
-          fparts.push(`<circle cx="${fx.toFixed(1)}" cy="${(fy + r * 0.9).toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>`);
+          fparts.push(`<g transform="rotate(${rot} ${fx.toFixed(1)} ${fy.toFixed(1)})">
+            <circle cx="${(fx + r * 0.9).toFixed(1)}" cy="${fy.toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>
+            <circle cx="${(fx - r * 0.9).toFixed(1)}" cy="${fy.toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>
+            <circle cx="${fx.toFixed(1)}" cy="${(fy - r * 0.9).toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>
+            <circle cx="${fx.toFixed(1)}" cy="${(fy + r * 0.9).toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>
+          </g>`);
           // tiny pollen dot in centre
           fparts.push(`<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="${(r * 0.35).toFixed(1)}" fill="#FFE08A"/>`);
         }
@@ -8567,7 +8655,21 @@ function render3D(layers, recs, allRecs) {
     const bloomTag = isBlooming ? ` <tspan fill="#C85F8A" font-style="italic">· ${t("花期","in bloom")}</tspan>` : "";
     const label = `<text x="${ground.ix.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="11" font-family="Noto Serif TC" fill="#3F4A37" font-weight="600">${labelText}${bloomTag}</text>`;
 
-    return `<g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">${mulchRing}${shadow}${drift}${pot}${trunk}${crown}${blooms}${critter}${label}</g>`;
+    // R14 #1: atmospheric perspective — back plants get a subtle whitish wash.
+    // Depth = 0 (nearest) → 1 (farthest). 5–12% alpha. Skip indoor.
+    let aerial = "";
+    if (useAerial && drawList.length > 1) {
+      const depth = 1 - ((sortKey - minSort) / sortSpan); // 1 = farthest, 0 = nearest
+      const alpha = (0.05 + depth * 0.07).toFixed(3);
+      if (depth > 0.15) {
+        const ax = ground.ix;
+        const ayTop = ground.iy - trunkH - crownRy * 2.4;
+        const ayBot = ground.iy + 4;
+        aerial = `<rect x="${(ax - crownR * 1.4).toFixed(1)}" y="${ayTop.toFixed(1)}" width="${(crownR * 2.8).toFixed(1)}" height="${(ayBot - ayTop).toFixed(1)}" fill="rgba(232,238,240,${alpha})" pointer-events="none"/>`;
+      }
+    }
+
+    return `<g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">${mulchRing}${shadow}${drift}${pot}${trunk}${crown}${blooms}${aerial}${critter}${label}</g>`;
   }).join("");
 
   // ── Sun marker + rays — sun position computed above for shadow direction ─
