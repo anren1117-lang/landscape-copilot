@@ -1291,10 +1291,15 @@
     margin-top: 14px; padding: 18px; background: rgba(255,255,255,0.55);
     border: 1px solid var(--line); border-radius: 18px;
   }
-  .plan-svg { width: 100%; height: auto; display: block; border-radius: 12px; }
+  .plan-svg { width: 100%; height: auto; display: block; border-radius: 12px; -webkit-tap-highlight-color: rgba(138,154,123,0.25); }
   .plan-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 12px; color: var(--ink-soft); }
   .plan-legend-item { display: flex; align-items: center; gap: 6px; }
   .plan-legend-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+  /* Plant click affordance — soft sage outline on hover so the user knows it's tappable */
+  .plan-svg .plan-plant { transition: transform 120ms ease; }
+  .plan-svg .plan-plant:hover { transform: translateY(-1px); }
+  .plan-svg .plan-plant:hover .crown-hit { stroke: rgba(138,154,123,0.85); stroke-width: 1.4; stroke-dasharray: 3 3; }
+  .plan-svg .plan-plant:focus { outline: none; }
 
   /* BLOOM CALENDAR */
   .cal-frame { padding: 18px; background: rgba(255,255,255,0.55); border: 1px solid var(--line); border-radius: 18px; overflow-x: auto; }
@@ -7530,8 +7535,43 @@ function render3D(layers, recs) {
 
   // ── Sky backdrop (gradient band behind the iso plane) ──────
   const horizonY = Math.min(c0.iy, c1.iy, c2.iy, c3.iy) - 6;
+
+  // Pseudo-random helper used in several places below — declared early.
+  function pseudoRand(seed) {
+    let s = seed | 0;
+    return () => {
+      s = (s * 1664525 + 1013904223) | 0;
+      return ((s >>> 0) % 10000) / 10000;
+    };
+  }
+
+  // ── Cloud silhouettes in the sky band — compound ellipses, seeded by space
+  // so they don't shift between renders. Skipped for indoor (window scene).
+  let skyClouds = "";
+  if (state.space !== "indoor") {
+    const cloudSeed = ({ balcony: 21, rooftop: 47, yard: 83 }[state.space] || 31) + orient.charCodeAt(0);
+    const rndC = pseudoRand(cloudSeed);
+    const cloudCount = 3 + Math.floor(rndC() * 2); // 3 or 4
+    const cloudParts = [];
+    for (let i = 0; i < cloudCount; i++) {
+      const cx0 = 60 + rndC() * (svgW - 120);
+      const cy0 = 24 + rndC() * Math.max(20, horizonY - 60);
+      const cw = 28 + rndC() * 36;
+      const ch = 9  + rndC() * 6;
+      // 3 overlapping ellipses + a soft rim ellipse
+      cloudParts.push(`<g opacity="0.78">
+        <ellipse cx="${(cx0 - cw * 0.55).toFixed(1)}" cy="${(cy0 + ch * 0.25).toFixed(1)}" rx="${(cw * 0.55).toFixed(1)}" ry="${(ch * 0.85).toFixed(1)}" fill="rgba(255,255,255,0.78)"/>
+        <ellipse cx="${cx0.toFixed(1)}" cy="${cy0.toFixed(1)}" rx="${cw.toFixed(1)}" ry="${ch.toFixed(1)}" fill="rgba(255,255,255,0.88)"/>
+        <ellipse cx="${(cx0 + cw * 0.55).toFixed(1)}" cy="${(cy0 + ch * 0.15).toFixed(1)}" rx="${(cw * 0.6).toFixed(1)}" ry="${(ch * 0.9).toFixed(1)}" fill="rgba(255,255,255,0.82)"/>
+        <ellipse cx="${(cx0 - cw * 0.1).toFixed(1)}" cy="${(cy0 - ch * 0.4).toFixed(1)}" rx="${(cw * 0.5).toFixed(1)}" ry="${(ch * 0.7).toFixed(1)}" fill="rgba(255,255,255,0.92)"/>
+      </g>`);
+    }
+    skyClouds = cloudParts.join("");
+  }
+
   const sky = `
     <rect x="0" y="0" width="${svgW}" height="${horizonY.toFixed(1)}" fill="url(#skyGrad)"/>
+    ${skyClouds}
     <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="${tod.ambient}" pointer-events="none"/>`;
 
   // Subtle grid lines on the iso plane — 8 divisions
@@ -7548,13 +7588,6 @@ function render3D(layers, recs) {
 
   // ── Space-specific ground texture ──────────────────────────
   // Yard → grass tufts. Rooftop → dashed paving lines. Balcony/indoor → none (back wall instead).
-  function pseudoRand(seed) {
-    let s = seed | 0;
-    return () => {
-      s = (s * 1664525 + 1013904223) | 0;
-      return ((s >>> 0) % 10000) / 10000;
-    };
-  }
   let groundTexture = "";
   if (state.space === "yard") {
     const rnd = pseudoRand(7);
@@ -7608,6 +7641,25 @@ function render3D(layers, recs) {
     }
   }
 
+  // ── Sun position (used for directional shadows AND sun marker below) ─
+  let sunX, sunY;
+  switch (orient) {
+    case "S": sunX = svgW - 80; sunY = 60; break;
+    case "E": sunX = 60;        sunY = 70; break;
+    case "W": sunX = svgW - 60; sunY = 70; break;
+    case "N": sunX = svgW / 2;  sunY = 40; break;
+    default:  sunX = svgW - 80; sunY = 60;
+  }
+
+  // ── Sunlit ground wash — translucent warm gradient on the iso plane,
+  // brightest in the sun-side corner. Subtle but reads as "lit ground".
+  // We use a linear gradient whose direction tracks the sun.
+  const sunDirX = sunX < svgW / 2 ? "1" : "0"; // sun west→light streams left-to-right? actually sun on right means light from right
+  const sunGradX1 = sunX < svgW / 2 ? "0" : "1";
+  const sunGradX2 = sunX < svgW / 2 ? "1" : "0";
+  const sunWashOpacity = orient === "N" ? "0.10" : "0.22";
+  const sunWash = `<polygon points="${groundPoly}" fill="url(#sunWash)" opacity="${sunWashOpacity}" pointer-events="none"/>`;
+
   // Heights & crown sizes per tier (in SVG units; not real metres)
   const TIER_3D = {
     T: { trunkH: 90,  crownR: 38, crownAspect: 0.9, trunkW: 8 },   // canopy
@@ -7649,11 +7701,19 @@ function render3D(layers, recs) {
     const trunkH  = tier.trunkH;
     const trunkW  = tier.trunkW;
 
-    // Soft stacked ground shadows — ambient-occlusion feel at the base
+    // Soft stacked ground shadows — direction OPPOSITE the sun (sun upper-right → shadow lower-left).
+    // Magnitude scales with trunk height (taller plant casts longer shadow).
+    const sunDx = ground.ix - sunX;
+    const sunDy = ground.iy - sunY;
+    const sunDist = Math.hypot(sunDx, sunDy) || 1;
+    const shadowOffsetMag = 6 + (trunkH * 0.18);
+    const shOffX = (sunDx / sunDist) * shadowOffsetMag;
+    const shOffY = Math.max(2, (sunDy / sunDist) * shadowOffsetMag * 0.4); // keep positive so shadow falls "down"
+    const shCx = ground.ix + shOffX;
     const shadow = `
-      <ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 4).toFixed(1)}" rx="${(crownR * 1.35).toFixed(1)}" ry="${(crownR * 0.42).toFixed(1)}" fill="rgba(44,53,38,0.08)"/>
-      <ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 3).toFixed(1)}" rx="${(crownR * 1.10).toFixed(1)}" ry="${(crownR * 0.32).toFixed(1)}" fill="rgba(44,53,38,0.15)"/>
-      <ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 2).toFixed(1)}" rx="${(crownR * 0.85).toFixed(1)}" ry="${(crownR * 0.22).toFixed(1)}" fill="rgba(44,53,38,0.22)"/>`;
+      <ellipse cx="${shCx.toFixed(1)}" cy="${(ground.iy + shOffY + 4).toFixed(1)}" rx="${(crownR * 1.35).toFixed(1)}" ry="${(crownR * 0.42).toFixed(1)}" fill="rgba(44,53,38,0.08)"/>
+      <ellipse cx="${shCx.toFixed(1)}" cy="${(ground.iy + shOffY + 3).toFixed(1)}" rx="${(crownR * 1.10).toFixed(1)}" ry="${(crownR * 0.32).toFixed(1)}" fill="rgba(44,53,38,0.15)"/>
+      <ellipse cx="${(ground.ix + shOffX * 0.4).toFixed(1)}" cy="${(ground.iy + 2).toFixed(1)}" rx="${(crownR * 0.85).toFixed(1)}" ry="${(crownR * 0.22).toFixed(1)}" fill="rgba(44,53,38,0.22)"/>`;
 
     let trunk = "";
     if (trunkH > 0 && trunkW > 0) {
@@ -7665,6 +7725,40 @@ function render3D(layers, recs) {
     const cyCrown = ground.iy - trunkH - (trunkH > 0 ? crownRy * 0.4 : 0);
     const shape = speciesShape(p);
     let crown;
+
+    // ── Cloud-crown helper: 4-5 overlapping ellipses of varying size give a
+    // "puffy" canopy silhouette that reads as real foliage, not a wireframe ball.
+    // Highlights on the sun-facing side, shadow on the opposite. Seeded per-plant
+    // so the shape is stable across renders.
+    function cloudyCrown(cx, cy, rx, ry, baseColor, sunSideX) {
+      const seed = (p.id || "x").split("").reduce((a, c) => a + c.charCodeAt(0), 0) + Math.round(cx);
+      const rndP = pseudoRand(seed);
+      const sunSign = sunSideX < cx ? -1 : 1; // -1 = sun on left, +1 = sun on right
+      const puffs = [
+        // [dx, dy, rxMul, ryMul]
+        [0,                     0,                     1.00, 1.00],
+        [-rx * 0.55,           -ry * 0.10,            0.62, 0.68],
+        [ rx * 0.55,           -ry * 0.20,            0.68, 0.72],
+        [-rx * 0.18,           -ry * 0.55,            0.58, 0.55],
+        [ rx * 0.28,            ry * 0.30,            0.55, 0.50],
+      ];
+      // jitter for organic feel — small, seeded
+      const parts = puffs.map(([dx, dy, rxm, rym], i) => {
+        const jx = (rndP() - 0.5) * rx * 0.18;
+        const jy = (rndP() - 0.5) * ry * 0.18;
+        return `<ellipse cx="${(cx + dx + jx).toFixed(1)}" cy="${(cy + dy + jy).toFixed(1)}" rx="${(rx * rxm).toFixed(1)}" ry="${(ry * rym).toFixed(1)}" fill="${baseColor}"/>`;
+      }).join("");
+      // sun-side highlight + far-side shadow
+      const hiX = cx + sunSign * rx * 0.30;
+      const hiY = cy - ry * 0.30;
+      const shX = cx - sunSign * rx * 0.28;
+      const shY = cy + ry * 0.30;
+      const highlight = `<ellipse cx="${hiX.toFixed(1)}" cy="${hiY.toFixed(1)}" rx="${(rx * 0.45).toFixed(1)}" ry="${(ry * 0.40).toFixed(1)}" fill="rgba(255,255,255,0.32)"/>`;
+      const shade     = `<ellipse cx="${shX.toFixed(1)}" cy="${shY.toFixed(1)}" rx="${(rx * 0.50).toFixed(1)}" ry="${(ry * 0.38).toFixed(1)}" fill="rgba(0,0,0,0.18)"/>`;
+      // invisible hit-target ellipse the hover CSS can highlight
+      const hit = `<ellipse class="crown-hit" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(rx * 1.05).toFixed(1)}" ry="${(ry * 1.05).toFixed(1)}" fill="none" stroke="transparent" stroke-width="0"/>`;
+      return parts + shade + highlight + hit;
+    }
 
     if (p.tier === "W") {
       crown = `
@@ -7751,10 +7845,7 @@ function render3D(layers, recs) {
         const fy2 = cyCrown + Math.sin(ang) * crownRy * 0.85;
         flecks.push(`<circle cx="${fx2.toFixed(1)}" cy="${fy2.toFixed(1)}" r="2.4" fill="#E8C9D2" opacity="0.92"/>`);
       }
-      crown = `
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${cyCrown.toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="${p.color}"/>
-        <ellipse cx="${(ground.ix - crownR * 0.25).toFixed(1)}" cy="${(cyCrown - crownRy * 0.3).toFixed(1)}" rx="${(crownR * 0.55).toFixed(1)}" ry="${(crownRy * 0.4).toFixed(1)}" fill="rgba(255,255,255,0.30)"/>
-        ${flecks.join("")}`;
+      crown = cloudyCrown(ground.ix, cyCrown, crownR, crownRy, p.color, sunX) + flecks.join("");
     } else if (shape === "climber") {
       const tendrils = [];
       const baseY = ground.iy - 6;
@@ -7763,10 +7854,7 @@ function render3D(layers, recs) {
         const dir = i % 2 === 0 ? -1 : 1;
         tendrils.push(`<path d="M${ground.ix.toFixed(1)},${ty.toFixed(1)} q${(dir * 5).toFixed(1)},2 ${(dir * 9).toFixed(1)},-3" stroke="${p.color}" stroke-width="1.6" fill="none"/>`);
       }
-      crown = `
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${cyCrown.toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="${p.color}"/>
-        <ellipse cx="${(ground.ix - crownR * 0.2).toFixed(1)}" cy="${(cyCrown - crownRy * 0.3).toFixed(1)}" rx="${(crownR * 0.5).toFixed(1)}" ry="${(crownRy * 0.4).toFixed(1)}" fill="rgba(255,255,255,0.28)"/>
-        ${tendrils.join("")}`;
+      crown = cloudyCrown(ground.ix, cyCrown, crownR, crownRy, p.color, sunX) + tendrils.join("");
     } else if (shape === "groundcover") {
       const speckle = [];
       for (let i = 0; i < 6; i++) {
@@ -7778,12 +7866,11 @@ function render3D(layers, recs) {
       }
       crown = `
         <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 1.05).toFixed(1)}" ry="${(crownRy * 1.05).toFixed(1)}" fill="${p.color}"/>
-        ${speckle.join("")}`;
+        ${speckle.join("")}
+        <ellipse class="crown-hit" cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 1.1).toFixed(1)}" ry="${(crownRy * 1.1).toFixed(1)}" fill="none" stroke="transparent" stroke-width="0"/>`;
     } else {
-      crown = `
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${cyCrown.toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="${p.color}"/>
-        <ellipse cx="${(ground.ix - crownR * 0.25).toFixed(1)}" cy="${(cyCrown - crownRy * 0.3).toFixed(1)}" rx="${(crownR * 0.55).toFixed(1)}" ry="${(crownRy * 0.4).toFixed(1)}" fill="rgba(255,255,255,0.32)"/>
-        <ellipse cx="${(ground.ix + crownR * 0.2).toFixed(1)}" cy="${(cyCrown + crownRy * 0.35).toFixed(1)}" rx="${(crownR * 0.5).toFixed(1)}" ry="${(crownRy * 0.35).toFixed(1)}" fill="rgba(0,0,0,0.16)"/>`;
+      // broadleaf / shrub — full cloudy-crown treatment
+      crown = cloudyCrown(ground.ix, cyCrown, crownR, crownRy, p.color, sunX);
     }
 
     // Pot under plant on balcony / indoor (terracotta look)
@@ -7806,14 +7893,7 @@ function render3D(layers, recs) {
     return `<g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">${shadow}${pot}${trunk}${crown}${label}</g>`;
   }).join("");
 
-  // ── Sun marker + rays — placed by orientation ──────────────
-  let sunX, sunY;
-  switch (orient) {
-    case "S": sunX = svgW - 80; sunY = 60; break;
-    case "E": sunX = 60;        sunY = 70; break;
-    case "W": sunX = svgW - 60; sunY = 70; break;
-    case "N": sunX = svgW / 2;  sunY = 40; break;
-  }
+  // ── Sun marker + rays — sun position computed above for shadow direction ─
   const rays = [];
   for (let i = 0; i < 12; i++) {
     const ang = (Math.PI * 2 / 12) * i;
@@ -7850,10 +7930,17 @@ function render3D(layers, recs) {
             <stop offset="0%"  stop-color="${tod.skyTop}"/>
             <stop offset="100%" stop-color="${tod.skyMid}"/>
           </linearGradient>
+          <!-- Sunlit ground wash — bright on the sun-side corner, fades to opposite -->
+          <linearGradient id="sunWash" x1="${sunGradX1}" y1="0" x2="${sunGradX2}" y2="1">
+            <stop offset="0%"  stop-color="${tod.sun}" stop-opacity="0.85"/>
+            <stop offset="55%" stop-color="${tod.sun}" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="${tod.sun}" stop-opacity="0"/>
+          </linearGradient>
         </defs>
         ${sky}
         ${backWall}
         <polygon points="${groundPoly}" fill="url(#groundGrad)" stroke="#C9C3B4" stroke-width="1.2"/>
+        ${sunWash}
         ${gridLines}
         ${groundTexture}
         ${sun}
