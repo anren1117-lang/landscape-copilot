@@ -62,9 +62,21 @@
   }
   .screen-bar .left { font-size: 13px; color: var(--ink-soft); }
   .screen-bar .left a { color: var(--sage-deep); text-decoration: none; font-weight: 600; }
-  .screen-bar .right { display: flex; gap: 8px; flex-wrap: wrap; }
+  .screen-bar .right { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+  /* Skip-to-main link — visible only when focused */
+  .skip-link {
+    position: absolute; left: 12px; top: -100px;
+    background: var(--forest); color: var(--paper);
+    padding: 10px 18px; border-radius: 8px; z-index: 1000;
+    font-size: 14px; font-weight: 600; text-decoration: none;
+    transition: top .15s ease;
+  }
+  .skip-link:focus { top: 12px; outline: 3px solid var(--sage); outline-offset: 2px; }
+
   .btn {
     padding: 8px 14px;
+    min-height: 44px;
     background: var(--forest);
     color: var(--paper);
     border: 1px solid var(--forest);
@@ -79,6 +91,28 @@
     gap: 6px;
     line-height: 1.2;
     transition: transform .12s ease, box-shadow .12s ease, background .15s ease;
+  }
+  /* Tighter on small screens so .screen-bar .right doesn't break into too many rows */
+  @media (max-width: 480px) {
+    .screen-bar { padding: 8px 12px; gap: 8px; }
+    .screen-bar .right { gap: 6px; }
+    .btn { padding: 6px 10px; font-size: 12px; min-height: 40px; }
+    .btn.text { padding: 6px 8px; }
+  }
+  /* Visible focus ring for all interactive surfaces (WCAG 2.4.7) */
+  .btn:focus-visible,
+  a:focus-visible,
+  .tab:focus-visible,
+  .card-opt:focus-visible,
+  .orient-btn:focus-visible,
+  .nav-btn:focus-visible,
+  .cta:focus-visible,
+  .photo-dropzone:focus-visible,
+  .dict-chip:focus-visible,
+  .field-input:focus-visible,
+  .field-input-num:focus-visible {
+    outline: 3px solid var(--sage-deep);
+    outline-offset: 2px;
   }
   .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px -4px rgba(44,53,38,0.4); }
   .btn.ghost { background: transparent; color: var(--forest); border-color: var(--forest); }
@@ -129,6 +163,7 @@
     border-radius: 16px;
     background: rgba(255,255,255,0.4);
     padding: 22px;
+    min-height: 44px;
     cursor: pointer;
     display: flex; flex-direction: column;
     transition: all .3s cubic-bezier(.2,.7,.3,1);
@@ -191,6 +226,7 @@
     border: 1px solid var(--line);
     border-radius: 12px;
     padding: 14px 8px;
+    min-height: 44px;
     cursor: pointer; font-family: inherit;
     display: flex; flex-direction: column; align-items: center; gap: 6px;
     transition: all .2s;
@@ -301,7 +337,7 @@
   /* result tabs */
   .tabs { display: flex; gap: 2px; background: rgba(255,255,255,0.5); border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin: 24px 0 30px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
-  .tab { padding: 9px 16px; background: none; border: none; border-radius: 999px; font-family: inherit; font-size: 13.5px; color: var(--ink-soft); cursor: pointer; white-space: nowrap; font-weight: 500; transition: all .2s; }
+  .tab { padding: 11px 16px; min-height: 44px; background: none; border: none; border-radius: 999px; font-family: inherit; font-size: 13.5px; color: var(--ink-soft); cursor: pointer; white-space: nowrap; font-weight: 500; transition: all .2s; display: inline-flex; align-items: center; }
   .tab:hover { color: var(--forest); }
   .tab.active { background: var(--forest); color: var(--paper); }
 
@@ -1515,15 +1551,17 @@
 <div class="glow-tl"></div>
 <div class="glow-br"></div>
 
+<a href="#app" class="skip-link" data-zh="跳到主要內容" data-en="Skip to main content">跳到主要內容</a>
+
 <div class="screen-bar">
   <div class="left" id="topBarLeft">
     <span style="font-weight:600; color:var(--sage-deep); letter-spacing:0.02em;" data-zh="🌿 AI Landscape Copilot" data-en="🌿 AI Landscape Copilot">🌿 AI Landscape Copilot</span>
   </div>
   <div class="right">
-    <button class="btn text" id="langToggle">English</button>
-    <button class="btn ghost" id="shareLinkBtn" onclick="copyShareLink(this)">🔗 <span data-zh="複製連結" data-en="Copy link">複製連結</span></button>
-    <a class="btn line" id="lineShareBtn" href="#" target="_blank" rel="noopener">💬 LINE</a>
-    <button class="btn ghost" onclick="window.print()">📄 <span data-zh="列印 / PDF" data-en="Print / PDF">列印 / PDF</span></button>
+    <button class="btn text" id="langToggle" aria-label="Toggle language / 切換語言">English</button>
+    <button class="btn ghost" id="shareLinkBtn" onclick="copyShareLink(this)" aria-label="Copy share link / 複製連結">🔗 <span data-zh="複製連結" data-en="Copy link">複製連結</span></button>
+    <a class="btn line" id="lineShareBtn" href="#" target="_blank" rel="noopener" aria-label="Share to LINE / 分享到 LINE">💬 LINE</a>
+    <button class="btn ghost" onclick="window.print()" aria-label="Print or export PDF / 列印或匯出 PDF">📄 <span data-zh="列印 / PDF" data-en="Print / PDF">列印 / PDF</span></button>
   </div>
 </div>
 
@@ -1540,7 +1578,7 @@
 
 <div class="progress-wrap" id="progressWrap"></div>
 
-<main class="body" id="app"></main>
+<main class="body" id="app" tabindex="-1"></main>
 
 <footer class="nav" id="navFooter"></footer>
 
@@ -5358,8 +5396,10 @@ function renderPhotoFlow() {
               </div>` : ""}
           </div>
         ` : `
-          <label for="photoInput" class="photo-dropzone" id="dropzone">
-            <div class="icon">📸</div>
+          <label for="photoInput" class="photo-dropzone" id="dropzone"
+                 role="button" tabindex="0"
+                 aria-label="${t('點此拍照或上傳照片', 'Tap to take or upload a photo')}">
+            <div class="icon" aria-hidden="true">📸</div>
             <div class="label" data-zh="點此拍照或上傳" data-en="Tap to take or upload a photo">點此拍照或上傳</div>
             <div class="sub" data-zh="支援手機拍照、相片上傳，或拖曳到此處。圖片會在本機壓縮後送至 AI 分析（不儲存）。"
                             data-en="Take a photo with your phone, upload, or drag-and-drop. Image is compressed locally before AI analysis (nothing stored).">
@@ -5429,6 +5469,13 @@ function wirePhotoFlow() {
     ["dragenter","dragover"].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("drag"); }));
     ["dragleave","dragend","drop"].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("drag"); }));
     dz.addEventListener("drop", (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handlePhotoFile(f); });
+    // Keyboard activation — Enter/Space triggers the file picker
+    dz.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput?.click();
+      }
+    });
   }
 
   // Re-upload
@@ -5749,7 +5796,10 @@ function renderDetails() {
                 輸入地址、縣市，或關鍵字（如：「台南市安平區」、「淡水」、「Hualien」）。我們不上傳，純前端判斷氣候區。</span>
           <input class="field-input" id="addressInput" type="text"
                  value="${escapeHtml(state.address)}"
-                 placeholder="${t('例：台南市安平區 安北路 100 號', 'e.g. 100 Anbei Rd, Anping, Tainan')}" />
+                 placeholder="${t('例：台南市安平區 安北路 100 號', 'e.g. 100 Anbei Rd, Anping, Tainan')}"
+                 data-zh-placeholder="例：台南市安平區 安北路 100 號"
+                 data-en-placeholder="e.g. 100 Anbei Rd, Anping, Tainan"
+                 aria-label="${t('地址或區域', 'Address or region')}" />
           <div class="addr-action-row">
             <button class="addr-btn" id="geocodeBtn" type="button">🔍 <span data-zh="查詢地址" data-en="Look up address">查詢地址</span></button>
             <button class="addr-btn" id="geolocateBtn" type="button">📍 <span data-zh="用我的位置" data-en="Use my location">用我的位置</span></button>
@@ -5790,13 +5840,19 @@ function renderDetails() {
                 data-zh="主要陽光從哪一面進來？俯瞰圖會根據朝向擺放陽光指示，並調整植物的種植順序。"
                 data-en="Which side does the main light come from? The plan view places the sun marker accordingly and adjusts plant ordering.">
                 主要陽光從哪一面進來？俯瞰圖會根據朝向擺放陽光指示，並調整植物的種植順序。</span>
-          <div class="orient-row">
-            ${["N","E","S","W"].map(k => `
-              <button class="orient-btn ${state.orientation === k ? "active" : ""} ${suggestedOrient === k ? "ai-suggested" : ""}" data-orient="${k}">
+          <div class="orient-row" role="radiogroup" aria-label="${t('空間朝向', 'Orientation')}">
+            ${["N","E","S","W"].map(k => {
+              const sel = state.orientation === k;
+              return `
+              <button class="orient-btn ${sel ? "active" : ""} ${suggestedOrient === k ? "ai-suggested" : ""}"
+                      data-orient="${k}"
+                      role="radio"
+                      aria-checked="${sel ? "true" : "false"}"
+                      aria-label="${orientHints[k].zh} / ${orientHints[k].en}">
                 <span class="compass">${orientLabels[k][state.lang]}</span>
                 <span class="label" data-zh="${orientHints[k].zh}" data-en="${orientHints[k].en}">${orientHints[k].zh}</span>
-              </button>
-            `).join("")}
+              </button>`;
+            }).join("")}
           </div>
           <button class="compass-toggle" type="button" id="openCompassBtn">
             🧭 <span data-zh="${state.compassOpen ? "關閉指南針" : "不知道朝向？用手機指南針偵測"}" data-en="${state.compassOpen ? "Close compass" : "Not sure? Use the phone compass"}">${state.compassOpen ? "關閉指南針" : "不知道朝向？用手機指南針偵測"}</span>
@@ -6511,8 +6567,12 @@ function renderGoals() {
 }
 
 function optCard(opt, active, iconHtml, checkable) {
+  // `checkable` flag = multi-select (goals step) → role=checkbox; else single-select → role=radio.
+  const role = checkable ? "checkbox" : "radio";
+  const ariaLabel = `${opt.zh} / ${opt.en}`;
   return `
-    <button class="card-opt ${active ? "active" : ""}" data-key="${opt.key}">
+    <button class="card-opt ${active ? "active" : ""}" data-key="${opt.key}"
+            role="${role}" aria-checked="${active ? "true" : "false"}" aria-label="${ariaLabel}">
       ${iconHtml ? `<div class="card-opt-icon">${iconHtml}</div>` : ""}
       <div class="card-opt-row">
         <span class="card-opt-label" data-zh="${opt.zh}" data-en="${opt.en}">${opt.zh}</span>
@@ -6525,8 +6585,11 @@ function optCard(opt, active, iconHtml, checkable) {
 // Variant that adds the "AI suggested" ribbon when the AI picked this card.
 function optCardWithSuggest(opt, active, isSuggested, iconHtml, checkable) {
   const cls = `card-opt ${active ? "active" : ""} ${isSuggested && !active ? "ai-suggested" : ""}`;
+  const role = checkable ? "checkbox" : "radio";
+  const ariaLabel = `${opt.zh} / ${opt.en}${isSuggested && !active ? " — AI suggested" : ""}`;
   return `
-    <button class="${cls}" data-key="${opt.key}">
+    <button class="${cls}" data-key="${opt.key}"
+            role="${role}" aria-checked="${active ? "true" : "false"}" aria-label="${ariaLabel}">
       ${iconHtml ? `<div class="card-opt-icon">${iconHtml}</div>` : ""}
       <div class="card-opt-row">
         <span class="card-opt-label" data-zh="${opt.zh}" data-en="${opt.en}">${opt.zh}</span>
@@ -7030,7 +7093,7 @@ function renderResult() {
 
       ${renderSustainChips(recs)}
 
-      <div class="tabs" role="tablist">
+      <div class="tabs" role="tablist" aria-label="${t('結果頁籤', 'Result tabs')}">
         ${[
           { k:"preview",   zh:"實景參考",     en:"Realistic" },
           { k:"plan",      zh:"俯瞰平面圖",   en:"Garden plan" },
@@ -7042,18 +7105,57 @@ function renderResult() {
           { k:"tutorials", zh:"養護教學",     en:"Tutorials" },
           { k:"shopping",  zh:"採購清單",     en:"Shopping list" },
           { k:"dict",      zh:"植物字典",     en:"Plant dictionary" },
-        ].map(tab => `
-          <button class="tab ${state.resultTab === tab.k ? "active" : ""}" data-tab="${tab.k}">
+        ].map(tab => {
+          const selected = state.resultTab === tab.k;
+          return `
+          <button class="tab ${selected ? "active" : ""}"
+                  role="tab"
+                  data-tab="${tab.k}"
+                  id="tab-${tab.k}"
+                  aria-selected="${selected ? "true" : "false"}"
+                  aria-controls="tabPanel"
+                  tabindex="${selected ? "0" : "-1"}">
             <span data-zh="${tab.zh}" data-en="${tab.en}">${tab.zh}</span>
-          </button>
-        `).join("")}
+          </button>`;
+        }).join("")}
       </div>
 
-      <div class="tab-panel" id="tabPanel"></div>
+      <div class="tab-panel" id="tabPanel" role="tabpanel" tabindex="0"></div>
     </div>`;
 
-  app.querySelectorAll(".tab").forEach((t) => {
-    t.addEventListener("click", () => { state.resultTab = t.dataset.tab; renderTabPanel(recs, layers); applyLanguage(); });
+  const tabEls = Array.from(app.querySelectorAll('.tab[role="tab"]'));
+  const syncTabAttrs = () => {
+    tabEls.forEach((el) => {
+      const sel = el.dataset.tab === state.resultTab;
+      el.setAttribute("aria-selected", sel ? "true" : "false");
+      el.setAttribute("tabindex", sel ? "0" : "-1");
+      el.classList.toggle("active", sel);
+    });
+  };
+  tabEls.forEach((tt) => {
+    tt.addEventListener("click", () => {
+      state.resultTab = tt.dataset.tab;
+      syncTabAttrs();
+      renderTabPanel(recs, layers);
+      applyLanguage();
+    });
+    tt.addEventListener("keydown", (e) => {
+      const idx = tabEls.indexOf(tt);
+      let nextIdx = null;
+      if (e.key === "ArrowRight") nextIdx = (idx + 1) % tabEls.length;
+      else if (e.key === "ArrowLeft") nextIdx = (idx - 1 + tabEls.length) % tabEls.length;
+      else if (e.key === "Home") nextIdx = 0;
+      else if (e.key === "End") nextIdx = tabEls.length - 1;
+      if (nextIdx !== null) {
+        e.preventDefault();
+        const next = tabEls[nextIdx];
+        state.resultTab = next.dataset.tab;
+        syncTabAttrs();
+        renderTabPanel(recs, layers);
+        applyLanguage();
+        next.focus();
+      }
+    });
   });
 
   // Viewing-shared bar actions (only present when state.viewingShared is true)
@@ -9840,6 +9942,9 @@ function renderDictionary() {
     <div class="dict-toolbar">
       <input class="dict-search" id="dictSearch" type="text"
              placeholder="${t('搜尋… 桂花 / Liquidambar / 海岸 / Taiwan endemic', 'Search… camphor / 月桃 / coast')}"
+             data-zh-placeholder="搜尋… 桂花 / Liquidambar / 海岸 / Taiwan endemic"
+             data-en-placeholder="Search… camphor / 月桃 / coast"
+             aria-label="${t('搜尋植物字典', 'Search plant dictionary')}"
              value="${escapeHtml(state.dictQuery)}" />
       <span class="dict-count">${filtered.length} / ${PLANTS.length}</span>
     </div>
@@ -10164,6 +10269,16 @@ function closeDrawer() {
 function applyLanguage() {
   document.querySelectorAll("[data-zh][data-en]").forEach((el) => {
     el.innerHTML = el.dataset[state.lang];
+  });
+  // Sync `placeholder` for inputs/textareas that opt-in via data-zh-placeholder/data-en-placeholder.
+  document.querySelectorAll("[data-zh-placeholder][data-en-placeholder]").forEach((el) => {
+    const v = state.lang === "zh" ? el.dataset.zhPlaceholder : el.dataset.enPlaceholder;
+    if (v != null) el.setAttribute("placeholder", v);
+  });
+  // Sync `aria-label` for elements that opt-in via data-zh-aria/data-en-aria.
+  document.querySelectorAll("[data-zh-aria][data-en-aria]").forEach((el) => {
+    const v = state.lang === "zh" ? el.dataset.zhAria : el.dataset.enAria;
+    if (v != null) el.setAttribute("aria-label", v);
   });
   document.documentElement.lang = state.lang === "zh" ? "zh-Hant" : "en";
   document.getElementById("langToggle").textContent = state.lang === "zh" ? "English" : "中文";
