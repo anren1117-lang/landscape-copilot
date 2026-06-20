@@ -359,6 +359,21 @@
     background: rgba(178,58,48,0.13); color: #8C2A22; border-color: rgba(178,58,48,0.4);
     box-shadow: inset 0 0 0 1px rgba(178,58,48,0.15);
   }
+  /* 📌 pin — stronger commitment than 👍. A pinned plant is GUARANTEED into the
+     design (force-included in its tier slot, +50 score). Uses the clay palette
+     so it reads as distinct from the sage "like" and red "dislike" states. */
+  .pref-btn.pin.on {
+    background: rgba(196,160,76,0.18); color: #8C6F1E; border-color: rgba(196,160,76,0.55);
+    box-shadow: inset 0 0 0 1px rgba(196,160,76,0.22);
+  }
+  /* Subtle ribbon on the rec card swatch when a plant is pinned — so users can scan
+     the grid and see at a glance which plants they've locked in. */
+  .rec-card.pinned { box-shadow: 0 0 0 2px rgba(196,160,76,0.45), 0 6px 18px rgba(44,53,38,0.06); }
+  .rec-card.pinned .rec-swatch::after {
+    content: "📌"; position: absolute; top: -8px; right: -8px;
+    font-size: 14px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.18));
+  }
+  .rec-card .rec-swatch { position: relative; }
 
   /* 🎯 preference impact note — sits above the sustainability chip row on the result page. */
   .pref-note {
@@ -4189,12 +4204,15 @@ const state = {
   selectedPlantId: null,
   qty: {},
   nativeOnly: false,     // filter recommendations to native plants only
-  // Per-design plant preferences — EXPLICIT 👍/👎 the user has tapped.
-  // Mutually exclusive: setting a plant in `liked` clears it from `disliked` and vice versa.
+  // Per-design plant preferences — EXPLICIT 👍/👎/📌 the user has tapped.
+  // Mutually exclusive between liked/disliked (setting one clears the other).
+  // 📌 pinned is INDEPENDENT — a pinned plant is GUARANTEED into the design
+  // (force-included in its tier slot, +50 score). Pin coexists with like or
+  // dislike though that combination is uncommon in practice.
   // Stored per-design (persists into snapshotState), reversible via clearPrefs().
   // scorePlants() reads these and adds bonus / penalty + a bilingual reason
   // so the user can see WHY the rec moved (no hidden ML reranker, no behavior log).
-  prefs: { liked: {}, disliked: {} },
+  prefs: { liked: {}, disliked: {}, pinned: {} },
   // realistic preview (Pollinations.ai)
   previewSeeds: [11, 47, 88],
   previewPromptOverride: null,
@@ -4304,6 +4322,7 @@ function scorePlants() {
   const coastal = !!detected?.coastal;
   const liked = (state.prefs && state.prefs.liked) || {};
   const disliked = (state.prefs && state.prefs.disliked) || {};
+  const pinned = (state.prefs && state.prefs.pinned) || {};
   return PLANTS.map((p) => {
     let score = 0;
     const reasons_zh = [], reasons_en = [];
@@ -4356,6 +4375,11 @@ function scorePlants() {
     //    exactly why a card moved up or down — and can reverse it via "清除偏好".
     if (liked[p.id])    { score += 12; reasons_zh.push("你標為喜歡"); reasons_en.push("You liked this"); }
     if (disliked[p.id]) { score -= 15; reasons_zh.push("你標為不喜歡"); reasons_en.push("You disliked this"); }
+    // 📌 Pinned — a hard commit. +50 swamps space/water/zone mismatches so the
+    // plant rises into the recs even if it's an awkward fit. buildLayers() also
+    // force-includes pinned plants into their tier slot below. Reason is shown
+    // first so the user understands why the card is at the top.
+    if (pinned[p.id])   { score += 50; reasons_zh.unshift("📌 你已釘選"); reasons_en.unshift("📌 Pinned by you"); }
 
     score = Math.max(0, Math.min(99, score + 8));
     return { ...p, score, reasons_zh, reasons_en };
@@ -4366,16 +4390,25 @@ function scorePlants() {
 //    Clicking the same kind again clears it (so a tap is fully reversible).
 //    After updating, we save the snapshot (which now includes prefs) and re-render.
 function setPref(id, kind) {
-  if (!state.prefs) state.prefs = { liked: {}, disliked: {} };
+  if (!state.prefs) state.prefs = { liked: {}, disliked: {}, pinned: {} };
   if (!state.prefs.liked) state.prefs.liked = {};
   if (!state.prefs.disliked) state.prefs.disliked = {};
-  const currentlyLiked = !!state.prefs.liked[id];
-  const currentlyDisliked = !!state.prefs.disliked[id];
-  // Always clear both first — mutually exclusive.
-  delete state.prefs.liked[id];
-  delete state.prefs.disliked[id];
-  if (kind === "like" && !currentlyLiked) state.prefs.liked[id] = true;
-  if (kind === "dislike" && !currentlyDisliked) state.prefs.disliked[id] = true;
+  if (!state.prefs.pinned) state.prefs.pinned = {};
+  // 📌 Pin is an independent toggle — it doesn't conflict with like/dislike
+  // (you might pin a plant you also like; you wouldn't normally pin one you
+  // dislike, but the UI doesn't forbid it). Tap the pin again to unpin.
+  if (kind === "pin") {
+    if (state.prefs.pinned[id]) delete state.prefs.pinned[id];
+    else state.prefs.pinned[id] = true;
+  } else {
+    const currentlyLiked = !!state.prefs.liked[id];
+    const currentlyDisliked = !!state.prefs.disliked[id];
+    // Always clear both first — like/dislike are mutually exclusive.
+    delete state.prefs.liked[id];
+    delete state.prefs.disliked[id];
+    if (kind === "like" && !currentlyLiked) state.prefs.liked[id] = true;
+    if (kind === "dislike" && !currentlyDisliked) state.prefs.disliked[id] = true;
+  }
   // Persist + reflect in URL hash so the preference travels with the design.
   saveToLocal();
   try { pushHashFromState(); } catch (e) {}
@@ -4395,7 +4428,7 @@ function setPref(id, kind) {
 }
 
 function clearPrefs() {
-  state.prefs = { liked: {}, disliked: {} };
+  state.prefs = { liked: {}, disliked: {}, pinned: {} };
   saveToLocal();
   try { pushHashFromState(); } catch (e) {}
   if (state.view === "wizard" && state.step === 5) {
@@ -4410,12 +4443,18 @@ function clearPrefs() {
 function prefImpactCount(recs) {
   const liked = (state.prefs && state.prefs.liked) || {};
   const disliked = (state.prefs && state.prefs.disliked) || {};
-  return (recs || []).slice(0, 8).filter(p => liked[p.id] || disliked[p.id]).length;
+  const pinned = (state.prefs && state.prefs.pinned) || {};
+  return (recs || []).slice(0, 8).filter(p => liked[p.id] || disliked[p.id] || pinned[p.id]).length;
 }
 function prefTotalCount() {
   const liked = (state.prefs && state.prefs.liked) || {};
   const disliked = (state.prefs && state.prefs.disliked) || {};
-  return Object.keys(liked).length + Object.keys(disliked).length;
+  const pinned = (state.prefs && state.prefs.pinned) || {};
+  return Object.keys(liked).length + Object.keys(disliked).length + Object.keys(pinned).length;
+}
+function pinnedCount() {
+  const pinned = (state.prefs && state.prefs.pinned) || {};
+  return Object.keys(pinned).length;
 }
 
 // Expose so inline onclick="" handlers in the rec cards can call them.
@@ -4434,10 +4473,18 @@ function buildLayers(scored) {
   };
 
   // Pick best plant per tier from the scored & space-compatible set.
-  const compatible = scored.filter((p) => p.score >= 30);
+  // 📌 Pinned plants ALWAYS win their tier slot, even if score < 30 (which
+  // can happen for a pinned plant the user knows is awkward but wants anyway —
+  // e.g. a balcony user pinning a small tree as a centerpiece). The +50 in
+  // scorePlants normally lifts pinned plants above the threshold, but this
+  // override is the belt-and-braces guarantee that pin = guaranteed inclusion.
+  const pinned = (state.prefs && state.prefs.pinned) || {};
+  const compatible = scored.filter((p) => p.score >= 30 || pinned[p.id]);
   const layers = [];
   for (const tier of ["T","S","G","W","C"]) {
-    const best = compatible.find((p) => p.tier === tier);
+    // Prefer a pinned plant for this tier if any exists.
+    const pinnedHere = compatible.find((p) => p.tier === tier && pinned[p.id]);
+    const best = pinnedHere || compatible.find((p) => p.tier === tier);
     layers.push({
       key: tier,
       ...tierMap[tier],
@@ -4470,12 +4517,13 @@ function snapshotState() {
     address: state.address, detected: state.detected,
     widthM: state.widthM, depthM: state.depthM, orientation: state.orientation,
     qty: state.qty, nativeOnly: state.nativeOnly,
-    // Per-design 👍/👎 — travels with the snapshot so balcony prefs ≠ yard prefs,
-    // shared links carry the user's preferences, and "我的設計" entries each
-    // remember their own taste.
+    // Per-design 👍/👎/📌 — travels with the snapshot so balcony prefs ≠ yard prefs,
+    // shared links carry the user's preferences (including pinned must-haves),
+    // and "我的設計" entries each remember their own taste.
     prefs: {
       liked:    { ...((state.prefs && state.prefs.liked)    || {}) },
       disliked: { ...((state.prefs && state.prefs.disliked) || {}) },
+      pinned:   { ...((state.prefs && state.prefs.pinned)   || {}) },
     },
     savedAt: Date.now(),
   };
@@ -4494,10 +4542,11 @@ function applySnapshot(snap) {
   state.orientation = snap.orientation || "S";
   state.qty = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
   state.nativeOnly = !!snap.nativeOnly;
-  // Restore per-design 👍/👎. Older snapshots without `prefs` simply load empty.
+  // Restore per-design 👍/👎/📌. Older snapshots without `prefs.pinned` load empty.
   state.prefs = {
     liked:    (snap.prefs && snap.prefs.liked    && typeof snap.prefs.liked    === "object") ? { ...snap.prefs.liked }    : {},
     disliked: (snap.prefs && snap.prefs.disliked && typeof snap.prefs.disliked === "object") ? { ...snap.prefs.disliked } : {},
+    pinned:   (snap.prefs && snap.prefs.pinned   && typeof snap.prefs.pinned   === "object") ? { ...snap.prefs.pinned }   : {},
   };
   state.savedAt = snap.savedAt || Date.now();
   return true;
@@ -7254,10 +7303,17 @@ function renderSustainChips(recs) {
   // escape hatch so nothing is ever locked in.
   const prefTotal = prefTotalCount();
   const prefImpact = prefImpactCount(top);
+  const pinTotal = pinnedCount();
+  // Pinned plants get their own micro-note so the user sees explicitly
+  // "X plants are guaranteed in this design" — pinning is a stronger commit
+  // than a like and deserves the visible reassurance.
+  const pinFragment = pinTotal > 0
+    ? `<span style="color: #8C6F1E; font-weight:600;"> · 📌 <span data-zh="${pinTotal} 個已釘選保證納入" data-en="${pinTotal} pinned (guaranteed in design)">${pinTotal} 個已釘選保證納入</span></span>`
+    : "";
   const prefNote = prefTotal > 0 ? `
     <div class="pref-note">
       <span>🎯 <span data-zh="你已標記 ${prefTotal} 個偏好 · 影響 ${prefImpact} 個推薦"
-                    data-en="You marked ${prefTotal} preference${prefTotal === 1 ? "" : "s"} · affecting ${prefImpact} rec${prefImpact === 1 ? "" : "s"}">你已標記 ${prefTotal} 個偏好 · 影響 ${prefImpact} 個推薦</span></span>
+                    data-en="You marked ${prefTotal} preference${prefTotal === 1 ? "" : "s"} · affecting ${prefImpact} rec${prefImpact === 1 ? "" : "s"}">你已標記 ${prefTotal} 個偏好 · 影響 ${prefImpact} 個推薦</span>${pinFragment}</span>
       <a href="#" class="pref-clear-link" onclick="event.preventDefault(); clearPrefs();"
          data-zh="清除偏好" data-en="Clear preferences">清除偏好</a>
     </div>` : "";
@@ -7639,8 +7695,9 @@ function renderLayers(layers, recs) {
       ${recs.slice(0, 8).map(p => {
         const liked = !!(state.prefs && state.prefs.liked && state.prefs.liked[p.id]);
         const disliked = !!(state.prefs && state.prefs.disliked && state.prefs.disliked[p.id]);
+        const isPinned = !!(state.prefs && state.prefs.pinned && state.prefs.pinned[p.id]);
         return `
-        <button class="rec-card" data-id="${p.id}">
+        <button class="rec-card ${isPinned ? "pinned" : ""}" data-id="${p.id}">
           <div class="rec-head">
             <div class="rec-swatch" style="background:${p.color}"></div>
             <div class="rec-match">${p.score}<span class="rec-match-pct">% <span data-zh="相符" data-en="match">相符</span></span></div>
@@ -7657,6 +7714,11 @@ function renderLayers(layers, recs) {
             ${p.mature_yr ? `<span class="badge pet">⏱ ${p.mature_yr}<span data-zh="年" data-en="y">年</span></span>` : ""}
           </div>
           <div class="pref-row" onclick="event.stopPropagation()">
+            <span class="pref-btn pin ${isPinned ? "on" : ""}" role="button" tabindex="0"
+                  data-pref="pin" data-pid="${p.id}"
+                  title="${t('釘選 · 保證納入此設計（覆蓋空間/水分限制）','Pin · guarantee this plant in the design (overrides space/water fit)')}">
+              📌 <span data-zh="${isPinned ? "已釘選" : "釘選"}" data-en="${isPinned ? "Pinned" : "Pin"}">${isPinned ? "已釘選" : "釘選"}</span>
+            </span>
             <span class="pref-btn like ${liked ? "on" : ""}" role="button" tabindex="0"
                   data-pref="like" data-pid="${p.id}"
                   title="${t('標為喜歡 · 提升此植物的相符分數','Mark as liked · raises this plant match score')}">
@@ -9152,8 +9214,9 @@ function renderDictionary() {
         : filtered.map(p => {
           const liked = !!(state.prefs && state.prefs.liked && state.prefs.liked[p.id]);
           const disliked = !!(state.prefs && state.prefs.disliked && state.prefs.disliked[p.id]);
+          const isPinned = !!(state.prefs && state.prefs.pinned && state.prefs.pinned[p.id]);
           return `
-        <button class="rec-card" data-id="${p.id}">
+        <button class="rec-card ${isPinned ? "pinned" : ""}" data-id="${p.id}">
           <div class="rec-head">
             <div class="rec-swatch" style="background:${p.color}"></div>
             <div class="rec-match" style="font-size:14px; color:var(--clay-deep);">${({T:"喬木",S:"灌木",G:"地被",W:"水生",C:"藤本"})[p.tier]}</div>
@@ -9169,6 +9232,11 @@ function renderDictionary() {
             ${p.pet_safe === false ? `<span class="badge toxic">⚠</span>` : ""}
           </div>
           <div class="pref-row" onclick="event.stopPropagation()">
+            <span class="pref-btn pin ${isPinned ? "on" : ""}" role="button" tabindex="0"
+                  data-pref="pin" data-pid="${p.id}"
+                  title="${t('釘選 · 保證納入你的設計（從植物百科直接加入）','Pin · guarantee this plant in your design (add directly from the dictionary)')}">
+              📌 <span data-zh="${isPinned ? "已釘選" : "釘選"}" data-en="${isPinned ? "Pinned" : "Pin"}">${isPinned ? "已釘選" : "釘選"}</span>
+            </span>
             <span class="pref-btn like ${liked ? "on" : ""}" role="button" tabindex="0"
                   data-pref="like" data-pid="${p.id}"
                   title="${t('標為喜歡 · 之後出現在你的設計推薦會被加分','Mark as liked · this plant ranks higher in your design recs')}">
@@ -9260,6 +9328,33 @@ function openDrawer(id) {
           ${plant.pet_safe === true ? `<span class="badge pet">🐾 <span data-zh="寵物安全" data-en="Pet-safe">寵物安全</span></span>` : ""}
           ${plant.pet_safe === false ? `<span class="badge toxic">⚠ <span data-zh="寵物注意" data-en="Pet caution">寵物注意</span></span>` : ""}
         </div>
+
+        ${(() => {
+          // 📌 Drawer pin/like/dislike row — same toggles as the rec card so the
+          // user can commit to a plant directly from the detail view. Using the
+          // pref-btn classes keeps the visual language consistent.
+          const isPinned   = !!(state.prefs && state.prefs.pinned   && state.prefs.pinned[plant.id]);
+          const isLiked    = !!(state.prefs && state.prefs.liked    && state.prefs.liked[plant.id]);
+          const isDisliked = !!(state.prefs && state.prefs.disliked && state.prefs.disliked[plant.id]);
+          return `
+          <div class="pref-row" style="margin: 10px 0 4px;">
+            <span class="pref-btn pin ${isPinned ? "on" : ""}" role="button" tabindex="0"
+                  data-pref="pin" data-pid="${plant.id}"
+                  title="${t('釘選此植物 · 保證納入你的設計','Pin this plant · guarantee in your design')}">
+              📌 <span data-zh="${isPinned ? "已釘選" : "釘選為必納入"}" data-en="${isPinned ? "Pinned" : "Pin to design"}">${isPinned ? "已釘選" : "釘選為必納入"}</span>
+            </span>
+            <span class="pref-btn like ${isLiked ? "on" : ""}" role="button" tabindex="0"
+                  data-pref="like" data-pid="${plant.id}"
+                  title="${t('標為喜歡','Mark as liked')}">
+              👍 <span data-zh="喜歡" data-en="Like">喜歡</span>
+            </span>
+            <span class="pref-btn dislike ${isDisliked ? "on" : ""}" role="button" tabindex="0"
+                  data-pref="dislike" data-pid="${plant.id}"
+                  title="${t('標為不喜歡','Mark as disliked')}">
+              👎 <span data-zh="不喜歡" data-en="Pass">不喜歡</span>
+            </span>
+          </div>`;
+        })()}
 
         <div class="drawer-meta">
           <div class="meta-cell">
@@ -9385,6 +9480,25 @@ function openDrawer(id) {
   // Companion pill clicks → switch the drawer to the companion plant
   document.querySelectorAll(".companion-pill").forEach((el) => {
     el.addEventListener("click", (e) => { e.stopPropagation(); openDrawer(el.dataset.cid); });
+  });
+  // 📌/👍/👎 inside the drawer — scoped to the drawer overlay so we don't
+  // double-bind the rec-grid pref-btns underneath. setPref triggers a re-render
+  // of the result page, so we re-open the drawer afterwards to refresh its state.
+  document.querySelectorAll("#drawerOverlay .pref-btn[data-pref]").forEach(el => {
+    const handler = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const pid = el.dataset.pid;
+      const kind = el.dataset.pref;
+      setPref(pid, kind);
+      // setPref re-renders the result page; re-open the drawer so the toggle
+      // state visually updates without the user having to dismiss and re-tap.
+      openDrawer(pid);
+    };
+    el.addEventListener("click", handler);
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") handler(e);
+    });
   });
   applyLanguage();
 }
