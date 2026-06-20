@@ -4359,7 +4359,13 @@ function autoApplySpaceDefaults() {
 // Scoring engine — uses space + climate zone + coastal + goals.
 // The original .jsx silently ignored space; this version penalizes mismatches
 // (e.g. a 5m tree on a balcony) and rewards regional/coastal fit.
-function scorePlants() {
+function scorePlants(opts) {
+  // opts.ignoreDislike — counterfactual scoring used by prefImpactCount to
+  // figure out which plants would have been in the top-8 if the user hadn't
+  // disliked them. ignoreLike/ignorePin keep the option symmetric.
+  const ignoreDislike = !!(opts && opts.ignoreDislike);
+  const ignoreLike = !!(opts && opts.ignoreLike);
+  const ignorePin = !!(opts && opts.ignorePin);
   const { sun, water, goals, space, detected } = state;
   const zone = detected?.zone || "C";        // default to central if no location
   const coastal = !!detected?.coastal;
@@ -4416,13 +4422,13 @@ function scorePlants() {
     //    Magnitudes are deliberately modest so native filter / water tier / space match
     //    still dominate. The reason is appended to reasons_zh/en so the user can see
     //    exactly why a card moved up or down — and can reverse it via "清除偏好".
-    if (liked[p.id])    { score += 12; reasons_zh.push("你標為喜歡"); reasons_en.push("You liked this"); }
-    if (disliked[p.id]) { score -= 15; reasons_zh.push("你標為不喜歡"); reasons_en.push("You disliked this"); }
+    if (liked[p.id] && !ignoreLike)    { score += 12; reasons_zh.push("你標為喜歡"); reasons_en.push("You liked this"); }
+    if (disliked[p.id] && !ignoreDislike) { score -= 15; reasons_zh.push("你標為不喜歡"); reasons_en.push("You disliked this"); }
     // 📌 Pinned — a hard commit. +50 swamps space/water/zone mismatches so the
     // plant rises into the recs even if it's an awkward fit. buildLayers() also
     // force-includes pinned plants into their tier slot below. Reason is shown
     // first so the user understands why the card is at the top.
-    if (pinned[p.id])   { score += 50; reasons_zh.unshift("📌 你已釘選"); reasons_en.unshift("📌 Pinned by you"); }
+    if (pinned[p.id] && !ignorePin)   { score += 50; reasons_zh.unshift("📌 你已釘選"); reasons_en.unshift("📌 Pinned by you"); }
 
     score = Math.max(0, Math.min(99, score + 8));
     return { ...p, score, reasons_zh, reasons_en };
@@ -4433,6 +4439,13 @@ function scorePlants() {
 //    Clicking the same kind again clears it (so a tap is fully reversible).
 //    After updating, we save the snapshot (which now includes prefs) and re-render.
 function setPref(id, kind) {
+  // While previewing a shared design, the user's own saved snapshot must not
+  // be touched. Liking a plant on someone else's link should NOT push back
+  // into localStorage or the URL hash (that would overwrite their own design
+  // and rewrite the shared URL). Toggling locally is harmless but disabled
+  // here for simplicity — the result page already nudges them to "Save as
+  // my new design" first.
+  if (state.viewingShared) return;
   if (!state.prefs) state.prefs = { liked: {}, disliked: {}, pinned: {} };
   if (!state.prefs.liked) state.prefs.liked = {};
   if (!state.prefs.disliked) state.prefs.disliked = {};
@@ -4471,6 +4484,9 @@ function setPref(id, kind) {
 }
 
 function clearPrefs() {
+  // Same guard as setPref — never mutate the user's saved design while
+  // previewing a shared link.
+  if (state.viewingShared) return;
   state.prefs = { liked: {}, disliked: {}, pinned: {} };
   saveToLocal();
   try { pushHashFromState(); } catch (e) {}
@@ -4483,11 +4499,26 @@ function clearPrefs() {
 
 // Count how many of the top-N recs were actually nudged by user prefs —
 // surfaced in the result-page note so the user can see the impact at a glance.
+// Returns { liked, disliked } where:
+//   liked    — top-8 plants present that the user explicitly liked/pinned (positive nudge in)
+//   disliked — plants the user disliked that *would have been in top-8* without the dislike
+//              (counterfactual: re-score ignoring dislikes, then check the top-8)
+// Old callers that treat the return as a number still get a useful sum via valueOf.
 function prefImpactCount(recs) {
   const liked = (state.prefs && state.prefs.liked) || {};
   const disliked = (state.prefs && state.prefs.disliked) || {};
   const pinned = (state.prefs && state.prefs.pinned) || {};
-  return (recs || []).slice(0, 8).filter(p => liked[p.id] || disliked[p.id] || pinned[p.id]).length;
+  const likedHit = (recs || []).slice(0, 8).filter(p => liked[p.id] || pinned[p.id]).length;
+  let dislikedHit = 0;
+  if (Object.keys(disliked).length) {
+    // Counterfactual top-8 without the dislike penalty applied
+    const counterfactual = scorePlants({ ignoreDislike: true }).filter(p => p.score >= 30).slice(0, 8);
+    dislikedHit = counterfactual.filter(p => disliked[p.id]).length;
+  }
+  const result = { liked: likedHit, disliked: dislikedHit, total: likedHit + dislikedHit };
+  // Backwards-compatible numeric coercion so any leftover `>= N` / arithmetic callers still work.
+  result.valueOf = function () { return this.total; };
+  return result;
 }
 function prefTotalCount() {
   const liked = (state.prefs && state.prefs.liked) || {};
@@ -4568,6 +4599,11 @@ function snapshotState() {
       disliked: { ...((state.prefs && state.prefs.disliked) || {}) },
       pinned:   { ...((state.prefs && state.prefs.pinned)   || {}) },
     },
+    // Resume on the user's last-viewed result tab (e.g. "shopping" or "care"),
+    // not always "preview". The acted-on suggestion banner state is captured
+    // so a re-opened design doesn't re-show a banner the user already dismissed.
+    resultTab: state.resultTab || "preview",
+    wizardPhotoSuggestActed: { ...(state.wizardPhotoSuggestActed || {}) },
     savedAt: Date.now(),
   };
 }
@@ -4591,12 +4627,51 @@ function applySnapshot(snap) {
     disliked: (snap.prefs && snap.prefs.disliked && typeof snap.prefs.disliked === "object") ? { ...snap.prefs.disliked } : {},
     pinned:   (snap.prefs && snap.prefs.pinned   && typeof snap.prefs.pinned   === "object") ? { ...snap.prefs.pinned }   : {},
   };
+  // Resume on the user's last-viewed result tab; legacy snapshots default to "preview".
+  // Whitelist against known tabs so a malformed snapshot can't park us on an undefined tab.
+  const KNOWN_TABS = ["preview","plan","iso3d","layers","calendar","care","build","tutorials","shopping","dict"];
+  state.resultTab = (snap.resultTab && KNOWN_TABS.includes(snap.resultTab)) ? snap.resultTab : "preview";
+  state.wizardPhotoSuggestActed = (snap.wizardPhotoSuggestActed && typeof snap.wizardPhotoSuggestActed === "object")
+    ? { ...snap.wizardPhotoSuggestActed }
+    : {};
   state.savedAt = snap.savedAt || Date.now();
   return true;
 }
 
+// One-shot bilingual quota error — set when localStorage.setItem throws
+// QuotaExceededError so the next render can surface it (instead of silently
+// failing the save). Read + cleared by surface code; safe to access undefined.
+function flagStorageQuotaError() {
+  const msg = (state && state.lang === "en")
+    ? "Local storage full — couldn't save. Try removing a saved design."
+    : "本機儲存空間已滿，無法儲存。試試刪除一個已存設計。";
+  try {
+    // Skip duplicate alerts within a short window
+    const now = Date.now();
+    if (!window.__lastQuotaAlertAt || now - window.__lastQuotaAlertAt > 4000) {
+      window.__lastQuotaAlertAt = now;
+      alert(msg);
+    }
+  } catch (_) {}
+  try { console.warn("[landscape-copilot] localStorage quota exceeded:", msg); } catch (_) {}
+}
+
+// Detect the various flavours of "storage full" the browsers throw.
+function isQuotaError(e) {
+  if (!e) return false;
+  // Firefox: NS_ERROR_DOM_QUOTA_REACHED (code 1014). Safari/Chrome: QuotaExceededError (code 22 or 1014).
+  return e.name === "QuotaExceededError"
+      || e.name === "NS_ERROR_DOM_QUOTA_REACHED"
+      || e.code === 22 || e.code === 1014;
+}
+
 function saveToLocal() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshotState())); } catch (e) {}
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snapshotState()));
+  } catch (e) {
+    if (isQuotaError(e)) flagStorageQuotaError();
+    // Non-quota errors (private mode, disabled storage) stay silent as before.
+  }
 }
 
 function loadFromLocal() {
@@ -4628,7 +4703,11 @@ function loadDesignList() {
 }
 
 function saveDesignList(list) {
-  try { localStorage.setItem(LIST_KEY, JSON.stringify(list)); } catch (e) {}
+  try {
+    localStorage.setItem(LIST_KEY, JSON.stringify(list));
+  } catch (e) {
+    if (isQuotaError(e)) flagStorageQuotaError();
+  }
 }
 
 // Build a default name from snapshot: "陽台 · 6.2 m² · 2026-06-19"
@@ -4682,7 +4761,12 @@ function updateActiveDesignEntry() {
 
 function setActiveDesignId(id) {
   const list = loadDesignList();
-  list.activeId = id;
+  // Reject ids that aren't in the list — would leave activeId pointing at a
+  // ghost entry, making "我的設計" highlight nothing on next load. Falling
+  // back to null is the safe default; the homepage already handles a missing
+  // active id by showing the empty state.
+  const exists = id && list.designs.some(e => e.id === id);
+  list.activeId = exists ? id : null;
   saveDesignList(list);
 }
 
@@ -5609,8 +5693,14 @@ async function analyzePhoto() {
     renderPhotoFlow();
     applyLanguage();
   } catch (err) {
-    state.photoBusy = false;
     const reason = controller.signal.reason;
+    // Superseded by a newer call — silently return so the in-flight call's UI
+    // (busy spinner / its own status) isn't clobbered by this stale catch.
+    if (reason === "superseded") {
+      endVisionRequest(controller);
+      return;
+    }
+    state.photoBusy = false;
     if (reason === "user_cancel") {
       state.photoStatus = t("已取消分析", "Analysis cancelled");
       state.photoStatusKind = "err";
@@ -6737,16 +6827,16 @@ function qPhotoHTML(stepKey) {
         <div class="sub" data-zh="AI 已記住，下一題不用再傳" data-en="AI remembers it — no re-upload needed">AI 已記住，下一題不用再傳</div>
       </div>
       <div class="acts">
-        <button type="button" data-qphoto-swap><span data-zh="🔄 換一張" data-en="🔄 Swap">🔄 換一張</span></button>
-        <button type="button" data-qphoto-close><span data-zh="✕ 收起" data-en="✕ Close">✕ 收起</span></button>
+        <button type="button" data-qphoto-swap="${stepKey}"><span data-zh="🔄 換一張" data-en="🔄 Swap">🔄 換一張</span></button>
+        <button type="button" data-qphoto-close="${stepKey}"><span data-zh="✕ 收起" data-en="✕ Close">✕ 收起</span></button>
       </div>
     </div>
-    <button class="qphoto-analyze-btn" type="button" data-qphoto-analyze ${busy ? "disabled" : ""}>
+    <button class="qphoto-analyze-btn" type="button" data-qphoto-analyze="${stepKey}" ${busy ? "disabled" : ""}>
       ${busy
         ? `<span class="photo-spinner"></span><span data-zh="AI 分析中…" data-en="AI thinking…">AI 分析中…</span>`
         : `<span data-zh="✨ 用這張照片，給我建議" data-en="✨ Get an AI suggestion">✨ 用這張照片，給我建議</span>`}
     </button>
-    ${busy ? `<button class="qphoto-cancel-btn" type="button" data-qphoto-cancel><span data-zh="✕ 取消分析" data-en="✕ Cancel">✕ 取消分析</span></button>` : ""}` : `
+    ${busy ? `<button class="qphoto-cancel-btn" type="button" data-qphoto-cancel="${stepKey}"><span data-zh="✕ 取消分析" data-en="✕ Cancel">✕ 取消分析</span></button>` : ""}` : `
     <label class="qphoto-dz" for="qphotoInput-${stepKey}">
       <div class="ic">📸</div>
       <div class="lb" data-zh="點此拍照或上傳" data-en="Tap to take or upload a photo">點此拍照或上傳</div>
@@ -6787,7 +6877,10 @@ function wireQPhoto(stepKey) {
     if (f) handleWizardPhotoFile(f, stepKey);
   });
   // Swap → clear existing photo, re-open upload
-  document.querySelectorAll(`[data-qphoto-swap]`).forEach(el => {
+  // Selectors are scoped to the current stepKey so when wizard steps re-render
+  // and both the previous step's stale DOM nodes and the current step's nodes
+  // briefly coexist, we only wire the current step's buttons.
+  document.querySelectorAll(`[data-qphoto-swap="${stepKey}"]`).forEach(el => {
     el.addEventListener("click", () => {
       state.wizardPhotoDataUrl = null;
       state.wizardPhotoSuggest = {};
@@ -6796,18 +6889,18 @@ function wireQPhoto(stepKey) {
     });
   });
   // Close panel
-  document.querySelectorAll(`[data-qphoto-close]`).forEach(el => {
+  document.querySelectorAll(`[data-qphoto-close="${stepKey}"]`).forEach(el => {
     el.addEventListener("click", () => {
       state.wizardPhotoOpen[stepKey] = false;
       rerenderCurrentStep();
     });
   });
   // Analyze
-  document.querySelectorAll(`[data-qphoto-analyze]`).forEach(el => {
+  document.querySelectorAll(`[data-qphoto-analyze="${stepKey}"]`).forEach(el => {
     el.addEventListener("click", () => analyzeWizardPhoto(stepKey));
   });
   // Cancel in-flight analysis
-  document.querySelectorAll(`[data-qphoto-cancel]`).forEach(el => {
+  document.querySelectorAll(`[data-qphoto-cancel="${stepKey}"]`).forEach(el => {
     el.addEventListener("click", () => { if (typeof cancelVisionRequest === "function") cancelVisionRequest(); });
   });
 }
@@ -6902,8 +6995,13 @@ async function analyzeWizardPhoto(stepKey) {
     state.wizardPhotoOpen[stepKey] = false;   // collapse the panel — suggestion is now visible above the cards
     rerenderCurrentStep();
   } catch (err) {
-    state.wizardPhotoBusy[stepKey] = false;
     const reason = controller.signal.reason;
+    // Superseded by a newer call — silently return so the new call paints its own status.
+    if (reason === "superseded") {
+      endVisionRequest(controller);
+      return;
+    }
+    state.wizardPhotoBusy[stepKey] = false;
     if (reason === "user_cancel") {
       state.wizardPhotoError[stepKey] = t("已取消，可手動選擇", "Cancelled — pick manually");
     } else if (reason === "timeout") {
@@ -7417,10 +7515,28 @@ function renderSustainChips(recs) {
   const pinFragment = pinTotal > 0
     ? `<span style="color: #8C6F1E; font-weight:600;"> · 📌 <span data-zh="${pinTotal} 個已釘選保證納入" data-en="${pinTotal} pinned (guaranteed in design)">${pinTotal} 個已釘選保證納入</span></span>`
     : "";
+  // Bilingual copy now reports BOTH positive (likes/pins lifted into top-8) AND
+  // negative (dislikes that would have been in top-8 if not vetoed). This is
+  // honest about hidden impact — a user with 6 dislikes and 0 likes wasn't
+  // "affecting 0 recs"; they were silently dropping plants out.
+  let impactCopyZh, impactCopyEn;
+  if (prefImpact.liked > 0 && prefImpact.disliked > 0) {
+    impactCopyZh = `${prefImpact.liked} 喜歡 + ${prefImpact.disliked} 不喜歡 影響你的設計`;
+    impactCopyEn = `${prefImpact.liked} liked + ${prefImpact.disliked} disliked shaping your design`;
+  } else if (prefImpact.liked > 0) {
+    impactCopyZh = `${prefImpact.liked} 個喜歡推上來`;
+    impactCopyEn = `${prefImpact.liked} like${prefImpact.liked === 1 ? "" : "s"} lifted into top picks`;
+  } else if (prefImpact.disliked > 0) {
+    impactCopyZh = `${prefImpact.disliked} 個不喜歡被剔除`;
+    impactCopyEn = `${prefImpact.disliked} disliked filtered out`;
+  } else {
+    impactCopyZh = `尚未影響本次推薦`;
+    impactCopyEn = `not yet shaping recs`;
+  }
   const prefNote = prefTotal > 0 ? `
     <div class="pref-note">
-      <span>🎯 <span data-zh="你已標記 ${prefTotal} 個偏好 · 影響 ${prefImpact} 個推薦"
-                    data-en="You marked ${prefTotal} preference${prefTotal === 1 ? "" : "s"} · affecting ${prefImpact} rec${prefImpact === 1 ? "" : "s"}">你已標記 ${prefTotal} 個偏好 · 影響 ${prefImpact} 個推薦</span>${pinFragment}</span>
+      <span>🎯 <span data-zh="你已標記 ${prefTotal} 個偏好 · ${impactCopyZh}"
+                    data-en="You marked ${prefTotal} preference${prefTotal === 1 ? "" : "s"} · ${impactCopyEn}">你已標記 ${prefTotal} 個偏好 · ${impactCopyZh}</span>${pinFragment}</span>
       <a href="#" class="pref-clear-link" onclick="event.preventDefault(); clearPrefs();"
          data-zh="清除偏好" data-en="Clear preferences">清除偏好</a>
     </div>` : "";
@@ -9880,7 +9996,11 @@ window.exportShoppingCSV = function() {
     const q = state.qty[p.id] ?? 1;
     return [p.zh, p.en, p.lt, q, p.cost, q * p.cost];
   });
-  const csv = [header, ...rows].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+  // RFC 4180: any " inside a quoted field must be doubled to "". Without this,
+  // a plant whose name contains a quote (or future free-text columns) breaks
+  // Excel / Numbers parsing for every row that follows.
+  const csvEsc = (c) => `"${String(c ?? "").replace(/"/g, '""')}"`;
+  const csv = [header, ...rows].map(r => r.map(csvEsc).join(",")).join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
