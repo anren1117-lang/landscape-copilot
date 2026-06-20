@@ -7100,7 +7100,7 @@ function renderTabPanel(recs, layers) {
   switch (state.resultTab) {
     case "preview":  host.innerHTML = renderRealisticPreview(recs); wirePreview(recs); break;
     case "plan":     host.innerHTML = renderPlan(layers, recs); wirePlanInteractions(); break;
-    case "iso3d":    host.innerHTML = render3D(layers, recs); wire3DInteractions(); break;
+    case "iso3d":    host.innerHTML = render3D(layers, recs, recs); wire3DInteractions(); break;
     case "layers":   host.innerHTML = renderLayers(layers, recs); wireLayerCards(); break;
     case "calendar": host.innerHTML = renderCalendar(recs); break;
     case "care":     host.innerHTML = renderCareCalendar(recs); wireCarePlantChips(); break;
@@ -7488,15 +7488,22 @@ function wirePreview(recs) {
 // can actually "see" how the garden stacks vertically. Each plant becomes
 // a trunk (cylinder) + crown (ellipse with highlight + ground shadow);
 // painter's-algorithm depth sort handles overlap.
-function render3D(layers, recs) {
+function render3D(layers, recs, allRecs) {
   const realW = state.widthM || SPACE_DEFAULTS[state.space].w;
   const realD = state.depthM || SPACE_DEFAULTS[state.space].d;
   const area = (realW * realD).toFixed(1);
+  const curMonth = new Date().getMonth() + 1;
 
-  // Reuse the same 2D layout the plan view uses for plant placement,
-  // but feed it nominal pixel dims — we'll re-project to isometric next.
+  // ── MAXIMALIST CAST ────────────────────────────────────────
+  // Render top 8 recommended plants (instead of 1-per-tier). Layer logic
+  // still drives tier ordering, but every tier gets multiple specimens so
+  // the scene reads as a *garden*, not a sample row.
   const baseDims = { w: 600, h: 400 };
-  const plantsForPlan = layers.filter(l => l.plant).map(l => l.plant);
+  const pool = (allRecs && allRecs.length ? allRecs : recs).slice(0, 8);
+  // Fall back to layers' plants if recs were empty (edge case).
+  const plantsForPlan = pool.length
+    ? pool
+    : layers.filter(l => l.plant).map(l => l.plant);
   const placed = layoutPlan(plantsForPlan, baseDims, state.space);
 
   // Isometric projection: rotate the plane by 30°, foreshorten Y.
@@ -8014,12 +8021,165 @@ function render3D(layers, recs) {
         <ellipse cx="${ground.ix.toFixed(1)}" cy="${potY.toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="#6E5638"/>`;
     }
 
+    // ── MASS-PLANTING DRIFT (priority 2) ──────────────────────
+    // Real landscape designs repeat low plants for rhythm. For G (groundcover)
+    // and grass-shape S tiers, render 3-4 small jittered copies around the
+    // central specimen. Seeded so the drift is stable across renders.
+    let drift = "";
+    const isGrassyShrub = (p.tier === "S" && (shape === "grass" || shape === "fern"));
+    if (p.tier === "G" || isGrassyShrub) {
+      const driftSeed = (p.id || "g").split("").reduce((a, c) => a + c.charCodeAt(0), 0) + 91;
+      const rndD = pseudoRand(driftSeed);
+      const copies = 4;
+      const parts = [];
+      for (let i = 0; i < copies; i++) {
+        const dx = (rndD() - 0.5) * crownR * 2.4;
+        const dy = (rndD() - 0.5) * crownRy * 1.6;
+        const scale = 0.45 + rndD() * 0.35;
+        const cx = ground.ix + dx;
+        const cy = ground.iy + dy * 0.5;
+        const rx = crownR * scale;
+        const ry = crownRy * scale;
+        if (shape === "grass") {
+          const blades2 = [];
+          for (let b = 0; b < 5; b++) {
+            const ox = ((b - 2) * 1.6);
+            const h = 5 + rndD() * 5;
+            blades2.push(`<line x1="${(cx + ox).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(cx + ox + (b % 2 ? 1 : -1)).toFixed(1)}" y2="${(cy - h).toFixed(1)}" stroke="${p.color}" stroke-width="1.1" stroke-linecap="round" opacity="0.85"/>`);
+          }
+          parts.push(blades2.join(""));
+        } else {
+          parts.push(`<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${p.color}" opacity="0.78"/>`);
+          // tiny highlight fleck
+          parts.push(`<circle cx="${(cx - rx * 0.2).toFixed(1)}" cy="${(cy - ry * 0.3).toFixed(1)}" r="${(rx * 0.15).toFixed(1)}" fill="rgba(255,255,255,0.40)"/>`);
+        }
+      }
+      drift = parts.join("");
+    }
+
+    // ── BLOOM COLOR MASS (priority 4) ─────────────────────────
+    // If this plant is blooming right now (current month ∈ p.bloom), pile a
+    // bright cluster of flower dots on the crown. Uses a vivid complement of
+    // the foliage color so the scene becomes seasonally alive.
+    let blooms = "";
+    const isBlooming = Array.isArray(p.bloom) && p.bloom.includes(curMonth);
+    if (isBlooming && p.tier !== "W") {
+      // pick a warm flower palette deterministically from the plant id
+      const flowerPalettes = [
+        ["#F6A6C1", "#E97394", "#FFF4D0"], // pink
+        ["#F5D547", "#F2A93B", "#FFF4D0"], // gold
+        ["#E8C7E4", "#B886C0", "#F8E8F4"], // lavender
+        ["#F8755C", "#D24F3A", "#FFE2D6"], // coral
+        ["#F0F0F0", "#FFFFFF", "#E8E8E8"], // white
+      ];
+      const idSum = (p.id || "b").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+      const pal = flowerPalettes[idSum % flowerPalettes.length];
+      const flowerSeed = idSum + curMonth;
+      const rndF = pseudoRand(flowerSeed);
+      const fparts = [];
+      const cx0 = ground.ix;
+      const cy0 = (p.tier === "G") ? ground.iy : cyCrown;
+      const rxSpread = (p.tier === "G") ? crownR * 0.7 : crownR * 0.85;
+      const rySpread = (p.tier === "G") ? crownRy * 0.7 : crownRy * 0.75;
+      const flowerCount = (p.tier === "T") ? 14 : (p.tier === "S" ? 10 : 7);
+      for (let i = 0; i < flowerCount; i++) {
+        const ang = rndF() * Math.PI * 2;
+        const rad = rndF() * 0.95;
+        const fx = cx0 + Math.cos(ang) * rxSpread * rad;
+        const fy = cy0 + Math.sin(ang) * rySpread * rad;
+        const r = 1.8 + rndF() * 1.6;
+        const col = pal[i % pal.length];
+        // 5-petal star pattern: center + 4 small surrounding dots
+        fparts.push(`<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="${r.toFixed(1)}" fill="${col}" opacity="0.95"/>`);
+        if (i % 2 === 0) {
+          fparts.push(`<circle cx="${(fx + r * 0.9).toFixed(1)}" cy="${fy.toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>`);
+          fparts.push(`<circle cx="${(fx - r * 0.9).toFixed(1)}" cy="${fy.toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>`);
+          fparts.push(`<circle cx="${fx.toFixed(1)}" cy="${(fy - r * 0.9).toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>`);
+          fparts.push(`<circle cx="${fx.toFixed(1)}" cy="${(fy + r * 0.9).toFixed(1)}" r="${(r * 0.55).toFixed(1)}" fill="${col}" opacity="0.85"/>`);
+          // tiny pollen dot in centre
+          fparts.push(`<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="${(r * 0.35).toFixed(1)}" fill="#FFE08A"/>`);
+        }
+      }
+      blooms = fparts.join("");
+    }
+
+    // ── WILDLIFE SILHOUETTE (priority 3) ──────────────────────
+    // 1 tiny static silhouette per plant that has WILDLIFE_META entries —
+    // butterfly for 🦋, bee for 🐝, bird for 🐦/🦅, dragonfly for 🐉,
+    // frog for 🐸. Iconic abstract shapes (~4-6 nodes). Picked by id-hash
+    // so the scene is stable.
+    let critter = "";
+    const wlList = WILDLIFE_META[p.id];
+    if (wlList && wlList.length) {
+      const idHash = (p.id || "c").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+      // Prefer a flying creature when blooming; pick the first matching glyph
+      const glyphs = wlList.map(w => w.i).join("");
+      let kind = null;
+      if (/🦋/.test(glyphs)) kind = "butterfly";
+      else if (/🐦|🦅/.test(glyphs)) kind = "bird";
+      else if (/🐝/.test(glyphs)) kind = "bee";
+      else if (/🐉/.test(glyphs)) kind = "dragonfly";
+      else if (/🐸/.test(glyphs)) kind = "frog";
+      if (kind) {
+        // perch above the crown for most; on the ground for frog
+        const wx = ground.ix + ((idHash % 7) - 3) * 4;
+        const wy = (kind === "frog")
+          ? ground.iy - 2
+          : (p.tier === "G" ? ground.iy - crownRy - 10 : cyCrown - crownRy * 0.9);
+        if (kind === "butterfly") {
+          // 4 wing arcs + body
+          const col = ((idHash >> 2) % 3 === 0) ? "#E8965A" : ((idHash >> 2) % 3 === 1 ? "#9466B8" : "#D24F3A");
+          critter = `<g opacity="0.92">
+            <ellipse cx="${(wx - 3).toFixed(1)}" cy="${(wy - 1).toFixed(1)}" rx="3.5" ry="2.6" fill="${col}"/>
+            <ellipse cx="${(wx + 3).toFixed(1)}" cy="${(wy - 1).toFixed(1)}" rx="3.5" ry="2.6" fill="${col}"/>
+            <ellipse cx="${(wx - 2.5).toFixed(1)}" cy="${(wy + 2).toFixed(1)}" rx="2.6" ry="1.8" fill="${col}" opacity="0.88"/>
+            <ellipse cx="${(wx + 2.5).toFixed(1)}" cy="${(wy + 2).toFixed(1)}" rx="2.6" ry="1.8" fill="${col}" opacity="0.88"/>
+            <line x1="${wx.toFixed(1)}" y1="${(wy - 2).toFixed(1)}" x2="${wx.toFixed(1)}" y2="${(wy + 3).toFixed(1)}" stroke="#2B2118" stroke-width="1.1" stroke-linecap="round"/>
+          </g>`;
+        } else if (kind === "bird") {
+          // simple silhouette: body oval + head + tail wedge
+          critter = `<g opacity="0.92" fill="#3A2E22">
+            <ellipse cx="${wx.toFixed(1)}" cy="${wy.toFixed(1)}" rx="5" ry="3"/>
+            <circle cx="${(wx + 4).toFixed(1)}" cy="${(wy - 2).toFixed(1)}" r="2.2"/>
+            <polygon points="${(wx - 5).toFixed(1)},${wy.toFixed(1)} ${(wx - 9).toFixed(1)},${(wy - 1.5).toFixed(1)} ${(wx - 9).toFixed(1)},${(wy + 1.5).toFixed(1)}"/>
+            <circle cx="${(wx + 5).toFixed(1)}" cy="${(wy - 2.4).toFixed(1)}" r="0.5" fill="#FFE08A"/>
+            <polygon points="${(wx + 5.5).toFixed(1)},${(wy - 2).toFixed(1)} ${(wx + 8).toFixed(1)},${(wy - 1.5).toFixed(1)} ${(wx + 5.5).toFixed(1)},${(wy - 1).toFixed(1)}" fill="#D2A24A"/>
+          </g>`;
+        } else if (kind === "bee") {
+          critter = `<g opacity="0.92">
+            <ellipse cx="${wx.toFixed(1)}" cy="${wy.toFixed(1)}" rx="3" ry="2.2" fill="#F2C84A"/>
+            <line x1="${(wx - 1).toFixed(1)}" y1="${(wy - 1.5).toFixed(1)}" x2="${(wx - 1).toFixed(1)}" y2="${(wy + 1.5).toFixed(1)}" stroke="#2B2118" stroke-width="1.2"/>
+            <line x1="${(wx + 1).toFixed(1)}" y1="${(wy - 1.5).toFixed(1)}" x2="${(wx + 1).toFixed(1)}" y2="${(wy + 1.5).toFixed(1)}" stroke="#2B2118" stroke-width="1.2"/>
+            <ellipse cx="${(wx - 2.5).toFixed(1)}" cy="${(wy - 1.5).toFixed(1)}" rx="2.2" ry="1.2" fill="rgba(255,255,255,0.75)"/>
+            <ellipse cx="${(wx + 2.5).toFixed(1)}" cy="${(wy - 1.5).toFixed(1)}" rx="2.2" ry="1.2" fill="rgba(255,255,255,0.75)"/>
+          </g>`;
+        } else if (kind === "dragonfly") {
+          critter = `<g opacity="0.90">
+            <ellipse cx="${(wx - 3).toFixed(1)}" cy="${(wy - 1).toFixed(1)}" rx="5" ry="1.3" fill="rgba(140,180,200,0.75)"/>
+            <ellipse cx="${(wx + 3).toFixed(1)}" cy="${(wy - 1).toFixed(1)}" rx="5" ry="1.3" fill="rgba(140,180,200,0.75)"/>
+            <ellipse cx="${(wx - 2.5).toFixed(1)}" cy="${(wy + 1.2).toFixed(1)}" rx="4" ry="1.1" fill="rgba(140,180,200,0.65)"/>
+            <ellipse cx="${(wx + 2.5).toFixed(1)}" cy="${(wy + 1.2).toFixed(1)}" rx="4" ry="1.1" fill="rgba(140,180,200,0.65)"/>
+            <rect x="${(wx - 0.7).toFixed(1)}" y="${(wy - 1).toFixed(1)}" width="1.4" height="6" rx="0.6" fill="#3A6E8A"/>
+          </g>`;
+        } else if (kind === "frog") {
+          critter = `<g opacity="0.88" fill="#6E8E4E">
+            <ellipse cx="${wx.toFixed(1)}" cy="${wy.toFixed(1)}" rx="4" ry="2.4"/>
+            <circle cx="${(wx - 1.6).toFixed(1)}" cy="${(wy - 1.8).toFixed(1)}" r="1.2"/>
+            <circle cx="${(wx + 1.6).toFixed(1)}" cy="${(wy - 1.8).toFixed(1)}" r="1.2"/>
+            <circle cx="${(wx - 1.6).toFixed(1)}" cy="${(wy - 1.8).toFixed(1)}" r="0.4" fill="#1A1A1A"/>
+            <circle cx="${(wx + 1.6).toFixed(1)}" cy="${(wy - 1.8).toFixed(1)}" r="0.4" fill="#1A1A1A"/>
+          </g>`;
+        }
+      }
+    }
+
     const labelY = ground.iy + (pot ? 22 : 18);
     const labelEn = p.en.length > 22 ? p.en.slice(0, 20) + "…" : p.en;
     const labelText = state.lang === "zh" ? p.zh : labelEn;
-    const label = `<text x="${ground.ix.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="11" font-family="Noto Serif TC" fill="#3F4A37" font-weight="600">${labelText}</text>`;
+    const bloomTag = isBlooming ? ` <tspan fill="#C85F8A" font-style="italic">· ${t("花期","in bloom")}</tspan>` : "";
+    const label = `<text x="${ground.ix.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="11" font-family="Noto Serif TC" fill="#3F4A37" font-weight="600">${labelText}${bloomTag}</text>`;
 
-    return `<g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">${mulchRing}${shadow}${pot}${trunk}${crown}${label}</g>`;
+    return `<g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">${mulchRing}${shadow}${drift}${pot}${trunk}${crown}${blooms}${critter}${label}</g>`;
   }).join("");
 
   // ── Sun marker + rays — sun position computed above for shadow direction ─
@@ -8029,12 +8189,18 @@ function render3D(layers, recs) {
     const r1 = 30, r2 = 44;
     rays.push(`<line x1="${(Math.cos(ang) * r1).toFixed(1)}" y1="${(Math.sin(ang) * r1).toFixed(1)}" x2="${(Math.cos(ang) * r2).toFixed(1)}" y2="${(Math.sin(ang) * r2).toFixed(1)}" stroke="${tod.sun}" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>`);
   }
+  // Bloom halo — 4 concentric circles with decreasing opacity radiate from
+  // the sun centre. Sells "warm light pouring into the garden" without filters.
   const sun = `
     <g transform="translate(${sunX}, ${sunY})">
+      <circle r="92" fill="${tod.sun}" opacity="0.08"/>
+      <circle r="70" fill="${tod.sun}" opacity="0.12"/>
+      <circle r="50" fill="${tod.sun}" opacity="0.20"/>
+      <circle r="36" fill="${tod.sun}" opacity="0.30"/>
       ${rays.join("")}
       <circle r="24" fill="${tod.sun}" stroke="${tod.sunRing}" stroke-width="1.8" opacity="0.95"/>
       <circle r="18" fill="${tod.sun}" opacity="0.6"/>
-      <text x="0" y="40" text-anchor="middle" font-size="9" font-family="Noto Serif TC" fill="#5A5C50" font-style="italic">${t(tod.labelZh, tod.labelEn)}</text>
+      <text x="0" y="46" text-anchor="middle" font-size="9" font-family="Noto Serif TC" fill="#5A5C50" font-style="italic">${t(tod.labelZh, tod.labelEn)}</text>
     </g>`;
 
   // ── Scene caption — rich identity: "你的 {area} m² {space} · {top 3 plants} · {time-of-day}" ─
@@ -8047,6 +8213,32 @@ function render3D(layers, recs) {
   const topEn = topPlants.map(p => p.en).join(", ") || "native plants";
   const captionZh = `你的 ${area} m² ${spaceZh} · ${topZh} · ${tod.labelZh}`;
   const captionEn = `Your ${area} m² ${spaceEn} · ${topEn} · ${tod.labelEn}`;
+
+  // ── HERO PILL (priority 5) — large serif title on a translucent paper card
+  // floating at the top of the SVG. Subtitle shows month + bloom count + critter
+  // count so the user instantly sees "this is alive RIGHT NOW".
+  const MONTH_ZH = ["","一","二","三","四","五","六","七","八","九","十","十一","十二"];
+  const heroTitleZh = `你的 ${area} m² ${spaceZh}花園`;
+  const heroTitleEn = `Your ${area} m² ${spaceEn}`;
+  const bloomingNow = drawList.filter(d => Array.isArray(d.p.bloom) && d.p.bloom.includes(curMonth)).length;
+  const wildlifeNow = drawList.filter(d => WILDLIFE_META[d.p.id] && WILDLIFE_META[d.p.id].length).length;
+  const heroSubZh = `${MONTH_ZH[curMonth]}月 · ${tod.labelZh}　${bloomingNow ? `🌸 ${bloomingNow} 種正在開花　` : ""}${wildlifeNow ? `🦋 ${wildlifeNow} 種野生訪客` : ""}`;
+  const heroSubEn = `${["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][curMonth]} · ${tod.labelEn}　${bloomingNow ? `🌸 ${bloomingNow} blooming　` : ""}${wildlifeNow ? `🦋 ${wildlifeNow} wildlife visitors` : ""}`;
+  const heroTitle = state.lang === "zh" ? heroTitleZh : heroTitleEn;
+  const heroSub = state.lang === "zh" ? heroSubZh : heroSubEn;
+  const pillW = 460;
+  const pillX = (svgW - pillW) / 2;
+  const heroPill = `
+    <g pointer-events="none">
+      <rect x="${pillX.toFixed(1)}" y="10" width="${pillW}" height="46" rx="23"
+            fill="rgba(252,248,238,0.88)" stroke="#C9C3B4" stroke-width="1.1"/>
+      <text x="${(svgW / 2).toFixed(1)}" y="30" text-anchor="middle"
+            font-family="Noto Serif TC" font-size="17" font-weight="700"
+            fill="#3F4A37" data-zh="${heroTitleZh}" data-en="${heroTitleEn}">${heroTitle}</text>
+      <text x="${(svgW / 2).toFixed(1)}" y="48" text-anchor="middle"
+            font-family="Noto Serif TC" font-size="10.5"
+            fill="#6B7560" data-zh="${heroSubZh}" data-en="${heroSubEn}">${heroSub}</text>
+    </g>`;
 
   return `
     <h2 class="subtitle" data-zh="3D 視角 · Isometric View" data-en="3D Isometric View">3D 視角 · Isometric View</h2>
@@ -8092,6 +8284,7 @@ function render3D(layers, recs) {
         ${decoSvg}
         ${sun}
         ${plantSvgs}
+        ${heroPill}
         <text x="${(c3.ix + 12).toFixed(1)}" y="${(c3.iy + 24).toFixed(1)}" font-size="11" fill="#5A5C50" font-family="Noto Serif TC" font-style="italic">${realW}m × ${realD}m ≈ ${area} m²</text>
       </svg>
       <div class="plan-legend">
