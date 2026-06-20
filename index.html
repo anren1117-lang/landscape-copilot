@@ -7370,6 +7370,50 @@ const DESIGN_PRESETS = [
     space: "yard", sun: "full", water: "low", goals: ["screen"],
     detected: { county: "", zone: "S", coastal: true },
   },
+  {
+    id: "butterfly-garden",
+    icon: "🦋",
+    zh: "蝴蝶花園", en: "Butterfly garden",
+    desc_zh: "全日照庭院 — 蝴蝶蜜源 + 食草組合（馬利筋、月桃、月橘）",
+    desc_en: "Full-sun yard — butterfly nectar + host plants (milkweed, shell ginger, jessamine)",
+    space: "yard", sun: "full", water: "med", goals: ["pollinator"],
+    // Auto-pin known butterfly host/nectar plants. Optional IDs (馬兜鈴/食茱萸)
+    // are listed but only pin if they actually exist in PLANTS.
+    pinList: ["asclepias", "alpinia", "murraya", "aristolochia", "zanthoxylum"],
+  },
+  {
+    id: "kid-safe-yard",
+    icon: "👶",
+    zh: "親子安全", en: "Kid-friendly safe",
+    desc_zh: "半日照庭院 — 避開有毒植物，含趣味質感（含羞草、草莓、韭蘭）",
+    desc_en: "Part-sun yard — avoids toxic plants, kid-friendly textures (sensitive plant, strawberry, rain lily)",
+    space: "yard", sun: "part", water: "med", goals: ["easy"],
+    // Texture-rich, pet/kid-safe centerpieces.
+    pinList: ["mimosa", "strawberry", "zephyranthes"],
+    // Auto-dislike pet_safe=false plants so scorePlants pushes them down
+    // (−15 each) and they fall off the top recommendations.
+    dislikeFilter: (p, ex) => ex.pet_safe === false,
+  },
+  {
+    id: "drought-rooftop",
+    icon: "🌵",
+    zh: "耐旱景觀", en: "Drought-tolerant landscape",
+    desc_zh: "全日照頂樓 — 耐旱、耐鹽、低維護的原生組合",
+    desc_en: "Full-sun rooftop — drought- and salt-tolerant native palette",
+    space: "rooftop", sun: "full", water: "low", goals: ["easy"],
+    nativeOnly: true,
+    // Coastal flag activates salt-tolerant bonuses in scorePlants.
+    detected: { county: "", zone: "C", coastal: true },
+  },
+  {
+    id: "indoor-bonsai",
+    icon: "🪴",
+    zh: "室內小盆景", en: "Indoor bonsai collection",
+    desc_zh: "室內窗邊 — 玉露、翡翠木、仙人柱等小型盆景",
+    desc_en: "Indoor windowsill — haworthia, jade plant, cereus & other small bonsai",
+    space: "indoor", sun: "part", water: "med", goals: [],
+    pinList: ["haworthia", "crassula", "cereus"],
+  },
 ];
 
 // Pre-fill state from a preset and jump straight to the result page.
@@ -7398,6 +7442,29 @@ function applyDesignPreset(presetId) {
     for (const p of PLANTS) {
       try {
         if (preset.pinFilter(p, expert(p))) state.prefs.pinned[p.id] = true;
+      } catch (_) { /* skip plants the filter can't evaluate */ }
+    }
+  }
+
+  // Optional: auto-pin explicit plant IDs (e.g. butterfly host plants by name).
+  // Silently skips IDs not present in PLANTS so the preset stays robust if a
+  // plant gets renamed/removed. The pin gets a +50 score boost in scorePlants
+  // so these become the design's centerpieces.
+  if (Array.isArray(preset.pinList)) {
+    const known = new Set(PLANTS.map(p => p.id));
+    for (const id of preset.pinList) {
+      if (known.has(id)) state.prefs.pinned[id] = true;
+    }
+  }
+
+  // Optional: auto-dislike plants matching a filter (e.g. pet_safe=false for
+  // the kid-safe preset). Dislikes are auditable — they show up in the
+  // preferences UI and can be cleared with "清除偏好". −15 each so they
+  // generally fall out of the top recommendations.
+  if (typeof preset.dislikeFilter === "function") {
+    for (const p of PLANTS) {
+      try {
+        if (preset.dislikeFilter(p, expert(p))) state.prefs.disliked[p.id] = true;
       } catch (_) { /* skip plants the filter can't evaluate */ }
     }
   }
@@ -7437,6 +7504,59 @@ function applyQuickFilter(kind) {
   jumpToDictionary();
 }
 
+// ── Wizard step tooltips ────────────────────────────────────────────────
+// A small "ⓘ 想看例子 / Examples" toggle at the bottom of each wizard step that
+// expands an inline panel of concrete, bilingual examples. Styled to match the
+// existing .est-toggle + .est-box (paper-tinted, sage border, serif). Inline
+// only — no modals, no popups, and no library dependencies. State lives on
+// `state.wizardTip` (an object keyed by step) so it survives re-renders.
+const WIZARD_TIPS = {
+  space: {
+    zh: "陽台 = 公寓的開放陽台或室內陽台。頂樓 = 完全暴露的屋頂。庭院 = 地植區域。室內窗邊 = 室內離窗 < 2m。",
+    en: "Balcony = an apartment's outdoor or enclosed balcony. Rooftop = a fully exposed roof. Yard = an in-ground planting area. Indoor windowsill = inside the home within 2m of a window.",
+  },
+  sun: {
+    zh: "全日照 = 連續 6 小時以上直射陽光（一般南向陽台、頂樓）。半日照 = 3-5 小時（東/西向）。遮陰 = 全天散射光，無直射（北向、樹蔭下）。如不確定，回到第 2 題用 🧭 指南針偵測朝向。",
+    en: "Full sun = 6+ hours of continuous direct sunlight (typical south-facing balcony or rooftop). Part sun = 3-5 hours (east/west-facing). Shade = diffuse light all day, no direct sun (north-facing or under tree cover). If unsure, go back to Q2 and use the 🧭 compass to detect orientation.",
+  },
+  water: {
+    zh: "低 = 一週澆水 ≤ 1 次（出差頻繁）。中 = 一週 2-3 次（正常工作日下班）。高 = 每天澆或週末密集（有水景／陽台菜園）。",
+    en: "Low = water ≤ 1× per week (frequent travel). Medium = 2-3× per week (typical work week). High = daily watering, or intensive weekends (water features / balcony vegetable garden).",
+  },
+  goals: {
+    zh: "「授粉」= 吸引蜜蜂與蝴蝶。「遮蔽」= 隱私綠籬。「可食」= 蔬菜、水果、香草。「免維護」= 耐旱 + 生長緩慢。",
+    en: "'Pollinator' = bees & butterflies. 'Screen' = privacy hedge. 'Edible' = vegetables, fruits, herbs. 'Easy care' = drought-tolerant + slow-growing.",
+  },
+};
+
+function wizardTipHTML(stepKey) {
+  const tip = WIZARD_TIPS[stepKey];
+  if (!tip) return "";
+  const open = !!(state.wizardTip && state.wizardTip[stepKey]);
+  return `
+    <div style="margin-top: 22px; text-align: center;">
+      <button class="est-toggle" data-wiz-tip="${stepKey}" type="button" aria-expanded="${open ? "true" : "false"}">
+        ⓘ <span data-zh="${open ? "收起例子" : "想看例子"}" data-en="${open ? "Hide examples" : "Examples"}">${open ? "收起例子" : "想看例子"}</span>
+      </button>
+      ${open ? `
+        <div class="est-box" style="margin-top: 10px; text-align: left; font-family: var(--serif); font-size: 13.5px; line-height: 1.7; color: var(--ink-soft);">
+          <div data-zh="${escapeHtml(tip.zh)}" data-en="${escapeHtml(tip.en)}">${escapeHtml(tip.zh)}</div>
+        </div>` : ""}
+    </div>`;
+}
+
+function wireWizardTip(stepKey) {
+  const btn = document.querySelector(`[data-wiz-tip="${stepKey}"]`);
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    if (!state.wizardTip) state.wizardTip = {};
+    state.wizardTip[stepKey] = !state.wizardTip[stepKey];
+    // Re-render the current step in place. Each wizard renderer is idempotent
+    // and re-runs its own wire-up, so just dispatch via render().
+    render();
+  });
+}
+
 function renderSpace() {
   const suggested = state.wizardPhotoSuggest?.space;
   app.innerHTML = `
@@ -7454,9 +7574,11 @@ function renderSpace() {
           📖 <span data-zh="或：先瀏覽全部 ${PLANTS.length} 種植物 →" data-en="Or: browse all ${PLANTS.length} plants first →">或：先瀏覽全部 ${PLANTS.length} 種植物 →</span>
         </button>
       </div>
+      ${wizardTipHTML("space")}
     </div>`;
   wireOptCards("space");
   wireQPhoto("space");
+  wireWizardTip("space");
   document.getElementById("browseAllBtn")?.addEventListener("click", () => {
     // Jump to result page in "dict" tab so the user can browse without completing the wizard.
     // Pre-fill defaults so scorePlants doesn't crash, and switch directly to the dictionary view.
@@ -8267,9 +8389,11 @@ function renderSun() {
         ${SUN_OPTIONS.map(o => optCardWithSuggest(o, state.sun === o.key, suggested === o.key, sunIcon(o.key, state.sun === o.key))).join("")}
       </div>
       ${qPhotoHTML("sun")}
+      ${wizardTipHTML("sun")}
     </div>`;
   wireOptCards("sun");
   wireQPhoto("sun");
+  wireWizardTip("sun");
 }
 
 function renderWater() {
@@ -8281,8 +8405,10 @@ function renderWater() {
       <div class="grid cols-3">
         ${WATER_OPTIONS.map(o => optCard(o, state.water === o.key)).join("")}
       </div>
+      ${wizardTipHTML("water")}
     </div>`;
   wireOptCards("water");
+  wireWizardTip("water");
 }
 
 function renderGoals() {
@@ -8294,8 +8420,10 @@ function renderGoals() {
       <div class="grid cols-2">
         ${GOAL_OPTIONS.map(o => optCard(o, state.goals.includes(o.key), null, true)).join("")}
       </div>
+      ${wizardTipHTML("goals")}
     </div>`;
   wireOptCards("goals", true);
+  wireWizardTip("goals");
 }
 
 function optCard(opt, active, iconHtml, checkable) {
