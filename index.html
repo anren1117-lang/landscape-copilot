@@ -960,6 +960,72 @@
   .share-conflict .sc-actions button.primary:hover { background: var(--sage-deep); }
   .share-conflict .sc-actions button.warn { color: var(--clay); border-color: var(--clay); }
 
+  /* FIRST-VISIT coach mark — sage-tinted dismissible banner.
+     Same visual family as .welcome-back so they stack cleanly. */
+  .first-visit {
+    max-width: 880px; margin: 16px auto 0; padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(110,126,96,0.10), rgba(196,160,76,0.08));
+    border: 1px dashed var(--sage-deep);
+    border-radius: 14px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 13px; color: var(--forest);
+  }
+  .first-visit .fv-icon { font-size: 18px; }
+  .first-visit .fv-text { flex: 1; min-width: 220px; line-height: 1.5; font-family: var(--serif); }
+  .first-visit .fv-text strong { color: var(--forest); font-family: var(--serif); }
+  .first-visit .fv-dismiss {
+    padding: 5px 11px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600; cursor: pointer;
+    font-family: inherit; border: 1px solid var(--line);
+    background: rgba(255,255,255,0.7); color: var(--forest);
+  }
+  .first-visit .fv-dismiss:hover { background: rgba(255,255,255,0.95); }
+
+  /* "新功能" badge for highlighting recent additions (e.g. design presets).
+     Sits next to a section label inline; disappears after a few days. */
+  .new-feat-badge {
+    display: inline-block; margin-left: 8px;
+    padding: 2px 8px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em;
+    background: rgba(196,160,76,0.22);
+    color: var(--clay-deep);
+    border: 1px solid rgba(196,160,76,0.4);
+    vertical-align: middle;
+    text-transform: none;
+  }
+
+  /* Tips modal — reuses qr-overlay backdrop pattern with custom inner card */
+  .tips-modal {
+    background: var(--paper-warm);
+    border-radius: 18px;
+    padding: 26px 28px 22px;
+    width: min(440px, 92vw);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.35);
+    position: relative;
+    text-align: left;
+  }
+  .tips-modal .tips-close {
+    position: absolute; top: 12px; right: 14px;
+    background: none; border: none; font-size: 18px;
+    color: var(--ink-soft); cursor: pointer; padding: 4px 8px;
+  }
+  .tips-modal .tips-title {
+    font-family: var(--serif); font-size: 19px; font-weight: 600;
+    color: var(--forest); margin: 0 0 14px;
+  }
+  .tips-modal ul { list-style: none; margin: 0; padding: 0; }
+  .tips-modal li {
+    display: flex; gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px dashed rgba(110,126,96,0.18);
+    font-size: 13.5px; line-height: 1.55; color: var(--forest);
+  }
+  .tips-modal li:last-child { border-bottom: none; }
+  .tips-modal li .ti-ico { font-size: 18px; flex-shrink: 0; }
+  .tips-modal li .ti-txt { font-family: var(--serif); }
+  .btn.text.tips-link { color: var(--clay-deep); font-weight: 600; }
+  .btn.text.tips-link:hover { color: var(--forest); }
+
   /* Viewing-shared notice — sits above the result page's hero when the user clicked
      "View shared design" in the conflict banner. Keeps the local design safe and
      gives one-tap paths to commit or go back. */
@@ -1775,6 +1841,7 @@
     <span style="font-weight:600; color:var(--sage-deep); letter-spacing:0.02em;" data-zh="🌿 AI Landscape Copilot" data-en="🌿 AI Landscape Copilot">🌿 AI Landscape Copilot</span>
   </div>
   <div class="right">
+    <button class="btn text tips-link" id="tipsBtn" onclick="openTipsModal()" aria-label="Tips / 想法"><span data-zh="🎯 想法" data-en="🎯 Tips">🎯 想法</span></button>
     <button class="btn text" id="langToggle" aria-label="Toggle language / 切換語言">English</button>
     <button class="btn ghost" id="shareLinkBtn" onclick="copyShareLink(this)" aria-label="Copy share link / 複製連結">🔗 <span data-zh="複製連結" data-en="Copy link">複製連結</span></button>
     <a class="btn line" id="lineShareBtn" href="#" target="_blank" rel="noopener" aria-label="Share to LINE / 分享到 LINE">💬 LINE</a>
@@ -3879,6 +3946,10 @@ const PLANTS = [
     supports_zh:["紫葉","耐旱","易繁殖"], supports_en:["Purple foliage","Drought tolerant","Easy propagation"] },
 ];
 
+// O(1) lookup by id — avoid PLANTS.find(p => p.id === x) walks in hot paths
+// (drawer open, pref toggle, photo flow). 140 entries × repeated lookups adds up.
+const PLANT_BY_ID = Object.fromEntries(PLANTS.map(p => [p.id, p]));
+
 // ─────────────────────────────────────────────────────────────
 // PLANT_META — augmented data for every plant.
 //   native:     true = Taiwan native, false = introduced ornamental
@@ -5228,6 +5299,14 @@ function pushHashFromState() {
 // we must NOT overwrite their saved local design. The conflict banner's "Save as my new
 // design" button is the explicit opt-in path that does write.
 function persistDashboard() {
+  // Perf: skip localStorage writes when we're not on the result page.
+  // Tab navigation (home → photo → wizard) doesn't change the persisted snapshot,
+  // so writing on every re-render wastes a (synchronous) localStorage roundtrip.
+  // Only persist when the user has actually reached step 5 of the wizard.
+  if (state.view !== "wizard" || state.step !== 5) {
+    pushHashFromState();
+    return;
+  }
   if (!state.viewingShared) {
     saveToLocal();
     // Keep the active named-list entry in sync as the user edits.
@@ -5303,6 +5382,55 @@ function summarizeSnapshot(s) {
   const sunMapEn = { full: "Full sun", part: "Part sun", shade: "Shade" };
   const sun = state.lang === "zh" ? (sunMap[s.sun] || "") : (sunMapEn[s.sun] || "");
   return `${space} · ${area} m²${sun ? " · " + sun : ""}`;
+}
+
+// First-visit coach mark — small dismissible banner that introduces the 3 paths.
+// Shown on the homepage when localStorage has no 'lc-onboarded' flag, and only
+// when there's no share-conflict or welcome-back banner already taking that slot
+// (to avoid stacking three banners for a returning user landing on a friend's link).
+// Sets a separate 'lc-first-seen' timestamp on first call so the design-presets
+// "✨ 新功能" badge can auto-expire 5 days later.
+const FIRST_VISIT_KEY = "lc-onboarded";
+const FIRST_SEEN_KEY = "lc-first-seen";
+const NEW_FEAT_DAYS = 5;
+function markFirstSeenIfNeeded() {
+  try {
+    if (!localStorage.getItem(FIRST_SEEN_KEY)) {
+      localStorage.setItem(FIRST_SEEN_KEY, String(Date.now()));
+    }
+  } catch (e) { /* private mode */ }
+}
+function isFirstVisit() {
+  try { return !localStorage.getItem(FIRST_VISIT_KEY); }
+  catch (e) { return false; }
+}
+function shouldShowNewFeatBadge() {
+  try {
+    const t = Number(localStorage.getItem(FIRST_SEEN_KEY) || 0);
+    if (!t) return true; // first ever visit — show badge
+    return (Date.now() - t) < NEW_FEAT_DAYS * 86400 * 1000;
+  } catch (e) { return false; }
+}
+function renderFirstVisitBanner() {
+  if (!isFirstVisit()) return "";
+  // Don't compete with a share-conflict alert or welcome-back resume banner.
+  if (state.shareConflict || state.pendingSnapshot) return "";
+  return `
+    <div class="first-visit" id="firstVisitBanner" role="note">
+      <span class="fv-icon" aria-hidden="true">👋</span>
+      <div class="fv-text">
+        <strong data-zh="第一次來？" data-en="First time?">第一次來？</strong>
+        <span data-zh="這是一個免費的 AI 景觀設計工具。3 種開始方式：📸 拍照、✨ 5 個問題、📖 瀏覽植物。"
+              data-en="Free AI landscape design tool. 3 ways to start: 📸 photo, ✨ 5-question wizard, or 📖 browse plants.">
+          這是一個免費的 AI 景觀設計工具。3 種開始方式：📸 拍照、✨ 5 個問題、📖 瀏覽植物。
+        </span>
+      </div>
+      <button class="fv-dismiss" id="firstVisitDismiss"><span data-zh="✕ 知道了" data-en="✕ Got it">✕ 知道了</span></button>
+    </div>`;
+}
+function renderNewFeatBadge() {
+  if (!shouldShowNewFeatBadge()) return "";
+  return `<span class="new-feat-badge" data-zh="✨ 新功能" data-en="✨ New">✨ 新功能</span>`;
 }
 
 // Welcome-back banner on the homepage when localStorage has a saved design.
@@ -5887,8 +6015,14 @@ function renderHome() {
   const nativeCount = PLANTS.filter(p => p.native).length;
   const introCount  = PLANTS.length - nativeCount;
 
+  // First visit ever? Stamp the "first seen" timestamp so the ✨新功能 badge
+  // can expire 5 days later. Safe to call on every render — guarded inside.
+  markFirstSeenIfNeeded();
+
   app.innerHTML = `
     <div class="fade-up">
+
+      ${renderFirstVisitBanner()}
 
       ${renderWelcomeBackBanner()}
 
@@ -5961,7 +6095,9 @@ function renderHome() {
       </div>
 
       <div class="home-presets-wrap">
-        <div class="home-presets-label" data-zh="✨ 設計範本 · DESIGN PRESETS" data-en="✨ Design presets">✨ 設計範本 · DESIGN PRESETS</div>
+        <div class="home-presets-label"
+             data-zh="✨ 設計範本 · DESIGN PRESETS${escapeHtml(renderNewFeatBadge())}"
+             data-en="✨ Design presets${escapeHtml(renderNewFeatBadge())}">✨ 設計範本 · DESIGN PRESETS${renderNewFeatBadge()}</div>
         <div class="home-presets-sub"
              data-zh="不想答 5 題？選一個範本，AI 直接生成符合該風格的景觀規劃。"
              data-en="Skip the 5 questions. Pick a preset and AI generates a plan tuned to that style.">
@@ -6079,6 +6215,16 @@ function renderHome() {
   document.querySelectorAll(".home-preset-card").forEach((btn) => {
     btn.addEventListener("click", () => applyDesignPreset(btn.dataset.preset));
   });
+
+  // First-visit coach mark dismiss — write the onboarded flag and remove the banner.
+  const fvDismiss = document.getElementById("firstVisitDismiss");
+  if (fvDismiss) {
+    fvDismiss.addEventListener("click", () => {
+      try { localStorage.setItem(FIRST_VISIT_KEY, "true"); } catch (e) {}
+      const banner = document.getElementById("firstVisitBanner");
+      if (banner) banner.remove();
+    });
+  }
 
   // Welcome-back banner buttons
   const resume = document.getElementById("resumeBtn");
@@ -11165,7 +11311,7 @@ function rerenderDict() {
 // PLANT DRAWER
 // ─────────────────────────────────────────────────────────────
 function openDrawer(id) {
-  const plant = PLANTS.find(p => p.id === id);
+  const plant = PLANT_BY_ID[id];
   if (!plant) return;
   state.selectedPlantId = id;
   drawerHost.innerHTML = `
@@ -11343,7 +11489,7 @@ function openDrawer(id) {
             <div class="drawer-block-title" data-zh="搭配建議" data-en="Companion plants">搭配建議</div>
             <div class="drawer-companions">
               ${plant.companions.map(cid => {
-                const c = PLANTS.find(x => x.id === cid);
+                const c = PLANT_BY_ID[cid];
                 if (!c) return "";
                 return `<button class="companion-pill" data-cid="${cid}"><span data-zh="${c.zh}" data-en="${c.en}">${c.zh}</span></button>`;
               }).join("")}
@@ -11483,6 +11629,58 @@ window.closeQRModal = function () {
   const o = document.getElementById("qrOverlay");
   if (o) o.remove();
   document.removeEventListener("keydown", qrEscHandler);
+};
+
+// ─────────────────────────────────────────────────────────────
+// Tips modal — small dismissible "did you know" card with power-user tips.
+// Triggered from the 🎯 想法 / Tips button in the top bar.
+// Reuses the .qr-overlay backdrop pattern; inner card uses .tips-modal styling.
+// ─────────────────────────────────────────────────────────────
+const TIPS = [
+  { ico: "🔍",
+    zh: "點植物字典的搜尋框打「可食」找所有可食用植物。同樣可試「香氣」「貓安全」「耐旱」。",
+    en: "In the plant dictionary search box, type \"edible\" to find all edible plants. Also try \"fragrant\", \"cat-safe\", or \"drought\"." },
+  { ico: "📂",
+    zh: "在「我的設計」儲存多個版本來比較 — 不同空間、不同預算、不同風格各存一份。",
+    en: "Save multiple versions in \"My designs\" to compare — keep one per space, budget, or style." },
+  { ico: "🌿",
+    zh: "在結果頁點任一植物開啟詳細養護指南：澆水頻率、修剪時機、搭配建議、文化背景。",
+    en: "On the result page, click any plant to open its full care guide: watering, pruning, companions, cultural notes." },
+  { ico: "🖨️",
+    zh: "規劃完成後點右上「📄 列印 / PDF」匯出一份完整施工指南帶去苗圃。",
+    en: "After designing, hit \"📄 Print / PDF\" in the top-right to export a complete install guide to bring to the nursery." },
+];
+window.openTipsModal = function () {
+  closeTipsModal(); // ensure single instance
+  const titleText = state.lang === "zh" ? "🎯 一些好用的想法" : "🎯 Quick tips";
+  const closeText = state.lang === "zh" ? "關閉" : "Close";
+  const items = TIPS.map(t => `
+    <li>
+      <span class="ti-ico" aria-hidden="true">${t.ico}</span>
+      <span class="ti-txt" data-zh="${escapeHtml(t.zh)}" data-en="${escapeHtml(t.en)}">${escapeHtml(state.lang === "zh" ? t.zh : t.en)}</span>
+    </li>`).join("");
+  const overlay = document.createElement("div");
+  overlay.className = "qr-overlay";
+  overlay.id = "tipsOverlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", titleText);
+  overlay.innerHTML = `
+    <div class="tips-modal" id="tipsModal">
+      <button class="tips-close" id="tipsCloseBtn" aria-label="${closeText}">✕</button>
+      <h3 class="tips-title">${titleText}</h3>
+      <ul>${items}</ul>
+    </div>`;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeTipsModal(); });
+  document.body.appendChild(overlay);
+  document.getElementById("tipsCloseBtn").addEventListener("click", closeTipsModal);
+  document.addEventListener("keydown", tipsEscHandler);
+};
+function tipsEscHandler(e) { if (e.key === "Escape") closeTipsModal(); }
+window.closeTipsModal = function () {
+  const o = document.getElementById("tipsOverlay");
+  if (o) o.remove();
+  document.removeEventListener("keydown", tipsEscHandler);
 };
 
 // ─────────────────────────────────────────────────────────────
