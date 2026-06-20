@@ -738,6 +738,137 @@
     font-style: italic;
   }
 
+  /* "↔ Compare two designs" — small button on each card + select-mode overlay */
+  .my-designs-aggregate {
+    background: rgba(110,126,96,0.10);
+    border: 1px solid rgba(110,126,96,0.28);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--forest-soft);
+    font-family: var(--serif);
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  }
+  .my-designs-aggregate strong { color: var(--forest); font-weight: 600; }
+  .my-design-actions button.cmp { color: var(--sage-deep); }
+  .my-design-actions button.cmp:hover { background: rgba(110,126,96,0.12); color: var(--forest); }
+  .my-design-actions button.cmp.armed { background: var(--sage-deep); color: var(--paper); }
+  .my-design-card.compare-pickable {
+    border-color: var(--clay); cursor: pointer;
+    box-shadow: 0 0 0 2px rgba(168,138,106,0.22);
+  }
+  .my-design-card.compare-pickable::after {
+    content: attr(data-pick-label);
+    position: absolute; inset: 0;
+    background: rgba(168,138,106,0.85);
+    color: var(--paper);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif); font-weight: 600; font-size: 14px;
+    text-align: center; padding: 8px;
+  }
+  .my-design-card.compare-first {
+    border-color: var(--sage-deep);
+    box-shadow: 0 0 0 2px rgba(110,126,96,0.32);
+  }
+
+  /* Comparison view — replaces the grid temporarily */
+  .compare-panel {
+    background: rgba(255,255,255,0.55);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .compare-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px; gap: 12px; flex-wrap: wrap;
+  }
+  .compare-head h3 {
+    font-family: var(--serif); font-size: 17px; font-weight: 600; color: var(--forest);
+    margin: 0;
+  }
+  .compare-exit {
+    background: transparent; border: 1px solid var(--line); color: var(--ink);
+    border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+    font-family: inherit;
+  }
+  .compare-exit:hover { background: var(--forest); color: var(--paper); border-color: var(--forest); }
+  .compare-grid {
+    display: grid; grid-template-columns: 1fr; gap: 14px;
+  }
+  @media (min-width: 720px) { .compare-grid { grid-template-columns: 1fr 1fr; } }
+  .compare-col {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .compare-col .col-name {
+    font-family: var(--serif); font-size: 16px; font-weight: 600; color: var(--forest);
+  }
+  .compare-col .col-row {
+    display: flex; justify-content: space-between; font-size: 12.5px;
+    color: var(--ink-soft); border-bottom: 1px dashed var(--line);
+    padding-bottom: 4px;
+  }
+  .compare-col .col-row.diff { color: var(--clay-deep); font-weight: 600; }
+  .compare-col .col-row .k { font-family: var(--serif); }
+  .compare-col .col-row .v { color: var(--forest); font-weight: 600; }
+  .compare-col .col-row.diff .v { color: var(--clay-deep); }
+  .compare-col .chips-row {
+    display: flex; flex-wrap: wrap; gap: 4px;
+  }
+  .compare-col .chip {
+    background: rgba(138,154,123,0.15);
+    border: 1px solid rgba(138,154,123,0.35);
+    border-radius: 999px;
+    padding: 3px 9px; font-size: 11.5px;
+    color: var(--sage-deep); font-family: var(--serif);
+  }
+  .compare-col .chip.diff {
+    background: rgba(168,138,106,0.18);
+    border-color: rgba(168,138,106,0.45);
+    color: var(--clay-deep);
+  }
+  .compare-col .plant-list {
+    list-style: none; padding: 0; margin: 0;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .compare-col .plant-list li {
+    font-size: 12.5px; color: var(--forest-soft); font-family: var(--serif);
+    padding: 2px 0;
+  }
+  .compare-col .plant-list li.only { color: var(--clay-deep); font-weight: 600; }
+  .compare-col .metrics {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
+    margin-top: 4px;
+  }
+  .compare-col .metric {
+    background: rgba(255,255,255,0.7);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 8px; text-align: center;
+  }
+  .compare-col .metric .lbl { font-size: 10px; color: var(--ink-soft); font-family: var(--serif); }
+  .compare-col .metric .val {
+    font-family: var(--serif); font-size: 13.5px; font-weight: 600; color: var(--forest);
+  }
+  .compare-col .col-label {
+    font-size: 10.5px; letter-spacing: 0.16em; color: var(--clay-deep);
+    font-weight: 600; text-transform: uppercase; margin-top: 6px;
+  }
+  .compare-col .continue-btn {
+    margin-top: auto;
+    background: var(--forest); color: var(--paper);
+    border: 1px solid var(--forest);
+    border-radius: 999px; padding: 8px 12px;
+    font-family: inherit; font-size: 12.5px; font-weight: 600;
+    cursor: pointer;
+  }
+  .compare-col .continue-btn:hover { background: var(--sage-deep); border-color: var(--sage-deep); }
+
   /* "Save as new design" button on result page nav */
   .save-design-btn {
     background: rgba(255,255,255,0.7);
@@ -4533,6 +4664,12 @@ const state = {
   // analytics can tell "user kicked off from 🪴 low-maintenance balcony preset"
   // vs starting the wizard from scratch. Cleared on Start-fresh.
   designPresetId: null,
+  // ── Compare two saved designs (R17) — pure UI state, never persisted.
+  //    compareFirstId: id of the design the user clicked "↔ 比較" on.
+  //    compareSecondId: id of the second card they picked.
+  //    When both set, renderMyDesignsSection() swaps the grid for the compare panel.
+  compareFirstId: null,
+  compareSecondId: null,
   lang: "zh",
 };
 
@@ -5257,6 +5394,202 @@ function humanizeTimeAgo(ts) {
 // Distinct from the implicit single-slot SAVE_KEY (which is the welcome-back
 // resume target). The list lets users keep balcony + yard + office designs
 // side-by-side and resume any of them.
+// ── R17 compare-two-designs helpers ────────────────────────────
+// designSummary(snapshot) — pulls the comparable fields out of a stored
+// snapshot WITHOUT re-running scorePlants. snap.qty already holds the
+// top-8 plant ids the user committed to (initShoppingQty filled it when
+// the design was first rendered), so we just look those ids up in PLANTS.
+function designSummary(snap) {
+  if (!snap) return null;
+  const w = Number(snap.widthM || 0), d = Number(snap.depthM || 0);
+  const area = (w * d) || 0;
+  // Plant ids the design committed to. Stored as a qty map; treat any
+  // entry with qty > 0 as "in the design". Sort by qty desc so the top-5
+  // surface the highest-impact plants first.
+  const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
+  const ids = Object.keys(qtyMap).filter(id => Number(qtyMap[id]) > 0);
+  const plantsById = Object.fromEntries(PLANTS.map(p => [p.id, p]));
+  const entries = ids
+    .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: plantsById[id] }))
+    .filter(e => e.plant)
+    .sort((a, b) => b.qty - a.qty);
+  // Aggregate sustainability metrics — single pass over committed plants.
+  let totalCO2 = 0, totalWater = 0, totalCost = 0;
+  entries.forEach(({ plant, qty }) => {
+    const e = expert(plant);
+    totalCO2   += (e.co2_kg_yr  || 0) * qty;
+    totalWater += (e.water_l_wk || 0) * qty;
+    totalCost  += (Number(plant.cost) || 0) * qty;
+  });
+  return {
+    space: snap.space || null,
+    sun: snap.sun || null,
+    water: snap.water || null,
+    goals: Array.isArray(snap.goals) ? snap.goals.slice() : [],
+    widthM: w, depthM: d, area,
+    plantIds: entries.map(e => e.id),
+    topPlants: entries.slice(0, 5).map(e => ({
+      id: e.id, qty: e.qty,
+      zh: e.plant.zh, en: e.plant.en,
+    })),
+    co2: Math.round(totalCO2),
+    water_l_wk: Math.round(totalWater),
+    cost: Math.round(totalCost),
+  };
+}
+
+// compareDesigns(a, b) — diff two designSummary results.
+// Returns shared / aOnly / bOnly plant ids and a list of field-level diffs
+// (space, sun, water, goals). Goals are treated as a set: each goal whose
+// presence differs becomes its own diff row, since users care which goal
+// flipped on/off, not "your goals are different".
+function compareDesigns(a, b) {
+  const setA = new Set(a.plantIds || []);
+  const setB = new Set(b.plantIds || []);
+  const shared = [], aOnly = [], bOnly = [];
+  setA.forEach(id => { (setB.has(id) ? shared : aOnly).push(id); });
+  setB.forEach(id => { if (!setA.has(id)) bOnly.push(id); });
+  const diffs = [];
+  ["space","sun","water"].forEach(field => {
+    if ((a[field] || null) !== (b[field] || null)) {
+      diffs.push({ field, valueA: a[field], valueB: b[field] });
+    }
+  });
+  const goalsA = new Set(a.goals || []), goalsB = new Set(b.goals || []);
+  GOAL_OPTIONS.forEach(g => {
+    if (goalsA.has(g.key) !== goalsB.has(g.key)) {
+      diffs.push({ field: "goal:" + g.key, valueA: goalsA.has(g.key), valueB: goalsB.has(g.key) });
+    }
+  });
+  return { shared, aOnly, bOnly, diffs };
+}
+
+// renderCompareView(designA, designB) — single-render 2-column compare panel.
+// `designA` and `designB` are loaded list entries (have id, name, snapshot).
+// No async, no fetch — pure HTML from designSummary + compareDesigns output.
+function renderCompareView(designA, designB) {
+  const sumA = designSummary(designA.snapshot);
+  const sumB = designSummary(designB.snapshot);
+  if (!sumA || !sumB) return "";
+  const diff = compareDesigns(sumA, sumB);
+  const goalLabel = (key) => {
+    const g = GOAL_OPTIONS.find(x => x.key === key);
+    return g ? { zh: g.zh, en: g.en } : { zh: key, en: key };
+  };
+  const waterLabelZh = { low:"低", med:"中", high:"高" };
+  const waterLabelEn = { low:"Low", med:"Med", high:"High" };
+  const goalsDiffKeys = new Set(
+    diff.diffs.filter(d => d.field.startsWith("goal:")).map(d => d.field.slice(5))
+  );
+  const fieldDiffs = new Set(
+    diff.diffs.filter(d => !d.field.startsWith("goal:")).map(d => d.field)
+  );
+
+  function colHtml(design, sum, side) {
+    const onlyIds = side === "A" ? diff.aOnly : diff.bOnly;
+    const onlySet = new Set(onlyIds);
+    const chips = (sum.goals || []).map(k => {
+      const lbl = goalLabel(k);
+      const cls = goalsDiffKeys.has(k) ? "chip diff" : "chip";
+      return `<span class="${cls}" data-zh="${escapeHtml(lbl.zh)}" data-en="${escapeHtml(lbl.en)}">${escapeHtml(lbl.zh)}</span>`;
+    }).join("");
+    const topPlants = sum.topPlants.map(p => {
+      const cls = onlySet.has(p.id) ? "only" : "";
+      const marker = onlySet.has(p.id) ? " ◆" : "";
+      return `<li class="${cls}" data-zh="${escapeHtml(p.zh)} × ${p.qty}${marker}" data-en="${escapeHtml(p.en)} × ${p.qty}${marker}">${escapeHtml(p.zh)} × ${p.qty}${marker}</li>`;
+    }).join("");
+    const dimStr = `${(sum.widthM||0).toFixed(1)} × ${(sum.depthM||0).toFixed(1)} m`;
+    const rowCls = (key) => fieldDiffs.has(key) ? "col-row diff" : "col-row";
+    return `
+      <div class="compare-col">
+        <div class="col-name">${escapeHtml(design.name)}</div>
+        <div class="${rowCls('space')}">
+          <span class="k" data-zh="空間" data-en="Space">空間</span>
+          <span class="v" data-zh="${escapeHtml(spaceZh(sum.space))}" data-en="${escapeHtml(spaceEn(sum.space))}">${escapeHtml(spaceZh(sum.space))}</span>
+        </div>
+        <div class="col-row">
+          <span class="k" data-zh="尺寸" data-en="Size">尺寸</span>
+          <span class="v">${dimStr}</span>
+        </div>
+        <div class="${rowCls('sun')}">
+          <span class="k" data-zh="日照" data-en="Sun">日照</span>
+          <span class="v" data-zh="${escapeHtml(sunZh(sum.sun))}" data-en="${escapeHtml(sunEn(sum.sun))}">${escapeHtml(sunZh(sum.sun))}</span>
+        </div>
+        <div class="${rowCls('water')}">
+          <span class="k" data-zh="澆水" data-en="Water">澆水</span>
+          <span class="v" data-zh="${escapeHtml(waterLabelZh[sum.water]||sum.water||'—')}" data-en="${escapeHtml(waterLabelEn[sum.water]||sum.water||'—')}">${escapeHtml(waterLabelZh[sum.water]||sum.water||'—')}</span>
+        </div>
+        <div class="col-label" data-zh="目標 · Goals" data-en="Goals">目標 · Goals</div>
+        <div class="chips-row">${chips || `<span class="chip" data-zh="（無）" data-en="(none)">（無）</span>`}</div>
+        <div class="col-label" data-zh="主要植物（前 5） · Top 5 plants" data-en="Top 5 plants">主要植物（前 5）</div>
+        <ul class="plant-list">${topPlants || `<li data-zh="（尚未選定）" data-en="(none yet)">（尚未選定）</li>`}</ul>
+        <div class="metrics">
+          <div class="metric">
+            <div class="lbl" data-zh="CO₂/年" data-en="CO₂/yr">CO₂/年</div>
+            <div class="val">${sum.co2} <span style="font-size:9px;opacity:0.7;">kg</span></div>
+          </div>
+          <div class="metric">
+            <div class="lbl" data-zh="水量/週" data-en="Water/wk">水量/週</div>
+            <div class="val">${sum.water_l_wk} <span style="font-size:9px;opacity:0.7;">L</span></div>
+          </div>
+          <div class="metric">
+            <div class="lbl" data-zh="總價" data-en="Total cost">總價</div>
+            <div class="val">NT$ ${sum.cost.toLocaleString()}</div>
+          </div>
+        </div>
+        <button class="continue-btn" data-compare-continue="${escapeHtml(design.id)}"
+                data-zh="✓ 用這個設計繼續" data-en="✓ Continue with this design">✓ 用這個設計繼續</button>
+      </div>`;
+  }
+
+  const sharedCount = diff.shared.length;
+  const onlyACount = diff.aOnly.length;
+  const onlyBCount = diff.bOnly.length;
+  const summaryLine = `
+    <div style="font-size:11.5px; color:var(--ink-soft); font-family:var(--serif); margin-bottom:10px;">
+      <span data-zh="共同植物：${sharedCount} 種 · 僅 A：${onlyACount} 種 · 僅 B：${onlyBCount} 種"
+            data-en="Shared plants: ${sharedCount} · Only A: ${onlyACount} · Only B: ${onlyBCount}">
+        共同植物：${sharedCount} 種 · 僅 A：${onlyACount} 種 · 僅 B：${onlyBCount} 種
+      </span>
+    </div>`;
+
+  return `
+    <div class="compare-panel">
+      <div class="compare-head">
+        <h3 data-zh="↔ 設計比較 · Compare designs" data-en="↔ Compare designs">↔ 設計比較 · Compare designs</h3>
+        <button class="compare-exit" id="compareExitBtn"
+                data-zh="✕ 退出比較 · Exit compare" data-en="✕ Exit compare">✕ 退出比較</button>
+      </div>
+      ${summaryLine}
+      <div class="compare-grid">
+        ${colHtml(designA, sumA, "A")}
+        ${colHtml(designB, sumB, "B")}
+      </div>
+    </div>`;
+}
+
+// Aggregate stats line above the grid — only meaningful with 2+ designs.
+function renderMyDesignsAggregate(list) {
+  if (!list.designs || list.designs.length < 2) return "";
+  const plantSet = new Set();
+  let totalCO2 = 0;
+  list.designs.forEach(entry => {
+    const sum = designSummary(entry.snapshot);
+    if (!sum) return;
+    (sum.plantIds || []).forEach(id => plantSet.add(id));
+    totalCO2 += sum.co2 || 0;
+  });
+  const n = list.designs.length;
+  const speciesCount = plantSet.size;
+  const co2Round = Math.round(totalCO2);
+  return `
+    <div class="my-designs-aggregate"
+         data-zh="你有 <strong>${n}</strong> 個設計 · 共計 <strong>${speciesCount}</strong> 種植物 · 總 CO₂ <strong>${co2Round}</strong> kg/年"
+         data-en="You have <strong>${n}</strong> designs · <strong>${speciesCount}</strong> plant species total · CO₂ <strong>${co2Round}</strong> kg/yr">
+      你有 <strong>${n}</strong> 個設計 · 共計 <strong>${speciesCount}</strong> 種植物 · 總 CO₂ <strong>${co2Round}</strong> kg/年
+    </div>`;
+}
+
 function renderMyDesignsSection() {
   const list = loadDesignList();
   if (!list.designs.length) {
@@ -5276,6 +5609,27 @@ function renderMyDesignsSection() {
         </div>
       </div>`;
   }
+  // ── Compare mode (R17) ──
+  // When BOTH compare ids are set, replace the grid with the comparison
+  // view. We keep the header so the user can still see "我的設計" context.
+  // If one of the picked designs has been deleted in between, fall through
+  // to the normal grid (and clear the stale id quietly).
+  const showCompare = state.compareFirstId && state.compareSecondId;
+  let compareHtml = "";
+  if (showCompare) {
+    const designA = loadDesignById(state.compareFirstId);
+    const designB = loadDesignById(state.compareSecondId);
+    if (designA && designB) {
+      compareHtml = renderCompareView(designA, designB);
+    } else {
+      state.compareFirstId = null; state.compareSecondId = null;
+    }
+  }
+
+  const enableCompare = list.designs.length >= 2;
+  const inSelectSecondMode = enableCompare && state.compareFirstId && !state.compareSecondId;
+  const aggregateHtml = renderMyDesignsAggregate(list);
+
   return `
     <div class="my-designs-section">
       <div class="my-designs-head">
@@ -5284,27 +5638,48 @@ function renderMyDesignsSection() {
               data-zh="共 ${list.designs.length} 個"
               data-en="${list.designs.length} saved">共 ${list.designs.length} 個</span>
       </div>
-      <div class="my-designs-grid">
-        ${list.designs.map((entry) => {
-          const isActive = entry.id === list.activeId;
-          // XSS: savedAt is persisted JSON — escape humanized output before HTML interpolation.
-          const ago = escapeHtml(humanizeTimeAgo(entry.savedAt));
-          return `
-            <div class="my-design-card ${isActive ? "active" : ""}" data-design-id="${escapeHtml(entry.id)}">
-              <div class="my-design-swatch">🌿</div>
-              <div class="my-design-body">
-                <div class="my-design-name">${escapeHtml(entry.name)}</div>
-                <div class="my-design-meta"
-                     data-zh="${ago} 前儲存"
-                     data-en="Saved ${ago} ago">${ago} 前儲存</div>
-              </div>
-              <div class="my-design-actions">
-                <button data-design-rename="${escapeHtml(entry.id)}" title="${t('重新命名','Rename')}">✎</button>
-                <button class="del" data-design-delete="${escapeHtml(entry.id)}" title="${t('刪除','Delete')}">🗑</button>
-              </div>
-            </div>`;
-        }).join("")}
-      </div>
+      ${compareHtml ? compareHtml : `
+        ${aggregateHtml}
+        <div class="my-designs-grid">
+          ${list.designs.map((entry) => {
+            const isActive = entry.id === list.activeId;
+            // XSS: savedAt is persisted JSON — escape humanized output before HTML interpolation.
+            const ago = escapeHtml(humanizeTimeAgo(entry.savedAt));
+            const isFirstPick = entry.id === state.compareFirstId;
+            // In select-second mode, every OTHER card becomes a pick target
+            // (overlay-styled) and clicking it sets compareSecondId.
+            const isPickable = inSelectSecondMode && !isFirstPick;
+            const cardClasses = [
+              "my-design-card",
+              isActive ? "active" : "",
+              isFirstPick ? "compare-first" : "",
+              isPickable ? "compare-pickable" : "",
+            ].filter(Boolean).join(" ");
+            // The overlay text is bilingual; we use the current lang and let
+            // applyLanguage handle the rest. data-pick-label is read via CSS attr().
+            const pickLabel = t("選擇此設計比較 · Pick this design to compare", "Pick this design to compare");
+            return `
+              <div class="${cardClasses}" data-design-id="${escapeHtml(entry.id)}"
+                   ${isPickable ? `data-pick-label="${escapeHtml(pickLabel)}"` : ""}>
+                <div class="my-design-swatch">🌿</div>
+                <div class="my-design-body">
+                  <div class="my-design-name">${escapeHtml(entry.name)}</div>
+                  <div class="my-design-meta"
+                       data-zh="${ago} 前儲存"
+                       data-en="Saved ${ago} ago">${ago} 前儲存</div>
+                </div>
+                <div class="my-design-actions">
+                  ${enableCompare ? `
+                    <button class="cmp ${isFirstPick ? "armed" : ""}" data-design-compare="${escapeHtml(entry.id)}"
+                            title="${t('比較此設計','Compare this design')}">↔</button>
+                  ` : ""}
+                  <button data-design-rename="${escapeHtml(entry.id)}" title="${t('重新命名','Rename')}">✎</button>
+                  <button class="del" data-design-delete="${escapeHtml(entry.id)}" title="${t('刪除','Delete')}">🗑</button>
+                </div>
+              </div>`;
+          }).join("")}
+        </div>
+      `}
     </div>`;
 }
 
@@ -5314,6 +5689,58 @@ function wireMyDesignsSection() {
       // Ignore clicks on the action buttons
       if (e.target.closest("button")) return;
       const id = card.dataset.designId;
+      // In "select second design" mode, clicking a pickable card sets the
+      // second id and triggers a re-render — which swaps the grid for the
+      // compare panel via renderMyDesignsSection().
+      if (card.classList.contains("compare-pickable")) {
+        state.compareSecondId = id;
+        renderHome();
+        applyLanguage();
+        return;
+      }
+      // If user clicks the first-picked card in select-second mode, treat
+      // it as "cancel" — restore the normal grid without comparing.
+      if (card.classList.contains("compare-first")) {
+        state.compareFirstId = null;
+        renderHome();
+        applyLanguage();
+        return;
+      }
+      resumeDesignById(id);
+    });
+  });
+  // "↔ 比較" — arm the first id (or disarm if the same card is tapped again).
+  document.querySelectorAll("[data-design-compare]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.designCompare;
+      if (state.compareFirstId === id) {
+        state.compareFirstId = null;     // toggle off
+      } else {
+        state.compareFirstId = id;
+        state.compareSecondId = null;    // entering select-second mode
+      }
+      renderHome();
+      applyLanguage();
+    });
+  });
+  // Exit compare → clear both ids and rebuild the grid.
+  const exitBtn = document.getElementById("compareExitBtn");
+  if (exitBtn) {
+    exitBtn.addEventListener("click", () => {
+      state.compareFirstId = null;
+      state.compareSecondId = null;
+      renderHome();
+      applyLanguage();
+    });
+  }
+  // "✓ 用這個設計繼續" → set active and jump to result page for the chosen side.
+  document.querySelectorAll("[data-compare-continue]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.compareContinue;
+      state.compareFirstId = null;
+      state.compareSecondId = null;
       resumeDesignById(id);
     });
   });
@@ -5339,6 +5766,9 @@ function wireMyDesignsSection() {
       if (!entry) return;
       if (confirm(t(`確定刪除「${entry.name}」？此操作無法復原。`, `Delete "${entry.name}"? This can't be undone.`))) {
         deleteDesignById(id);
+        // Deleted card might have been part of an active compare — clear safely.
+        if (state.compareFirstId === id) state.compareFirstId = null;
+        if (state.compareSecondId === id) state.compareSecondId = null;
         renderHome();
         applyLanguage();
       }
