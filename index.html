@@ -1806,6 +1806,29 @@
   .drawer-supports { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .drawer-supports .chip { font-size: 11.5px; padding: 4px 10px; }
 
+  /* R22 — mini bloom/fruit 12-month indicator strip in drawer.
+     Sits next to the meta cells so a user can scan seasonality at a glance
+     without opening the bloom calendar tab. Total strip height ~16px. */
+  .bloomfruit-strip { display: flex; gap: 4px; align-items: flex-end; margin: 14px 0 4px; flex-wrap: nowrap; }
+  .bloomfruit-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; min-width: 0; }
+  .bloomfruit-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(120,120,120,0.18); }
+  .bloomfruit-dot.bloom { background: #D88AB0; box-shadow: 0 0 0 1px rgba(216,138,176,0.45); }
+  .bloomfruit-dot.fruit { background: #C4A04C; box-shadow: 0 0 0 1px rgba(196,160,76,0.45); }
+  .bloomfruit-dot.both  { background: linear-gradient(135deg, #D88AB0 50%, #C4A04C 50%); }
+  .bloomfruit-mlabel { font-size: 8.5px; color: var(--ink-soft); letter-spacing: 0.04em; line-height: 1; }
+  .bloomfruit-legend { display: flex; gap: 12px; font-size: 10.5px; color: var(--ink-soft); margin-top: 6px; align-items: center; }
+  .bloomfruit-legend .sw { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: middle; }
+
+  /* R22 — "similar plants" strip at drawer bottom. Small clickable cards
+     (swatch + name + role) so users can hop to a complementary plant
+     without leaving the drawer flow. */
+  .similar-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
+  .similar-card { display: flex; flex-direction: column; gap: 4px; padding: 10px 10px 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--bone-soft, #FBF7F0); cursor: pointer; transition: border-color 0.15s, transform 0.1s; text-align: left; }
+  .similar-card:hover { border-color: var(--sage-deep); transform: translateY(-1px); }
+  .similar-swatch { width: 24px; height: 24px; border-radius: 6px; }
+  .similar-name { font-size: 13px; font-weight: 600; color: var(--forest); font-family: var(--serif); line-height: 1.2; }
+  .similar-role { font-size: 10.5px; color: var(--ink-soft); letter-spacing: 0.02em; }
+
   /* responsive */
   @media (max-width: 640px) {
     main.body { padding: 30px 20px 0; }
@@ -5105,6 +5128,33 @@ const WILDLIFE_META = {
   rhododendron_tw:[{ i:"🐝", zh:"原生熊蜂（高山）", en:"Native bumblebees (montane)" }, { i:"🦋", zh:"鳳蝶類", en:"Swallowtails" }],
   arenga:         [{ i:"🐦", zh:"白頭翁、紅嘴黑鵯（果）", en:"Bulbuls (fruit)" }, { i:"🐿", zh:"赤腹松鼠", en:"Red-bellied squirrel" }, { i:"🦗", zh:"獨角仙幼蟲（朽木）", en:"Rhinoceros beetle larvae (rotten wood)" }],
   paederia:       [{ i:"🦋", zh:"長尾水青蛾（食草）", en:"Luna moth relatives (host)" }, { i:"🐝", zh:"小型蜂", en:"Small bees" }],
+  // R22 expansion — 25 more natives + cultivated commons that previously had
+  // no wildlife notes. Sources same as R20 set (TaiBIF, 林務局, 蝴蝶學會).
+  osmanthus:        [{ i:"🐝", zh:"原生蜂（秋花蜜源）", en:"Native bees (autumn nectar)" }, { i:"🦋", zh:"小型蛾類（夜訪）", en:"Small moths (night)" }],
+  lagerstroemia_lg: [{ i:"🐝", zh:"木蜂、原生蜂", en:"Carpenter bees, native bees" }, { i:"🦋", zh:"鳳蝶類訪花", en:"Swallowtail visitors" }],
+  casuarina:        [{ i:"🐦", zh:"海岸鳥類築巢（白頭翁、麻雀）", en:"Coastal nesting birds (bulbul, sparrow)" }, { i:"🦋", zh:"夜行性蛾", en:"Night moths" }],
+  chamaecyparis_f:  [{ i:"🐦", zh:"冠羽畫眉、台灣噪眉（山區森林鳥）", en:"Taiwan yuhina, white-whiskered laughingthrush (montane)" }, { i:"🐿", zh:"白面鼯鼠", en:"Indian giant flying squirrel" }],
+  acer_a:           [{ i:"🐦", zh:"五色鳥、白頭翁（秋果）", en:"Barbet, bulbul (autumn samaras)" }, { i:"🐿", zh:"赤腹松鼠", en:"Red-bellied squirrel" }],
+  mesona:           [{ i:"🐝", zh:"原生小型蜂（夏秋花）", en:"Small native bees (summer–autumn bloom)" }, { i:"🦋", zh:"小型蝶類", en:"Small butterflies" }],
+  djulis:           [{ i:"🐦", zh:"麻雀、斑文鳥（彩虹穗）", en:"Sparrows, munias (rainbow seedheads)" }, { i:"🐝", zh:"原生小型蜂", en:"Small native bees" }],
+  yam_tw:           [{ i:"🐝", zh:"原生蜂（若開花）", en:"Native bees (if flowering)" }, { i:"🦋", zh:"小型蝶類", en:"Small butterflies" }],
+  momordica_c:      [{ i:"🐝", zh:"大型授粉昆蟲（夜訪）", en:"Large pollinators (night)" }, { i:"🦋", zh:"夜行性蛾", en:"Night moths" }],
+  cajanus:          [{ i:"🦠", zh:"根瘤菌（固氮共生）", en:"Rhizobia (nitrogen-fixing symbiont)" }, { i:"🦋", zh:"豆科小灰蝶（食草）", en:"Legume hairstreak butterflies (host)" }, { i:"🐝", zh:"原生蜂", en:"Native bees" }],
+  schefflera_t:     [{ i:"🐦", zh:"白頭翁、綠繡眼（小果）", en:"Bulbul, white-eye (small berries)" }, { i:"🐝", zh:"原生蜂（圓錐花序）", en:"Native bees (panicle bloom)" }],
+  ficus_e:          [{ i:"🐦", zh:"白頭翁、五色鳥、台灣藍鵲（榕果樞紐）", en:"Bulbul, barbet, blue magpie (fig hub)" }, { i:"🐝", zh:"榕小蜂（共生授粉）", en:"Fig wasps (obligate pollinators)" }, { i:"🐿", zh:"赤腹松鼠", en:"Red-bellied squirrel" }],
+  ficus_sub:        [{ i:"🐦", zh:"白頭翁、紅嘴黑鵯（榕果）", en:"Bulbul, black bulbul (figs)" }, { i:"🐝", zh:"榕小蜂", en:"Fig wasps" }],
+  taiwania:         [{ i:"🐦", zh:"冠羽畫眉、青背山雀（山區森林）", en:"Taiwan yuhina, green-backed tit (montane forest)" }, { i:"🐿", zh:"條紋松鼠", en:"Perny's long-nosed squirrel" }],
+  calocedrus:       [{ i:"🐦", zh:"山區小型鳥（毬果）", en:"Montane small birds (cones)" }, { i:"🐿", zh:"赤腹松鼠", en:"Red-bellied squirrel" }],
+  cunninghamia_k:   [{ i:"🐦", zh:"冠羽畫眉、五色鳥（山林）", en:"Taiwan yuhina, barbet (mountain forest)" }, { i:"🐿", zh:"赤腹松鼠", en:"Red-bellied squirrel" }],
+  keteleeria:       [{ i:"🐦", zh:"山雀類（針葉樹冠）", en:"Tits (conifer canopy)" }, { i:"🐿", zh:"條紋松鼠", en:"Striped squirrel" }],
+  pieris_tw:        [{ i:"🐝", zh:"原生熊蜂（高山春花）", en:"Native bumblebees (montane spring bloom)" }, { i:"🦋", zh:"小型蛾類", en:"Small moths" }],
+  cyathea_l:        [{ i:"🦎", zh:"攀木蜥蜴、斯文豪氏攀蜥", en:"Tree skink, Swinhoe's tree lizard" }, { i:"🕷", zh:"蜘蛛、馬陸棲地", en:"Spider, millipede habitat" }],
+  drynaria:         [{ i:"🦎", zh:"攀木蜥蜴棲地", en:"Tree skink habitat" }, { i:"🦋", zh:"小型蛾類", en:"Small moths" }],
+  myrica:           [{ i:"🐦", zh:"白頭翁、紅嘴黑鵯（紅果）", en:"Bulbul, black bulbul (red berries)" }, { i:"🐝", zh:"原生小型蜂", en:"Small native bees" }],
+  bauhinia_b:       [{ i:"🐦", zh:"叉尾太陽鳥（花蜜）", en:"Fork-tailed sunbird (nectar)" }, { i:"🐝", zh:"木蜂、原生蜂", en:"Carpenter bees, native bees" }],
+  annona:           [{ i:"🪲", zh:"露尾甲蟲（夜間授粉）", en:"Sap beetles (night pollinators)" }, { i:"🐦", zh:"白頭翁（成熟果）", en:"Bulbul (ripe fruit)" }],
+  aglaia:           [{ i:"🐦", zh:"白頭翁、綠繡眼（小果）", en:"Bulbul, white-eye (small fruit)" }, { i:"🦋", zh:"夜行性蛾（米蘭香）", en:"Night moths (drawn to fragrance)" }],
+  alstonia:         [{ i:"🦋", zh:"天蛾（夜訪花）", en:"Hawk moths (night-blooming flowers)" }, { i:"🐦", zh:"小型鳥（種子）", en:"Small birds (seeds)" }],
 };
 
 function wildlife(p) { return WILDLIFE_META[p.id] || []; }
@@ -12000,6 +12050,37 @@ function openDrawer(id) {
           </div>
         </div>
 
+        ${(() => {
+          // R22 — mini 12-month bloom/fruit indicator. Pink = bloom month,
+          // gold = fruit month, neutral = neither. Lets users scan seasonality
+          // at a glance without leaving the drawer for the bloom calendar tab.
+          const bloomSet = new Set(plant.bloom || []);
+          const fruitSet = new Set(plant.fruit || []);
+          const hasAny = bloomSet.size > 0 || fruitSet.size > 0;
+          if (!hasAny) return "";
+          const mLabelsZh = ["1","2","3","4","5","6","7","8","9","10","11","12"];
+          const mLabelsEn = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+          const cells = [];
+          for (let m = 1; m <= 12; m++) {
+            const b = bloomSet.has(m);
+            const f = fruitSet.has(m);
+            const cls = b && f ? "both" : b ? "bloom" : f ? "fruit" : "";
+            cells.push(`<div class="bloomfruit-cell">
+              <div class="bloomfruit-dot ${cls}"></div>
+              <div class="bloomfruit-mlabel" data-zh="${mLabelsZh[m-1]}" data-en="${mLabelsEn[m-1]}">${mLabelsZh[m-1]}</div>
+            </div>`);
+          }
+          return `
+            <div class="drawer-block" style="margin-bottom: 18px;">
+              <div class="drawer-block-title" data-zh="開花 / 結果月份 · BLOOM / FRUIT" data-en="Bloom / fruit months">開花 / 結果月份 · BLOOM / FRUIT</div>
+              <div class="bloomfruit-strip">${cells.join("")}</div>
+              <div class="bloomfruit-legend">
+                <span><span class="sw" style="background:#D88AB0;"></span><span data-zh="開花" data-en="Bloom">開花</span></span>
+                <span><span class="sw" style="background:#C4A04C;"></span><span data-zh="結果" data-en="Fruit">結果</span></span>
+              </div>
+            </div>`;
+        })()}
+
         <div class="drawer-block">
           <div class="drawer-block-title" data-zh="關於這株植物" data-en="About this plant">關於這株植物</div>
           <p class="drawer-text" data-zh="${plant.note_zh}" data-en="${plant.note_en}">${plant.note_zh}</p>
@@ -12126,6 +12207,42 @@ function openDrawer(id) {
           <p class="drawer-text" data-zh="${plant.sourcing_zh ?? "—"}" data-en="${plant.sourcing_en ?? "—"}">${plant.sourcing_zh ?? "—"}</p>
         </div>
 
+        ${(() => {
+          // R22 — "Similar plants" strip. Find plants sharing tier + native
+          // status (or relax to same tier only if too few), prefer
+          // non-overlapping bloom months so users can build a sequence of
+          // colour. Top 3-4 small clickable cards open their own drawer.
+          const bloomSet = new Set(plant.bloom || []);
+          const all = PLANTS.filter(p => p.id !== plant.id && p.tier === plant.tier);
+          let pool = all.filter(p => p.native === plant.native);
+          if (pool.length < 3) pool = all;
+          const scored = pool.map(p => {
+            const pb = new Set(p.bloom || []);
+            let overlap = 0;
+            pb.forEach(m => { if (bloomSet.has(m)) overlap += 1; });
+            return { p, overlap };
+          });
+          // Sort: low overlap first (complementary bloom), then alphabetical zh
+          scored.sort((a, b) => {
+            if (a.overlap !== b.overlap) return a.overlap - b.overlap;
+            return a.p.zh.localeCompare(b.p.zh, "zh-Hant");
+          });
+          const picks = scored.slice(0, 4).map(s => s.p);
+          if (picks.length < 1) return "";
+          return `
+            <div class="drawer-block">
+              <div class="drawer-block-title" data-zh="你也許喜歡 · SIMILAR PLANTS" data-en="You may also like · SIMILAR PLANTS">你也許喜歡 · SIMILAR PLANTS</div>
+              <div class="similar-strip">
+                ${picks.map(sp => `
+                  <button class="similar-card" data-sid="${sp.id}" type="button">
+                    <div class="similar-swatch" style="background:${sp.color}"></div>
+                    <div class="similar-name" data-zh="${sp.zh}" data-en="${sp.en}">${sp.zh}</div>
+                    <div class="similar-role" data-zh="${sp.role_zh}" data-en="${sp.role_en}">${sp.role_zh}</div>
+                  </button>`).join("")}
+              </div>
+            </div>`;
+        })()}
+
         <div class="drawer-foot" data-zh="Biodiversity Living System · 植物資料庫" data-en="Biodiversity Living System · Plant Database">Biodiversity Living System · 植物資料庫</div>
       </div>
     </div>`;
@@ -12138,6 +12255,10 @@ function openDrawer(id) {
   // Companion pill clicks → switch the drawer to the companion plant
   document.querySelectorAll(".companion-pill").forEach((el) => {
     el.addEventListener("click", (e) => { e.stopPropagation(); openDrawer(el.dataset.cid); });
+  });
+  // R22 — Similar plants card clicks → swap drawer to the chosen plant.
+  document.querySelectorAll("#drawerOverlay .similar-card[data-sid]").forEach((el) => {
+    el.addEventListener("click", (e) => { e.stopPropagation(); openDrawer(el.dataset.sid); });
   });
   // 📌/👍/👎 inside the drawer — scoped to the drawer overlay so we don't
   // double-bind the rec-grid pref-btns underneath. setPref triggers a re-render
