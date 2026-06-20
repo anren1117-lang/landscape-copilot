@@ -4901,6 +4901,15 @@ function resumeDesignById(id) {
   applySnapshot(entry.snapshot);
   setActiveDesignId(id);
   state.pendingSnapshot = null;
+  // Critic round-5 catch: don't let the previous design's photo + AI suggestions
+  // leak into the resumed one (balcony photo following user into a yard design).
+  state.wizardPhotoDataUrl = null;
+  state.wizardPhotoSuggest = {};
+  state.wizardPhotoSuggestActed = {};
+  state.wizardPhotoOpen = {};
+  state.wizardPhotoBusy = {};
+  state.wizardPhotoError = {};
+  state.viewingShared = false;
   state.view = "wizard";
   state.step = 5;
   state.resultTab = "preview";
@@ -5002,8 +5011,6 @@ function renderHome() {
       ${renderWelcomeBackBanner()}
 
       ${renderMyDesignsSection()}
-
-      ${renderSavedDesignsSection()}
 
       <div class="home-hero">
         <span class="badge" data-zh="原生 × 引入 · 共 ${PLANTS.length} 種" data-en="Native + Introduced · ${PLANTS.length} species">原生 × 引入 · 共 ${PLANTS.length} 種</span>
