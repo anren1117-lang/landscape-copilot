@@ -1594,8 +1594,14 @@
 
   /* recommendation grid */
   .rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-  .rec-card { padding: 18px; border-radius: 16px; background: rgba(255,255,255,0.5); border: 1px solid var(--line); cursor: pointer; transition: all .3s; display: flex; flex-direction: column; font-family: inherit; text-align: left; }
+  .rec-card { padding: 18px; border-radius: 16px; background: rgba(255,255,255,0.5); border: 1px solid var(--line); cursor: pointer; transition: all .3s; display: flex; flex-direction: column; font-family: inherit; text-align: left; -webkit-tap-highlight-color: transparent; }
   .rec-card:hover { transform: translateY(-3px); border-color: var(--sage); box-shadow: 0 14px 28px -16px rgba(44,53,38,0.35); }
+  /* Touch feedback — without an :active state, taps on mobile feel "dead" while
+     the user waits for the drawer to open. The subtle inset + sage border gives
+     the same affordance as the hover lift, but works on touch where hover doesn't. */
+  .rec-card:active { transform: translateY(0); border-color: var(--sage-deep); background: rgba(110,126,96,0.08); transition: all .08s; }
+  .dict-chip { -webkit-tap-highlight-color: transparent; }
+  .dict-chip:active { background: rgba(110,126,96,0.15); transition: background .08s; }
   .rec-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
   .rec-swatch { width: 40px; height: 40px; border-radius: 12px; }
   .rec-match { font-family: var(--serif); font-size: 24px; font-weight: 700; color: var(--sage-deep); line-height: 1; }
@@ -1879,6 +1885,24 @@
     body.printing-bundle .print-bundle { display: block !important; }
     body.printing-bundle .print-bundle .pb-section { page-break-inside: avoid; }
     body.printing-bundle .print-bundle .pb-section + .pb-section { page-break-before: always; }
+
+    /* DRAWER PRINT — if the plant drawer is open when the user hits Print,
+       they're trying to print the plant detail, not the result behind it.
+       body.drawer-open is toggled by openDrawer/closeDrawer. We hide the
+       result main + nav + brand and let the drawer flow as a clean A4 page. */
+    body.drawer-open main.body, body.drawer-open header.brand,
+    body.drawer-open footer.nav, body.drawer-open .progress-wrap,
+    body.drawer-open .screen-bar { display: none !important; }
+    body.drawer-open .drawer-overlay {
+      display: block !important; position: static !important;
+      background: white !important; backdrop-filter: none !important; inset: auto !important;
+    }
+    body.drawer-open .drawer {
+      width: 100% !important; height: auto !important;
+      box-shadow: none !important; padding: 0 12mm !important;
+      overflow: visible !important;
+    }
+    body.drawer-open .drawer-close { display: none !important; }
   }
 </style>
 </head>
@@ -4667,6 +4691,25 @@ const WILDLIFE_META = {
   bombax:         [{ i:"🐦", zh:"白頭翁、綠繡眼", en:"Bulbul, white-eye (nectar)" }, { i:"🐦", zh:"叉尾太陽鳥", en:"Fork-tailed sunbird" }],
   spathodea:      [{ i:"🐦", zh:"叉尾太陽鳥", en:"Fork-tailed sunbird" }],
   ceiba:          [{ i:"🐝", zh:"蜂類", en:"Bees" }, { i:"🐦", zh:"小型鳥訪花", en:"Small birds visit flowers" }],
+  // R20 expansion — natives previously missing wildlife notes. Sources: TaiBIF
+  // (Taiwan Biodiversity Information Facility), 林務局原生樹種圖鑑, butterfly
+  // host-plant lists from 台灣蝴蝶保育學會. Each entry stays to 1-3 specific
+  // creatures so cards don't get crowded.
+  michelia:       [{ i:"🦋", zh:"青斑鳳蝶（食草）", en:"Common bluebottle (host plant)" }, { i:"🐝", zh:"原生小型蜂", en:"Native small bees" }],
+  chionanthus:    [{ i:"🐝", zh:"原生蜂（春花蜜源）", en:"Native bees (spring nectar)" }, { i:"🦋", zh:"小型蛾類", en:"Small moths" }],
+  duchesnea:      [{ i:"🐝", zh:"小型原生蜂", en:"Small native bees" }, { i:"🐦", zh:"白頭翁（紅果）", en:"Bulbul (red berries)" }],
+  nephrolepis:    [{ i:"🦎", zh:"攀木蜥蜴棲地", en:"Tree skink habitat" }, { i:"🕷", zh:"蜘蛛、馬陸", en:"Spiders, millipedes" }],
+  tricyrtis:      [{ i:"🦋", zh:"蛾類訪花", en:"Moth visitors" }, { i:"🐝", zh:"原生小型蜂", en:"Native small bees" }],
+  gardenia:       [{ i:"🦋", zh:"天蛾（夜訪）", en:"Hawk moths (night)" }, { i:"🐝", zh:"日間蜂", en:"Day bees" }],
+  liquidambar:    [{ i:"🦋", zh:"枯葉蝶（食草）", en:"Indian leaf butterfly (host)" }, { i:"🐦", zh:"五色鳥（樹洞）", en:"Taiwan barbet (tree cavities)" }, { i:"🐿", zh:"赤腹松鼠", en:"Red-bellied squirrel" }],
+  koelreuteria:   [{ i:"🦋", zh:"紅姬緣椿象", en:"Red firebug aggregations" }, { i:"🐝", zh:"原生蜂（秋花）", en:"Native bees (autumn bloom)" }, { i:"🐦", zh:"白頭翁、綠繡眼", en:"Bulbul, white-eye" }],
+  taxodium:       [{ i:"🦅", zh:"夜鷺、小白鷺（水邊）", en:"Night heron, egret (waterside)" }, { i:"🐉", zh:"蜻蜓棲息", en:"Dragonfly perch" }],
+  livistona:      [{ i:"🐦", zh:"小型鳥（果實）", en:"Small birds (fruit)" }, { i:"🦋", zh:"棕櫚蛺蝶（食草）", en:"Palm butterfly (host)" }],
+  lagerstroemia_sm:[{ i:"🐝", zh:"原生蜂、木蜂", en:"Native bees, carpenter bees" }, { i:"🦋", zh:"小型蝶類", en:"Small butterflies" }, { i:"🐦", zh:"白頭翁", en:"Chinese bulbul" }],
+  podocarpus:     [{ i:"🐦", zh:"五色鳥、白頭翁（種子）", en:"Barbet, bulbul (seeds)" }, { i:"🐿", zh:"赤腹松鼠", en:"Red-bellied squirrel" }],
+  rhododendron_tw:[{ i:"🐝", zh:"原生熊蜂（高山）", en:"Native bumblebees (montane)" }, { i:"🦋", zh:"鳳蝶類", en:"Swallowtails" }],
+  arenga:         [{ i:"🐦", zh:"白頭翁、紅嘴黑鵯（果）", en:"Bulbuls (fruit)" }, { i:"🐿", zh:"赤腹松鼠", en:"Red-bellied squirrel" }, { i:"🦗", zh:"獨角仙幼蟲（朽木）", en:"Rhinoceros beetle larvae (rotten wood)" }],
+  paederia:       [{ i:"🦋", zh:"長尾水青蛾（食草）", en:"Luna moth relatives (host)" }, { i:"🐝", zh:"小型蜂", en:"Small bees" }],
 };
 
 function wildlife(p) { return WILDLIFE_META[p.id] || []; }
@@ -5383,11 +5426,22 @@ function persistDashboard() {
     return;
   }
   if (!state.viewingShared) {
-    saveToLocal();
-    // Keep the active named-list entry in sync as the user edits.
-    // (Only updates if there *is* an activeId — initial visits won't auto-create
-    // an entry until the user explicitly hits "另存為新設計".)
-    updateActiveDesignEntry();
+    // Perf: tab clicks (preview → plan → care …) trigger renderResult → persistDashboard.
+    // Result-tab changes don't alter any field the user would lose, yet writing to
+    // localStorage is a synchronous roundtrip + a full JSON.stringify on every render.
+    // Skip the write when the meaningful payload matches the last persisted one.
+    // (savedAt is intentionally excluded — it bumps every render and would defeat the dedup.)
+    const snap = snapshotState();
+    const { savedAt: _ignoredAt, ...meaningful } = snap;
+    const serialized = JSON.stringify(meaningful);
+    if (window.__lastPersistedSnapshot !== serialized) {
+      window.__lastPersistedSnapshot = serialized;
+      saveToLocal();
+      // Keep the active named-list entry in sync as the user edits.
+      // (Only updates if there *is* an activeId — initial visits won't auto-create
+      // an entry until the user explicitly hits "另存為新設計".)
+      updateActiveDesignEntry();
+    }
   }
   pushHashFromState();
 }
@@ -6188,7 +6242,7 @@ function renderHome() {
           <span class="home-stat"><strong>${PLANTS.length}</strong><span data-zh="種植物" data-en="species">種植物</span></span>
           <span class="home-stat"><strong>${nativeCount}</strong><span data-zh="原生種" data-en="native">原生種</span></span>
           <span class="home-stat"><strong>${introCount}</strong><span data-zh="引入栽培" data-en="cultivated">引入栽培</span></span>
-          <span class="home-stat"><strong>9</strong><span data-zh="種視角" data-en="views">種視角</span></span>
+          <span class="home-stat"><strong>${RESULT_TABS.length}</strong><span data-zh="種視角" data-en="views">種視角</span></span>
         </div>
       </div>
 
@@ -7347,8 +7401,13 @@ function startCompassListener() {
   // Prefer the absolute (true compass) event when available, fall back to relative
   window.addEventListener("deviceorientationabsolute", handleOrientation, true);
   window.addEventListener("deviceorientation", handleOrientation, true);
-  // Watchdog: if no data after 2.5s, surface a sensor warning
-  setTimeout(() => {
+  // Watchdog: if no data after 2.5s, surface a sensor warning. Track the id
+  // so handleOrientation can cancel it on first successful reading — otherwise
+  // a phantom timeout fires after the user closed and reopened the compass,
+  // or after a slow first reading lands at 2.4s and the watchdog fires at 2.5s.
+  if (state.compassWatchdog) { clearTimeout(state.compassWatchdog); }
+  state.compassWatchdog = setTimeout(() => {
+    state.compassWatchdog = null;
     if (state.compassOpen && state.compassHeading == null && !state.compassError) {
       state.compassError = "no_data";
       renderDetails(); wireDetails(); applyLanguage();
@@ -7360,6 +7419,7 @@ function stopCompass() {
   window.removeEventListener("deviceorientationabsolute", handleOrientation, true);
   window.removeEventListener("deviceorientation", handleOrientation, true);
   state.compassListening = false;
+  if (state.compassWatchdog) { clearTimeout(state.compassWatchdog); state.compassWatchdog = null; }
 }
 
 function handleOrientation(event) {
@@ -7386,6 +7446,9 @@ function handleOrientation(event) {
   }
   state.compassHeading = heading;
   state.compassError = null;
+  // First good reading arrived — cancel the no-data watchdog so it can't
+  // overwrite a valid heading with a phantom "sensor unavailable" error.
+  if (state.compassWatchdog) { clearTimeout(state.compassWatchdog); state.compassWatchdog = null; }
 
   // Live-update the rose rotation + readout without a full re-render
   const rose = document.getElementById("compassRose");
@@ -8228,6 +8291,23 @@ function renderNav() {
 // ─────────────────────────────────────────────────────────────
 // RESULT PAGE
 // ─────────────────────────────────────────────────────────────
+// Single source of truth for the result-page tab list. Used by:
+//   • renderResult — to build the tabs UI + KNOWN_TABS validation
+//   • renderHome   — to derive the "N 種視角 / N views" hero stat
+// Adding a tab here automatically updates the hero count.
+const RESULT_TABS = [
+  { k:"preview",   zh:"實景參考",     en:"Realistic" },
+  { k:"plan",      zh:"俯瞰平面圖",   en:"Garden plan" },
+  { k:"iso3d",     zh:"3D 視角",      en:"3D view" },
+  { k:"layers",    zh:"復層配置",     en:"Layered design" },
+  { k:"calendar",  zh:"花期月曆",     en:"Bloom calendar" },
+  { k:"care",      zh:"養護月曆",     en:"Care calendar" },
+  { k:"build",     zh:"施工指南",     en:"Build plan" },
+  { k:"tutorials", zh:"養護教學",     en:"Tutorials" },
+  { k:"shopping",  zh:"採購清單",     en:"Shopping list" },
+  { k:"dict",      zh:"植物字典",     en:"Plant dictionary" },
+];
+
 function initShoppingQty() {
   const scored = scorePlants();
   let compatible = scored.filter(p => p.score >= 30);
@@ -8329,18 +8409,7 @@ function renderResult() {
       ${renderSustainChips(recs)}
 
       <div class="tabs" role="tablist" aria-label="${t('結果頁籤', 'Result tabs')}">
-        ${[
-          { k:"preview",   zh:"實景參考",     en:"Realistic" },
-          { k:"plan",      zh:"俯瞰平面圖",   en:"Garden plan" },
-          { k:"iso3d",     zh:"3D 視角",      en:"3D view" },
-          { k:"layers",    zh:"復層配置",     en:"Layered design" },
-          { k:"calendar",  zh:"花期月曆",     en:"Bloom calendar" },
-          { k:"care",      zh:"養護月曆",     en:"Care calendar" },
-          { k:"build",     zh:"施工指南",     en:"Build plan" },
-          { k:"tutorials", zh:"養護教學",     en:"Tutorials" },
-          { k:"shopping",  zh:"採購清單",     en:"Shopping list" },
-          { k:"dict",      zh:"植物字典",     en:"Plant dictionary" },
-        ].map(tab => {
+        ${RESULT_TABS.map(tab => {
           const selected = state.resultTab === tab.k;
           return `
           <button class="tab ${selected ? "active" : ""}"
@@ -11473,6 +11542,8 @@ function openDrawer(id) {
   const plant = PLANT_BY_ID[id];
   if (!plant) return;
   state.selectedPlantId = id;
+  // Mark the body so the @media print rules know to swap result for drawer.
+  document.body.classList.add("drawer-open");
   drawerHost.innerHTML = `
     <div class="drawer-overlay" id="drawerOverlay">
       <div class="drawer slide-in" onclick="event.stopPropagation()">
@@ -11665,6 +11736,10 @@ function openDrawer(id) {
     </div>`;
   document.getElementById("drawerOverlay").addEventListener("click", closeDrawer);
   document.getElementById("drawerClose").addEventListener("click", (e) => { e.stopPropagation(); closeDrawer(); });
+  // ESC closes the drawer (parity with the QR + Tips modals). Listener is
+  // attached document-wide and removed in closeDrawer() to avoid leaking
+  // handlers when the user reopens drawers many times in a session.
+  document.addEventListener("keydown", drawerEscHandler);
   // Companion pill clicks → switch the drawer to the companion plant
   document.querySelectorAll(".companion-pill").forEach((el) => {
     el.addEventListener("click", (e) => { e.stopPropagation(); openDrawer(el.dataset.cid); });
@@ -11694,25 +11769,44 @@ function openDrawer(id) {
 function closeDrawer() {
   state.selectedPlantId = null;
   drawerHost.innerHTML = "";
+  document.body.classList.remove("drawer-open");
+  document.removeEventListener("keydown", drawerEscHandler);
 }
+
+function drawerEscHandler(e) { if (e.key === "Escape") closeDrawer(); }
 
 // ─────────────────────────────────────────────────────────────
 // Language toggle (zh/en) — same data-zh/data-en pattern as farm-pitch.html
 // ─────────────────────────────────────────────────────────────
 function applyLanguage() {
-  document.querySelectorAll("[data-zh][data-en]").forEach((el) => {
-    el.innerHTML = el.dataset[state.lang];
-  });
-  // Sync `placeholder` for inputs/textareas that opt-in via data-zh-placeholder/data-en-placeholder.
-  document.querySelectorAll("[data-zh-placeholder][data-en-placeholder]").forEach((el) => {
-    const v = state.lang === "zh" ? el.dataset.zhPlaceholder : el.dataset.enPlaceholder;
-    if (v != null) el.setAttribute("placeholder", v);
-  });
-  // Sync `aria-label` for elements that opt-in via data-zh-aria/data-en-aria.
-  document.querySelectorAll("[data-zh-aria][data-en-aria]").forEach((el) => {
-    const v = state.lang === "zh" ? el.dataset.zhAria : el.dataset.enAria;
-    if (v != null) el.setAttribute("aria-label", v);
-  });
+  // Perf: only walk the regions that actually carry bilingual strings instead
+  // of the entire <body>. The result page in particular has thousands of
+  // [data-zh][data-en] nodes — scoping cuts language-toggle / re-render cost
+  // by tens of ms on a warm result page. Roots: #app (main content),
+  // #topBarLeft + .screen-bar (top bar), #navFooter (bottom nav), #drawerHost
+  // (open plant drawer), #progressWrap (wizard progress).
+  const roots = [
+    document.getElementById("app"),
+    document.querySelector(".screen-bar"),
+    document.getElementById("navFooter"),
+    document.getElementById("drawerHost"),
+    document.getElementById("progressWrap"),
+  ].filter(Boolean);
+  for (const root of roots) {
+    root.querySelectorAll("[data-zh][data-en]").forEach((el) => {
+      el.innerHTML = el.dataset[state.lang];
+    });
+    // Sync `placeholder` for inputs/textareas that opt-in via data-zh-placeholder/data-en-placeholder.
+    root.querySelectorAll("[data-zh-placeholder][data-en-placeholder]").forEach((el) => {
+      const v = state.lang === "zh" ? el.dataset.zhPlaceholder : el.dataset.enPlaceholder;
+      if (v != null) el.setAttribute("placeholder", v);
+    });
+    // Sync `aria-label` for elements that opt-in via data-zh-aria/data-en-aria.
+    root.querySelectorAll("[data-zh-aria][data-en-aria]").forEach((el) => {
+      const v = state.lang === "zh" ? el.dataset.zhAria : el.dataset.enAria;
+      if (v != null) el.setAttribute("aria-label", v);
+    });
+  }
   document.documentElement.lang = state.lang === "zh" ? "zh-Hant" : "en";
   document.getElementById("langToggle").textContent = state.lang === "zh" ? "English" : "中文";
 }
