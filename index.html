@@ -7495,19 +7495,15 @@ function render3D(layers, recs) {
   const placed = layoutPlan(plantsForPlan, baseDims, state.space);
 
   // Isometric projection: rotate the plane by 30°, foreshorten Y.
-  // SVG y grows downward — so larger source-y → larger projected-y (further "into" the picture toward viewer).
   const cos30 = Math.cos(Math.PI / 6);
   const sin30 = Math.sin(Math.PI / 6);
   const planeW = baseDims.w, planeH = baseDims.h;
 
-  // Choose SVG size that comfortably contains the diamond + tallest plant.
   const svgW = 720, svgH = 520;
-  // Centre the iso plane horizontally; leave headroom on top for the tallest tree.
   const cx = svgW / 2;
   const cyBase = svgH - 80;
 
   function project(x, y, z = 0) {
-    // Centre the plane on the origin first
     const px = x - planeW / 2;
     const py = y - planeH / 2;
     const ix = (px - py) * cos30 * 0.6;
@@ -7515,12 +7511,28 @@ function render3D(layers, recs) {
     return { ix: cx + ix, iy: cyBase + iy - z };
   }
 
-  // Corner projection for the ground quad
   const c0 = project(0, 0);
   const c1 = project(planeW, 0);
   const c2 = project(planeW, planeH);
   const c3 = project(0, planeH);
   const groundPoly = [c0, c1, c2, c3].map(p => `${p.ix.toFixed(1)},${p.iy.toFixed(1)}`).join(" ");
+
+  // ── Time-of-day palette by orientation ─────────────────────
+  // S = midday, E = morning warm, W = afternoon amber, N = cool diffuse
+  const orient = state.orientation || "S";
+  const TOD = {
+    S: { skyTop: "#BFD1D6", skyMid: "#E2DFD0", sun: "#F4D67E", sunRing: "#C9A84C", ambient: "rgba(255,220,140,0.0)",  labelZh: "正午",   labelEn: "Midday"        },
+    E: { skyTop: "#E6C9A8", skyMid: "#F0E2C9", sun: "#F2B97A", sunRing: "#C9885A", ambient: "rgba(255,180,120,0.10)", labelZh: "晨光",   labelEn: "Morning"       },
+    W: { skyTop: "#D9A876", skyMid: "#E8C9A0", sun: "#E89A5C", sunRing: "#A86A36", ambient: "rgba(232,154,92,0.14)",  labelZh: "午後",   labelEn: "Afternoon"     },
+    N: { skyTop: "#B8C0C4", skyMid: "#D6D4C8", sun: "#E8E0C0", sunRing: "#9A9684", ambient: "rgba(180,200,210,0.10)", labelZh: "散射光", labelEn: "Cool diffuse"  },
+  };
+  const tod = TOD[orient] || TOD.S;
+
+  // ── Sky backdrop (gradient band behind the iso plane) ──────
+  const horizonY = Math.min(c0.iy, c1.iy, c2.iy, c3.iy) - 6;
+  const sky = `
+    <rect x="0" y="0" width="${svgW}" height="${horizonY.toFixed(1)}" fill="url(#skyGrad)"/>
+    <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="${tod.ambient}" pointer-events="none"/>`;
 
   // Subtle grid lines on the iso plane — 8 divisions
   const N = 8;
@@ -7534,6 +7546,68 @@ function render3D(layers, recs) {
     gridLines += `<line x1="${c.ix.toFixed(1)}" y1="${c.iy.toFixed(1)}" x2="${d.ix.toFixed(1)}" y2="${d.iy.toFixed(1)}" stroke="rgba(0,0,0,0.05)" stroke-width="1"/>`;
   }
 
+  // ── Space-specific ground texture ──────────────────────────
+  // Yard → grass tufts. Rooftop → dashed paving lines. Balcony/indoor → none (back wall instead).
+  function pseudoRand(seed) {
+    let s = seed | 0;
+    return () => {
+      s = (s * 1664525 + 1013904223) | 0;
+      return ((s >>> 0) % 10000) / 10000;
+    };
+  }
+  let groundTexture = "";
+  if (state.space === "yard") {
+    const rnd = pseudoRand(7);
+    const tufts = [];
+    for (let i = 0; i < 36; i++) {
+      const tx = rnd() * planeW;
+      const ty = rnd() * planeH;
+      const g = project(tx, ty, 0);
+      const h = 3 + rnd() * 3;
+      tufts.push(`<g opacity="0.55"><line x1="${g.ix.toFixed(1)}" y1="${g.iy.toFixed(1)}" x2="${g.ix.toFixed(1)}" y2="${(g.iy - h).toFixed(1)}" stroke="#8A9A7B" stroke-width="1"/><line x1="${(g.ix - 1.5).toFixed(1)}" y1="${g.iy.toFixed(1)}" x2="${(g.ix - 2).toFixed(1)}" y2="${(g.iy - h * 0.7).toFixed(1)}" stroke="#7E8E6F" stroke-width="0.9"/><line x1="${(g.ix + 1.5).toFixed(1)}" y1="${g.iy.toFixed(1)}" x2="${(g.ix + 2).toFixed(1)}" y2="${(g.iy - h * 0.7).toFixed(1)}" stroke="#7E8E6F" stroke-width="0.9"/></g>`);
+    }
+    groundTexture = tufts.join("");
+  } else if (state.space === "rooftop") {
+    const rnd = pseudoRand(13);
+    const cracks = [];
+    for (let i = 0; i < 5; i++) {
+      const y0 = rnd() * planeH;
+      const a = project(0, y0);
+      const b = project(planeW, y0);
+      cracks.push(`<line x1="${a.ix.toFixed(1)}" y1="${a.iy.toFixed(1)}" x2="${b.ix.toFixed(1)}" y2="${b.iy.toFixed(1)}" stroke="rgba(120,108,88,0.18)" stroke-width="1" stroke-dasharray="14 6"/>`);
+    }
+    groundTexture = cracks.join("");
+  }
+
+  // ── Back wall / railing for balcony & indoor ───────────────
+  let backWall = "";
+  if (state.space === "balcony" || state.space === "indoor") {
+    const wallH = state.space === "indoor" ? 80 : 56;
+    const c0t = { ix: c0.ix, iy: c0.iy - wallH };
+    const c1t = { ix: c1.ix, iy: c1.iy - wallH };
+    const c3t = { ix: c3.ix, iy: c3.iy - wallH };
+    const wallRight = `${c0.ix.toFixed(1)},${c0.iy.toFixed(1)} ${c1.ix.toFixed(1)},${c1.iy.toFixed(1)} ${c1t.ix.toFixed(1)},${c1t.iy.toFixed(1)} ${c0t.ix.toFixed(1)},${c0t.iy.toFixed(1)}`;
+    const wallLeft  = `${c0.ix.toFixed(1)},${c0.iy.toFixed(1)} ${c3.ix.toFixed(1)},${c3.iy.toFixed(1)} ${c3t.ix.toFixed(1)},${c3t.iy.toFixed(1)} ${c0t.ix.toFixed(1)},${c0t.iy.toFixed(1)}`;
+    if (state.space === "indoor") {
+      const winX1 = (c0.ix + c1.ix) / 2 - 22;
+      const winX2 = (c0.ix + c1.ix) / 2 + 22;
+      const winY1 = (c0.iy + c1.iy) / 2 - wallH + 12;
+      const winY2 = (c0.iy + c1.iy) / 2 - 12;
+      backWall = `
+        <polygon points="${wallLeft}"  fill="#E8E3D2" stroke="#C9C3B4" stroke-width="0.8" opacity="0.92"/>
+        <polygon points="${wallRight}" fill="#DFD9C7" stroke="#C9C3B4" stroke-width="0.8" opacity="0.92"/>
+        <rect x="${winX1.toFixed(1)}" y="${winY1.toFixed(1)}" width="${(winX2 - winX1).toFixed(1)}" height="${(winY2 - winY1).toFixed(1)}" fill="url(#skyGrad)" stroke="#A88A6A" stroke-width="1.4" opacity="0.9"/>
+        <line x1="${((winX1 + winX2) / 2).toFixed(1)}" y1="${winY1.toFixed(1)}" x2="${((winX1 + winX2) / 2).toFixed(1)}" y2="${winY2.toFixed(1)}" stroke="#A88A6A" stroke-width="1"/>
+        <line x1="${winX1.toFixed(1)}" y1="${((winY1 + winY2) / 2).toFixed(1)}" x2="${winX2.toFixed(1)}" y2="${((winY1 + winY2) / 2).toFixed(1)}" stroke="#A88A6A" stroke-width="1"/>`;
+    } else {
+      backWall = `
+        <polygon points="${wallLeft}"  fill="#A88A6A" opacity="0.55" stroke="#8C6F4E" stroke-width="0.8"/>
+        <polygon points="${wallRight}" fill="#8C6F4E" opacity="0.55" stroke="#6E5638" stroke-width="0.8"/>
+        <line x1="${c0t.ix.toFixed(1)}" y1="${c0t.iy.toFixed(1)}" x2="${c1t.ix.toFixed(1)}" y2="${c1t.iy.toFixed(1)}" stroke="#6E5638" stroke-width="1.5"/>
+        <line x1="${c0t.ix.toFixed(1)}" y1="${c0t.iy.toFixed(1)}" x2="${c3t.ix.toFixed(1)}" y2="${c3t.iy.toFixed(1)}" stroke="#6E5638" stroke-width="1.5"/>`;
+    }
+  }
+
   // Heights & crown sizes per tier (in SVG units; not real metres)
   const TIER_3D = {
     T: { trunkH: 90,  crownR: 38, crownAspect: 0.9, trunkW: 8 },   // canopy
@@ -7543,6 +7617,24 @@ function render3D(layers, recs) {
     C: { trunkH: 60,  crownR: 14, crownAspect: 1.6, trunkW: 4 },   // climber (tall narrow)
   };
 
+  // ── Species-shape classifier ──────────────────────────────
+  function speciesShape(p) {
+    const id = (p.id || "").toLowerCase();
+    const en = (p.en || "").toLowerCase();
+    const key = id + " " + en;
+    if (/livistona|arenga|pterocarpus|cocos|phoenix|palm/.test(key)) return "palm";
+    if (/chamaecyparis|calocedrus|juniperus|cryptomeria|conifer|cypress|cedar/.test(key)) return "conifer";
+    if (/nephrolepis|asplenium|drynaria|adiantum|fern/.test(key)) return "fern";
+    if (/poaceae|miscanthus|imperata|carex|sedge|grass/.test(key)) return "grass";
+    if (/bambusa|phyllostachys|bamboo/.test(key)) return "bamboo";
+    if (/rosa|gardenia|jasmin|hibiscus|plumeria|flower|bloom/.test(key)) return "flowering";
+    if (p.tier === "T") return "broadleaf";
+    if (p.tier === "S") return "shrub";
+    if (p.tier === "G") return "groundcover";
+    if (p.tier === "C") return "climber";
+    return "broadleaf";
+  }
+
   // Painter's algorithm — sort by ground-projected iy ascending so back plants draw first
   const drawList = placed.map(p => {
     const ground = project(p.x, p.y, 0);
@@ -7551,66 +7643,189 @@ function render3D(layers, recs) {
 
   const plantSvgs = drawList.map(({ p, ground }) => {
     const tier = TIER_3D[p.tier] || TIER_3D.G;
-    // Size adjusted by plant spread (bigger spread → bigger crown)
     const spreadFactor = Math.max(0.7, Math.min(1.7, (p.spread?.[1] || 1) / 1.5));
     const crownR  = tier.crownR  * spreadFactor;
     const crownRy = crownR * tier.crownAspect;
     const trunkH  = tier.trunkH;
     const trunkW  = tier.trunkW;
 
-    // Shadow ellipse at ground level — wider and faded
-    const shadow = `<ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 3).toFixed(1)}" rx="${(crownR * 1.15).toFixed(1)}" ry="${(crownR * 0.32).toFixed(1)}" fill="rgba(44,53,38,0.22)"/>`;
+    // Soft stacked ground shadows — ambient-occlusion feel at the base
+    const shadow = `
+      <ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 4).toFixed(1)}" rx="${(crownR * 1.35).toFixed(1)}" ry="${(crownR * 0.42).toFixed(1)}" fill="rgba(44,53,38,0.08)"/>
+      <ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 3).toFixed(1)}" rx="${(crownR * 1.10).toFixed(1)}" ry="${(crownR * 0.32).toFixed(1)}" fill="rgba(44,53,38,0.15)"/>
+      <ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 2).toFixed(1)}" rx="${(crownR * 0.85).toFixed(1)}" ry="${(crownR * 0.22).toFixed(1)}" fill="rgba(44,53,38,0.22)"/>`;
 
-    // Trunk — drawn as a small parallelogram for canopy/shrub/climber tiers
     let trunk = "";
     if (trunkH > 0 && trunkW > 0) {
-      // Trunk top sits trunkH above the ground projection
       const tx = ground.ix;
-      const tyBot = ground.iy;
       const tyTop = ground.iy - trunkH;
       trunk = `<rect x="${(tx - trunkW/2).toFixed(1)}" y="${tyTop.toFixed(1)}" width="${trunkW}" height="${trunkH}" fill="url(#trunkGrad)" rx="2"/>`;
     }
 
-    // Crown — for canopy/shrub: ellipse at trunk top; for ground/water: flat ellipse at ground
     const cyCrown = ground.iy - trunkH - (trunkH > 0 ? crownRy * 0.4 : 0);
+    const shape = speciesShape(p);
     let crown;
+
     if (p.tier === "W") {
-      // Water plant — flat blue ripple instead of a crown
       crown = `
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="rgba(70,130,170,0.35)"/>
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 0.65).toFixed(1)}" ry="${(crownRy * 0.55).toFixed(1)}" fill="rgba(70,130,170,0.18)"/>
-        <circle cx="${ground.ix.toFixed(1)}" cy="${(ground.iy - 3).toFixed(1)}" r="${(crownR * 0.4).toFixed(1)}" fill="${p.color}"/>`;
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 1.05).toFixed(1)}" ry="${(crownRy * 1.05).toFixed(1)}" fill="rgba(70,130,170,0.22)"/>
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="rgba(70,130,170,0.40)"/>
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 0.65).toFixed(1)}" ry="${(crownRy * 0.55).toFixed(1)}" fill="rgba(120,170,200,0.30)"/>
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy - 1).toFixed(1)}" rx="${(crownR * 0.35).toFixed(1)}" ry="${(crownRy * 0.28).toFixed(1)}" fill="rgba(255,255,255,0.45)"/>
+        <circle cx="${ground.ix.toFixed(1)}" cy="${(ground.iy - 3).toFixed(1)}" r="${(crownR * 0.32).toFixed(1)}" fill="${p.color}"/>`;
+    } else if (shape === "palm") {
+      const fx = ground.ix, fy = cyCrown + crownRy * 0.4;
+      const frondLen = crownR * 1.05;
+      let fronds = "";
+      for (let i = -2; i <= 2; i++) {
+        const ang = -Math.PI / 2 + (i * 0.42);
+        const ex = fx + Math.cos(ang) * frondLen;
+        const ey = fy + Math.sin(ang) * frondLen * 0.55;
+        const mx = fx + Math.cos(ang) * frondLen * 0.55;
+        const my = fy + Math.sin(ang) * frondLen * 0.5 - 4;
+        fronds += `<path d="M${fx.toFixed(1)},${fy.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" stroke="${p.color}" stroke-width="3.2" stroke-linecap="round" fill="none" opacity="0.92"/>`;
+        fronds += `<path d="M${fx.toFixed(1)},${fy.toFixed(1)} Q${mx.toFixed(1)},${(my - 2).toFixed(1)} ${ex.toFixed(1)},${(ey - 2).toFixed(1)}" stroke="rgba(255,255,255,0.30)" stroke-width="1.2" fill="none"/>`;
+      }
+      crown = `${fronds}<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="3" fill="#4A3320"/>`;
+    } else if (shape === "conifer") {
+      const baseY = ground.iy - trunkH * 0.6;
+      const topY  = ground.iy - trunkH - crownRy * 2.2;
+      const w1 = crownR * 1.1;
+      const midY = (baseY + topY) / 2;
+      crown = `
+        <polygon points="${ground.ix.toFixed(1)},${topY.toFixed(1)} ${(ground.ix - w1 * 0.55).toFixed(1)},${midY.toFixed(1)} ${(ground.ix + w1 * 0.55).toFixed(1)},${midY.toFixed(1)}" fill="${p.color}"/>
+        <polygon points="${ground.ix.toFixed(1)},${(midY - 6).toFixed(1)} ${(ground.ix - w1).toFixed(1)},${baseY.toFixed(1)} ${(ground.ix + w1).toFixed(1)},${baseY.toFixed(1)}" fill="${p.color}"/>
+        <polygon points="${ground.ix.toFixed(1)},${topY.toFixed(1)} ${(ground.ix - w1 * 0.30).toFixed(1)},${((midY + topY)/2).toFixed(1)} ${ground.ix.toFixed(1)},${midY.toFixed(1)}" fill="rgba(255,255,255,0.22)"/>
+        <polygon points="${(ground.ix + w1 * 0.3).toFixed(1)},${midY.toFixed(1)} ${(ground.ix + w1).toFixed(1)},${baseY.toFixed(1)} ${ground.ix.toFixed(1)},${baseY.toFixed(1)}" fill="rgba(0,0,0,0.15)"/>`;
+    } else if (shape === "bamboo") {
+      const cluster = [];
+      const stalks = 4;
+      for (let i = 0; i < stalks; i++) {
+        const offset = (i - (stalks - 1) / 2) * 4;
+        const sx = ground.ix + offset;
+        const sBot = ground.iy;
+        const sTop = ground.iy - trunkH - crownRy * 1.8;
+        cluster.push(`<line x1="${sx.toFixed(1)}" y1="${sBot.toFixed(1)}" x2="${sx.toFixed(1)}" y2="${sTop.toFixed(1)}" stroke="${p.color}" stroke-width="2.4"/>`);
+        for (let n = 0; n < 4; n++) {
+          const ny = sBot - 18 - n * 22;
+          if (ny < sTop) break;
+          cluster.push(`<line x1="${(sx - 2).toFixed(1)}" y1="${ny.toFixed(1)}" x2="${(sx + 2).toFixed(1)}" y2="${ny.toFixed(1)}" stroke="#3F4A37" stroke-width="0.9"/>`);
+        }
+        cluster.push(`<path d="M${sx.toFixed(1)},${(sTop + 3).toFixed(1)} q-6,-3 -10,-8" stroke="${p.color}" stroke-width="1.6" fill="none"/>`);
+        cluster.push(`<path d="M${sx.toFixed(1)},${(sTop + 3).toFixed(1)} q6,-3 10,-8" stroke="${p.color}" stroke-width="1.6" fill="none"/>`);
+      }
+      crown = cluster.join("");
+    } else if (shape === "fern") {
+      const fx = ground.ix, fy = ground.iy - 2;
+      const arms = 7;
+      const armLen = crownR * 0.95;
+      const fronds = [];
+      for (let i = 0; i < arms; i++) {
+        const ang = -Math.PI + (Math.PI / (arms - 1)) * i;
+        const ex = fx + Math.cos(ang) * armLen;
+        const ey = fy + Math.sin(ang) * armLen * 0.7;
+        const mx = fx + Math.cos(ang) * armLen * 0.55;
+        const my = fy + Math.sin(ang) * armLen * 0.7 - 6;
+        fronds.push(`<path d="M${fx.toFixed(1)},${fy.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" stroke="${p.color}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`);
+      }
+      crown = fronds.join("");
+    } else if (shape === "grass") {
+      const blades = [];
+      const n = 9;
+      for (let i = 0; i < n; i++) {
+        const offX = ((i - (n - 1) / 2) * 2.2) + (Math.sin(i * 1.7) * 1.5);
+        const bx = ground.ix + offX;
+        const by = ground.iy - 1;
+        const h = 10 + Math.abs(Math.sin(i * 2.3)) * 6;
+        const tilt = (i % 2 === 0 ? 1 : -1) * 1.5;
+        blades.push(`<line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${(bx + tilt).toFixed(1)}" y2="${(by - h).toFixed(1)}" stroke="${p.color}" stroke-width="1.4" stroke-linecap="round"/>`);
+      }
+      crown = blades.join("");
+    } else if (shape === "flowering") {
+      const flecks = [];
+      const fn = 9;
+      for (let i = 0; i < fn; i++) {
+        const ang = (Math.PI * 2 / fn) * i + (i * 0.3);
+        const r = crownR * (0.5 + (i % 3) * 0.18);
+        const fx2 = ground.ix + Math.cos(ang) * r;
+        const fy2 = cyCrown + Math.sin(ang) * crownRy * 0.85;
+        flecks.push(`<circle cx="${fx2.toFixed(1)}" cy="${fy2.toFixed(1)}" r="2.4" fill="#E8C9D2" opacity="0.92"/>`);
+      }
+      crown = `
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${cyCrown.toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="${p.color}"/>
+        <ellipse cx="${(ground.ix - crownR * 0.25).toFixed(1)}" cy="${(cyCrown - crownRy * 0.3).toFixed(1)}" rx="${(crownR * 0.55).toFixed(1)}" ry="${(crownRy * 0.4).toFixed(1)}" fill="rgba(255,255,255,0.30)"/>
+        ${flecks.join("")}`;
+    } else if (shape === "climber") {
+      const tendrils = [];
+      const baseY = ground.iy - 6;
+      for (let i = 0; i < 4; i++) {
+        const ty = baseY - (i + 1) * (trunkH / 5);
+        const dir = i % 2 === 0 ? -1 : 1;
+        tendrils.push(`<path d="M${ground.ix.toFixed(1)},${ty.toFixed(1)} q${(dir * 5).toFixed(1)},2 ${(dir * 9).toFixed(1)},-3" stroke="${p.color}" stroke-width="1.6" fill="none"/>`);
+      }
+      crown = `
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${cyCrown.toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="${p.color}"/>
+        <ellipse cx="${(ground.ix - crownR * 0.2).toFixed(1)}" cy="${(cyCrown - crownRy * 0.3).toFixed(1)}" rx="${(crownR * 0.5).toFixed(1)}" ry="${(crownRy * 0.4).toFixed(1)}" fill="rgba(255,255,255,0.28)"/>
+        ${tendrils.join("")}`;
+    } else if (shape === "groundcover") {
+      const speckle = [];
+      for (let i = 0; i < 6; i++) {
+        const ang = (Math.PI * 2 / 6) * i;
+        const r = crownR * 0.6;
+        const sx2 = ground.ix + Math.cos(ang) * r;
+        const sy2 = ground.iy + Math.sin(ang) * crownRy * 0.7;
+        speckle.push(`<circle cx="${sx2.toFixed(1)}" cy="${sy2.toFixed(1)}" r="1.6" fill="rgba(255,255,255,0.45)"/>`);
+      }
+      crown = `
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 1.05).toFixed(1)}" ry="${(crownRy * 1.05).toFixed(1)}" fill="${p.color}"/>
+        ${speckle.join("")}`;
     } else {
-      // Tree / shrub / ground / climber — coloured crown with darker base + lighter highlight
       crown = `
         <ellipse cx="${ground.ix.toFixed(1)}" cy="${cyCrown.toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="${p.color}"/>
         <ellipse cx="${(ground.ix - crownR * 0.25).toFixed(1)}" cy="${(cyCrown - crownRy * 0.3).toFixed(1)}" rx="${(crownR * 0.55).toFixed(1)}" ry="${(crownRy * 0.4).toFixed(1)}" fill="rgba(255,255,255,0.32)"/>
         <ellipse cx="${(ground.ix + crownR * 0.2).toFixed(1)}" cy="${(cyCrown + crownRy * 0.35).toFixed(1)}" rx="${(crownR * 0.5).toFixed(1)}" ry="${(crownRy * 0.35).toFixed(1)}" fill="rgba(0,0,0,0.16)"/>`;
     }
 
-    // Label below the shadow
-    const labelY = ground.iy + 18;
+    // Pot under plant on balcony / indoor (terracotta look)
+    let pot = "";
+    if ((state.space === "balcony" || state.space === "indoor") && p.tier !== "W") {
+      const potW = Math.max(8, crownR * 0.85);
+      const potH = 8;
+      const potY = ground.iy - 1;
+      pot = `
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${(potY + potH).toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="#8C6F4E"/>
+        <path d="M${(ground.ix - potW).toFixed(1)},${potY.toFixed(1)} L${(ground.ix - potW * 0.85).toFixed(1)},${(potY + potH).toFixed(1)} L${(ground.ix + potW * 0.85).toFixed(1)},${(potY + potH).toFixed(1)} L${(ground.ix + potW).toFixed(1)},${potY.toFixed(1)} Z" fill="#A88A6A" stroke="#6E5638" stroke-width="0.8"/>
+        <ellipse cx="${ground.ix.toFixed(1)}" cy="${potY.toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="#6E5638"/>`;
+    }
+
+    const labelY = ground.iy + (pot ? 22 : 18);
     const labelEn = p.en.length > 22 ? p.en.slice(0, 20) + "…" : p.en;
     const labelText = state.lang === "zh" ? p.zh : labelEn;
     const label = `<text x="${ground.ix.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="11" font-family="Noto Serif TC" fill="#3F4A37" font-weight="600">${labelText}</text>`;
 
-    return `<g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">${shadow}${trunk}${crown}${label}</g>`;
+    return `<g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">${shadow}${pot}${trunk}${crown}${label}</g>`;
   }).join("");
 
-  // Sun marker — bigger in 3D, placed by orientation
-  const orient = state.orientation || "S";
+  // ── Sun marker + rays — placed by orientation ──────────────
   let sunX, sunY;
   switch (orient) {
-    case "S": sunX = svgW - 70; sunY = 50; break;
-    case "E": sunX = 50; sunY = svgH * 0.4; break;
-    case "W": sunX = svgW - 50; sunY = svgH * 0.4; break;
-    case "N": sunX = 70; sunY = svgH - 100; break;
+    case "S": sunX = svgW - 80; sunY = 60; break;
+    case "E": sunX = 60;        sunY = 70; break;
+    case "W": sunX = svgW - 60; sunY = 70; break;
+    case "N": sunX = svgW / 2;  sunY = 40; break;
+  }
+  const rays = [];
+  for (let i = 0; i < 12; i++) {
+    const ang = (Math.PI * 2 / 12) * i;
+    const r1 = 30, r2 = 44;
+    rays.push(`<line x1="${(Math.cos(ang) * r1).toFixed(1)}" y1="${(Math.sin(ang) * r1).toFixed(1)}" x2="${(Math.cos(ang) * r2).toFixed(1)}" y2="${(Math.sin(ang) * r2).toFixed(1)}" stroke="${tod.sun}" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>`);
   }
   const sun = `
     <g transform="translate(${sunX}, ${sunY})">
-      <circle r="22" fill="#F4D67E" stroke="#C9A84C" stroke-width="1.8" opacity="0.95"/>
-      <circle r="30" fill="none" stroke="#F4D67E" stroke-width="1" stroke-dasharray="2 4" opacity="0.6"/>
-      <text x="0" y="6" text-anchor="middle" font-size="18">☀</text>
+      ${rays.join("")}
+      <circle r="24" fill="${tod.sun}" stroke="${tod.sunRing}" stroke-width="1.8" opacity="0.95"/>
+      <circle r="18" fill="${tod.sun}" opacity="0.6"/>
+      <text x="0" y="40" text-anchor="middle" font-size="9" font-family="Noto Serif TC" fill="#5A5C50" font-style="italic">${t(tod.labelZh, tod.labelEn)}</text>
     </g>`;
 
   return `
@@ -7631,14 +7846,22 @@ function render3D(layers, recs) {
             <stop offset="0%"  stop-color="rgba(196,184,144,0.32)"/>
             <stop offset="100%" stop-color="rgba(196,184,144,0.05)"/>
           </radialGradient>
+          <linearGradient id="skyGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%"  stop-color="${tod.skyTop}"/>
+            <stop offset="100%" stop-color="${tod.skyMid}"/>
+          </linearGradient>
         </defs>
+        ${sky}
+        ${backWall}
         <polygon points="${groundPoly}" fill="url(#groundGrad)" stroke="#C9C3B4" stroke-width="1.2"/>
         ${gridLines}
+        ${groundTexture}
         ${sun}
         ${plantSvgs}
         <text x="${(c3.ix + 12).toFixed(1)}" y="${(c3.iy + 24).toFixed(1)}" font-size="11" fill="#5A5C50" font-family="Noto Serif TC" font-style="italic">${realW}m × ${realD}m ≈ ${area} m²</text>
       </svg>
       <div class="plan-legend">
+        <span class="plan-legend-item"><span class="plan-legend-dot" style="background:linear-gradient(180deg,${tod.skyTop},${tod.skyMid})"></span>${t("天空", "Sky")} · <span data-zh="${tod.labelZh}" data-en="${tod.labelEn}">${tod.labelZh}</span></span>
         <span class="plan-legend-item"><span class="plan-legend-dot" style="background:linear-gradient(180deg,#6B4D2E,#4A3320)"></span>${t("樹幹","Trunk")}</span>
         <span class="plan-legend-item"><span class="plan-legend-dot" style="background:rgba(70,130,170,0.45)"></span>${t("水景","Water")}</span>
         <span class="plan-legend-item"><span class="plan-legend-dot" style="background:rgba(0,0,0,0.22)"></span>${t("陰影","Shadow")}</span>
