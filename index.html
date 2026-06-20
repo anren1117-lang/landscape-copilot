@@ -573,6 +573,104 @@
     font-family: var(--serif);
   }
 
+  /* "我的設計" — personal portfolio of saved designs on the homepage */
+  .my-designs-section {
+    max-width: 880px; margin: 24px auto 0; padding: 0 20px;
+  }
+  .my-designs-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .my-designs-head h2 {
+    font-family: var(--serif); font-size: 19px; font-weight: 600; color: var(--forest);
+    letter-spacing: 0.01em;
+  }
+  .my-designs-head .count {
+    font-size: 12.5px; color: var(--ink-soft); font-family: var(--serif); font-style: italic;
+  }
+  .my-designs-grid {
+    display: grid; grid-template-columns: 1fr; gap: 12px;
+  }
+  @media (min-width: 720px) { .my-designs-grid { grid-template-columns: 1fr 1fr; } }
+  .my-design-card {
+    background: rgba(255,255,255,0.55);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all .2s;
+    display: grid;
+    grid-template-columns: 38px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    font-family: inherit;
+    text-align: left;
+    position: relative;
+  }
+  .my-design-card:hover { transform: translateY(-2px); border-color: var(--sage); box-shadow: 0 12px 24px -14px rgba(44,53,38,0.3); }
+  .my-design-card.active { border-color: var(--sage-deep); background: linear-gradient(135deg, rgba(110,126,96,0.10), rgba(196,160,76,0.08)); }
+  .my-design-swatch {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--sage), var(--clay));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--paper); flex-shrink: 0;
+  }
+  .my-design-body { min-width: 0; }
+  .my-design-name {
+    font-family: var(--serif); font-size: 15px; font-weight: 600; color: var(--forest);
+    margin-bottom: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .my-design-meta { font-size: 11.5px; color: var(--ink-soft); font-family: var(--serif); }
+  .my-design-actions { display: flex; gap: 4px; }
+  .my-design-actions button {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-soft); font-size: 13px; padding: 4px 8px;
+    border-radius: 6px; font-family: inherit;
+    transition: all .15s;
+  }
+  .my-design-actions button:hover { background: rgba(0,0,0,0.06); color: var(--forest); }
+  .my-design-actions button.del:hover { background: rgba(178,58,48,0.10); color: #8C2A22; }
+  .my-design-empty {
+    background: rgba(255,255,255,0.4);
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+    padding: 22px 18px;
+    text-align: center;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    font-family: var(--serif);
+    font-style: italic;
+  }
+
+  /* "Save as new design" button on result page nav */
+  .save-design-btn {
+    background: rgba(255,255,255,0.7);
+    border: 1px solid var(--sage);
+    color: var(--sage-deep);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-family: inherit; font-size: 12.5px; font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .save-design-btn:hover { background: var(--sage-deep); color: var(--paper); border-color: var(--sage-deep); }
+
+  /* Toast for "已儲存到我的設計" feedback */
+  .save-toast {
+    position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%);
+    background: var(--forest); color: var(--paper);
+    padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 12px 28px -8px rgba(44,53,38,0.45);
+    z-index: 30;
+    animation: toastIn .3s cubic-bezier(.2,.7,.3,1);
+  }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translate(-50%, 12px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+  }
+
   /* WELCOME-BACK banner — when state is restored from localStorage */
   .welcome-back {
     max-width: 880px; margin: 16px auto; padding: 14px 18px;
@@ -4240,6 +4338,11 @@ function buildLayers(scored) {
 // ─────────────────────────────────────────────────────────────
 const SAVE_KEY = "landscape-copilot-v1";
 const HASH_KEY = "d";
+// Multi-design dashboard — list of saved designs the user has explicitly kept.
+// Each entry: { id, name, snapshot, savedAt }
+// SAVE_KEY still holds the *active* (last-touched) design for backward compat
+// and is the source of truth for the URL-hash & welcome-back banner.
+const LIST_KEY = "landscape-copilot-list-v1";
 
 // The minimal slice of state worth persisting — inputs + view layer toggles.
 function snapshotState() {
@@ -4284,6 +4387,102 @@ function clearLocal() {
   try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
 }
 
+// ─────────────────────────────────────────────────────────────
+// Multi-design dashboard ("我的設計") — a NAMED list of designs.
+// Storage shape: { designs: [{id, name, snapshot, savedAt}], activeId }
+// One slot in SAVE_KEY remains the active design (URL-hash truth);
+// LIST_KEY holds zero or more explicitly-kept designs the user wants
+// to compare or return to later (e.g. balcony vs yard).
+// ─────────────────────────────────────────────────────────────
+function loadDesignList() {
+  try {
+    const raw = localStorage.getItem(LIST_KEY);
+    if (!raw) return { designs: [], activeId: null };
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.designs)) return { designs: [], activeId: null };
+    return parsed;
+  } catch (e) { return { designs: [], activeId: null }; }
+}
+
+function saveDesignList(list) {
+  try { localStorage.setItem(LIST_KEY, JSON.stringify(list)); } catch (e) {}
+}
+
+// Build a default name from snapshot: "陽台 · 6.2 m² · 2026-06-19"
+function defaultDesignName(snap) {
+  if (!snap) return "未命名設計";
+  const space = spaceZh(snap.space);
+  const w = Number(snap.widthM || 0), d = Number(snap.depthM || 0);
+  const area = (w * d).toFixed(1);
+  const dt = new Date(snap.savedAt || Date.now());
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${space} · ${area} m² · ${y}-${m}-${day}`;
+}
+
+// Pseudo-unique id for a design entry.
+function makeDesignId() {
+  return "d_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+}
+
+// Persist the *current* state as a NEW entry in the named list.
+// Returns the new entry id. Does not change the URL hash or SAVE_KEY semantics.
+function saveCurrentAsNewDesign(customName) {
+  const snap = snapshotState();
+  const id = makeDesignId();
+  const entry = {
+    id,
+    name: (customName && customName.trim()) || defaultDesignName(snap),
+    snapshot: snap,
+    savedAt: snap.savedAt || Date.now(),
+  };
+  const list = loadDesignList();
+  list.designs.unshift(entry);
+  list.activeId = id;
+  saveDesignList(list);
+  return id;
+}
+
+// Overwrite an existing entry with the current state (used when user is
+// continuing to edit an "active" entry from the dashboard list).
+function updateActiveDesignEntry() {
+  const list = loadDesignList();
+  if (!list.activeId) return;
+  const idx = list.designs.findIndex(e => e.id === list.activeId);
+  if (idx < 0) return;
+  const snap = snapshotState();
+  list.designs[idx].snapshot = snap;
+  list.designs[idx].savedAt = snap.savedAt || Date.now();
+  saveDesignList(list);
+}
+
+function setActiveDesignId(id) {
+  const list = loadDesignList();
+  list.activeId = id;
+  saveDesignList(list);
+}
+
+function deleteDesignById(id) {
+  const list = loadDesignList();
+  list.designs = list.designs.filter(e => e.id !== id);
+  if (list.activeId === id) list.activeId = null;
+  saveDesignList(list);
+}
+
+function renameDesign(id, newName) {
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === id);
+  if (!entry) return;
+  entry.name = (newName && newName.trim()) || entry.name;
+  saveDesignList(list);
+}
+
+function loadDesignById(id) {
+  const list = loadDesignList();
+  return list.designs.find(e => e.id === id) || null;
+}
+
 // URL hash encoding — base64-encoded JSON. Used for sharing / bookmarking.
 function encodeHashFromState() {
   try {
@@ -4316,6 +4515,10 @@ function pushHashFromState() {
 function persistDashboard() {
   if (!state.viewingShared) {
     saveToLocal();
+    // Keep the active named-list entry in sync as the user edits.
+    // (Only updates if there *is* an activeId — initial visits won't auto-create
+    // an entry until the user explicitly hits "另存為新設計".)
+    updateActiveDesignEntry();
   }
   pushHashFromState();
 }
@@ -4468,6 +4671,129 @@ function humanizeTimeAgo(ts) {
   return state.lang === "zh" ? `${d} 天` : `${d} d`;
 }
 
+// "我的設計" — list of named saved designs on the homepage.
+// Distinct from the implicit single-slot SAVE_KEY (which is the welcome-back
+// resume target). The list lets users keep balcony + yard + office designs
+// side-by-side and resume any of them.
+function renderMyDesignsSection() {
+  const list = loadDesignList();
+  if (!list.designs.length) {
+    // Only show the empty-state hint if user has at least the single SAVE_KEY snapshot
+    // (otherwise it's noise on first visit). The pendingSnapshot path means user has
+    // ONE saved design but hasn't yet promoted it to a named entry.
+    if (!state.pendingSnapshot) return "";
+    return `
+      <div class="my-designs-section">
+        <div class="my-designs-head">
+          <h2 data-zh="我的設計 · My Designs" data-en="My Designs">我的設計 · My Designs</h2>
+        </div>
+        <div class="my-design-empty"
+             data-zh="還沒儲存任何具名設計。在生成的結果頁面點「💾 另存為新設計」即可開始累積。例如：陽台 + 庭院 + 辦公室 三組設計可以同時保存。"
+             data-en="No named designs yet. On any result page, tap '💾 Save as a new design' to start your portfolio — e.g. one for the balcony, one for the yard, one for the office.">
+             還沒儲存任何具名設計。在生成的結果頁面點「💾 另存為新設計」即可開始累積。
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="my-designs-section">
+      <div class="my-designs-head">
+        <h2 data-zh="我的設計 · My Designs" data-en="My Designs">我的設計 · My Designs</h2>
+        <span class="count"
+              data-zh="共 ${list.designs.length} 個"
+              data-en="${list.designs.length} saved">共 ${list.designs.length} 個</span>
+      </div>
+      <div class="my-designs-grid">
+        ${list.designs.map((entry) => {
+          const isActive = entry.id === list.activeId;
+          const ago = humanizeTimeAgo(entry.savedAt);
+          return `
+            <div class="my-design-card ${isActive ? "active" : ""}" data-design-id="${escapeHtml(entry.id)}">
+              <div class="my-design-swatch">🌿</div>
+              <div class="my-design-body">
+                <div class="my-design-name">${escapeHtml(entry.name)}</div>
+                <div class="my-design-meta"
+                     data-zh="${ago} 前儲存"
+                     data-en="Saved ${ago} ago">${ago} 前儲存</div>
+              </div>
+              <div class="my-design-actions">
+                <button data-design-rename="${escapeHtml(entry.id)}" title="${t('重新命名','Rename')}">✎</button>
+                <button class="del" data-design-delete="${escapeHtml(entry.id)}" title="${t('刪除','Delete')}">🗑</button>
+              </div>
+            </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+}
+
+function wireMyDesignsSection() {
+  document.querySelectorAll(".my-design-card").forEach((card) => {
+    card.addEventListener("click", (e) => {
+      // Ignore clicks on the action buttons
+      if (e.target.closest("button")) return;
+      const id = card.dataset.designId;
+      resumeDesignById(id);
+    });
+  });
+  document.querySelectorAll("[data-design-rename]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.designRename;
+      const entry = loadDesignById(id);
+      if (!entry) return;
+      const newName = prompt(t("重新命名這個設計：", "Rename this design:"), entry.name);
+      if (newName !== null) {
+        renameDesign(id, newName);
+        renderHome();
+        applyLanguage();
+      }
+    });
+  });
+  document.querySelectorAll("[data-design-delete]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.designDelete;
+      const entry = loadDesignById(id);
+      if (!entry) return;
+      if (confirm(t(`確定刪除「${entry.name}」？此操作無法復原。`, `Delete "${entry.name}"? This can't be undone.`))) {
+        deleteDesignById(id);
+        renderHome();
+        applyLanguage();
+      }
+    });
+  });
+}
+
+// Resume a saved design — copy its snapshot into state and jump to the result page.
+function resumeDesignById(id) {
+  const entry = loadDesignById(id);
+  if (!entry) return;
+  applySnapshot(entry.snapshot);
+  setActiveDesignId(id);
+  state.pendingSnapshot = null;
+  state.view = "wizard";
+  state.step = 5;
+  state.resultTab = "preview";
+  initShoppingQty();
+  // Reapply any qty the snapshot saved
+  if (entry.snapshot.qty && typeof entry.snapshot.qty === "object") {
+    state.qty = { ...state.qty, ...entry.snapshot.qty };
+  }
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Small ephemeral toast — used when the user saves a design.
+function showSaveToast(msgZh, msgEn) {
+  const el = document.createElement("div");
+  el.className = "save-toast";
+  el.dataset.zh = msgZh;
+  el.dataset.en = msgEn;
+  el.textContent = state.lang === "zh" ? msgZh : msgEn;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.transition = "opacity .4s"; el.style.opacity = "0"; }, 2400);
+  setTimeout(() => { el.remove(); }, 2900);
+}
+
 // ─────────────────────────────────────────────────────────────
 // Render
 // ─────────────────────────────────────────────────────────────
@@ -4543,6 +4869,10 @@ function renderHome() {
     <div class="fade-up">
 
       ${renderWelcomeBackBanner()}
+
+      ${renderMyDesignsSection()}
+
+      ${renderSavedDesignsSection()}
 
       <div class="home-hero">
         <span class="badge" data-zh="原生 × 引入 · 共 ${PLANTS.length} 種" data-en="Native + Introduced · ${PLANTS.length} species">原生 × 引入 · 共 ${PLANTS.length} 種</span>
@@ -4698,6 +5028,9 @@ function renderHome() {
   document.getElementById("homeQuickBtn").addEventListener("click", () => {
     document.querySelector(".home-quick-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
   });
+
+  // "我的設計" portfolio cards: click to resume, ✎ to rename, 🗑 to delete
+  wireMyDesignsSection();
 
   // Quick tool buttons — each pre-applies a dictionary filter
   document.querySelectorAll(".home-quick-btn").forEach((btn) => {
@@ -6382,13 +6715,22 @@ function renderNav() {
     const recsCount = scorePlants().filter(p => p.score >= 30).length;
     navFooter.innerHTML = `
       <button class="nav-btn" id="navReset">↺ <span data-zh="重新開始" data-en="Start over">重新開始</span></button>
+      <button class="save-design-btn" id="navSaveDesign">💾 <span data-zh="另存為新設計" data-en="Save as new design">另存為新設計</span></button>
       <span class="foot-note" data-zh="共 ${recsCount} 種候選 · AI 依你的微氣候生成" data-en="${recsCount} candidates · generated from your microclimate">共 ${recsCount} 種候選 · AI 依你的微氣候生成</span>`;
+    document.getElementById("navSaveDesign")?.addEventListener("click", () => {
+      const defaultName = defaultDesignName(snapshotState());
+      const name = prompt(t("為這個設計命名：", "Name this design:"), defaultName);
+      if (name === null) return;
+      saveCurrentAsNewDesign(name);
+      showSaveToast(t("✓ 已儲存到「我的設計」", "✓ Saved to My Designs"), t("✓ Saved to My Designs", "✓ Saved to My Designs"));
+    });
     document.getElementById("navReset")?.addEventListener("click", () => {
       Object.assign(state, {
         step:0, space:null,
         address:"", detected:null, widthM:null, depthM:null, orientation:"S",
         sun:null, water:null, goals:[],
         resultTab:"plan", selectedPlantId:null, qty:{},
+        wizardPhotoSuggest:{}, wizardPhotoSuggestActed:{},
       });
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
