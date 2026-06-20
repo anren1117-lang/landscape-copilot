@@ -1237,6 +1237,40 @@
   .home-quick-btn .ico { font-size: 22px; line-height: 1; }
   .home-quick-btn .sub { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
 
+  /* Design presets — Kinfolk-style cards between entry cards and quick tools */
+  .home-presets-wrap { max-width: 960px; margin: 48px auto 0; padding: 0 20px; }
+  .home-presets-label {
+    font-size: 11.5px; letter-spacing: 0.22em; color: var(--clay-deep); font-weight: 600;
+    text-transform: uppercase; text-align: center; margin-bottom: 10px;
+  }
+  .home-presets-sub {
+    font-size: 13.5px; color: var(--ink-soft); text-align: center;
+    margin: 0 auto 22px; max-width: 540px; line-height: 1.6;
+  }
+  .home-presets-grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+  .home-preset-card {
+    background: rgba(255,255,255,0.6);
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 18px;
+    font-family: inherit;
+    color: var(--forest); cursor: pointer;
+    text-align: left;
+    transition: transform .2s, border-color .2s, background .2s, box-shadow .2s;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .home-preset-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--sage);
+    background: rgba(255,255,255,0.92);
+    box-shadow: 0 8px 24px -12px rgba(60,75,55,0.18);
+  }
+  .home-preset-icon { font-size: 28px; line-height: 1; }
+  .home-preset-title { font-size: 15.5px; font-weight: 600; letter-spacing: 0.01em; }
+  .home-preset-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.55; }
+
   /* How it works */
   .home-how {
     max-width: 880px; margin: 56px auto 0; padding: 0 20px;
@@ -4281,6 +4315,11 @@ const state = {
   wizardPhotoError: {},       // { space: "msg", ... } — last error per step, "" if none
   wizardPhotoSuggest: {},     // { space: "balcony", sun: "part", details: {width,depth,orientation,coastal} }
   wizardPhotoSuggestActed: {}, // { details: "applied" | "dismissed" } — suppress the banner after the user has reacted
+  // Audit trail: when a homepage Design Preset card pre-fills the wizard and
+  // jumps to the result page, we stash the preset id here so debugging /
+  // analytics can tell "user kicked off from 🪴 low-maintenance balcony preset"
+  // vs starting the wizard from scratch. Cleared on Start-fresh.
+  designPresetId: null,
   lang: "zh",
 };
 
@@ -4903,9 +4942,13 @@ function renderWelcomeBackBanner() {
   if (state.shareConflict) return renderShareConflictBanner();
   if (!state.pendingSnapshot) return "";
   const s = state.pendingSnapshot;
-  const spaceLabel = spaceZh(s.space);
-  const area = (s.widthM * s.depthM).toFixed(1);
-  const ago = humanizeTimeAgo(s.savedAt);
+  // XSS: spaceZh/area/ago are derived from the persisted snapshot (which can be loaded
+  // from a `#d=` URL hash supplied by anyone). spaceZh returns from a map (safe), but
+  // area is a Number.toFixed string and ago comes from humanizeTimeAgo — escape both
+  // defensively before injecting into the data-zh/data-en HTML attributes.
+  const spaceLabel = escapeHtml(spaceZh(s.space));
+  const area = escapeHtml((s.widthM * s.depthM).toFixed(1));
+  const ago = escapeHtml(humanizeTimeAgo(s.savedAt));
   return `
     <div class="welcome-back" id="welcomeBack">
       <span class="icon">🌿</span>
@@ -5012,7 +5055,8 @@ function renderMyDesignsSection() {
       <div class="my-designs-grid">
         ${list.designs.map((entry) => {
           const isActive = entry.id === list.activeId;
-          const ago = humanizeTimeAgo(entry.savedAt);
+          // XSS: savedAt is persisted JSON — escape humanized output before HTML interpolation.
+          const ago = escapeHtml(humanizeTimeAgo(entry.savedAt));
           return `
             <div class="my-design-card ${isActive ? "active" : ""}" data-design-id="${escapeHtml(entry.id)}">
               <div class="my-design-swatch">🌿</div>
@@ -5254,6 +5298,24 @@ function renderHome() {
         </button>
       </div>
 
+      <div class="home-presets-wrap">
+        <div class="home-presets-label" data-zh="✨ 設計範本 · DESIGN PRESETS" data-en="✨ Design presets">✨ 設計範本 · DESIGN PRESETS</div>
+        <div class="home-presets-sub"
+             data-zh="不想答 5 題？選一個範本，AI 直接生成符合該風格的景觀規劃。"
+             data-en="Skip the 5 questions. Pick a preset and AI generates a plan tuned to that style.">
+             不想答 5 題？選一個範本，AI 直接生成符合該風格的景觀規劃。
+        </div>
+        <div class="home-presets-grid">
+          ${DESIGN_PRESETS.map(p => `
+            <button class="home-preset-card" data-preset="${escapeHtml(p.id)}">
+              <span class="home-preset-icon">${p.icon}</span>
+              <span class="home-preset-title" data-zh="${escapeHtml(p.zh)}" data-en="${escapeHtml(p.en)}">${escapeHtml(p.zh)}</span>
+              <span class="home-preset-desc" data-zh="${escapeHtml(p.desc_zh)}" data-en="${escapeHtml(p.desc_en)}">${escapeHtml(p.desc_zh)}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+
       <div class="home-quick-wrap">
         <div class="home-quick-label" data-zh="快速工具 · QUICK TOOLS" data-en="Quick tools">快速工具 · QUICK TOOLS</div>
         <div class="home-quick-grid">
@@ -5349,6 +5411,11 @@ function renderHome() {
   // Quick tool buttons — each pre-applies a dictionary filter
   document.querySelectorAll(".home-quick-btn").forEach((btn) => {
     btn.addEventListener("click", () => applyQuickFilter(btn.dataset.quick));
+  });
+
+  // Design preset cards — each pre-fills the wizard and jumps to result.
+  document.querySelectorAll(".home-preset-card").forEach((btn) => {
+    btn.addEventListener("click", () => applyDesignPreset(btn.dataset.preset));
   });
 
   // Welcome-back banner buttons
@@ -5506,11 +5573,11 @@ function renderPhotoFlow() {
               </div>
               <div class="photo-detected-cell">
                 <div class="lbl" data-zh="估計尺寸" data-en="Estimated size">估計尺寸</div>
-                <div class="val">${a.estimated_width_m || "?"} × ${a.estimated_depth_m || "?"} m</div>
+                <div class="val">${escapeHtml(a.estimated_width_m || "?")} × ${escapeHtml(a.estimated_depth_m || "?")} m</div>
               </div>
               <div class="photo-detected-cell">
                 <div class="lbl" data-zh="朝向（推測）" data-en="Orientation (guess)">朝向（推測）</div>
-                <div class="val">${a.orientation_guess && a.orientation_guess !== "unknown" ? a.orientation_guess : t("無法判斷", "unknown")}</div>
+                <div class="val">${a.orientation_guess && a.orientation_guess !== "unknown" ? escapeHtml(a.orientation_guess) : t("無法判斷", "unknown")}</div>
               </div>
             </div>
             ${a.observations ? `<div class="photo-observation">"${escapeHtml(a.observations)}"</div>` : ""}
@@ -5778,6 +5845,105 @@ function jumpToDictionary() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+// ── Design Presets (homepage shortcut) ──────────────────────
+// Curated archetypes that pre-fill the wizard with a coherent space/sun/water/
+// goals combo so the user can land on the result page in one click instead of
+// answering 5 questions. Each preset can optionally pin specific plants (e.g.
+// fragrance-garden auto-pins anything with fragrance>=2) or flip the native
+// filter, so the generated plan actually feels like the preset name.
+const DESIGN_PRESETS = [
+  {
+    id: "low-maintenance-balcony",
+    icon: "🪴",
+    zh: "低維護陽台", en: "Low-maintenance balcony",
+    desc_zh: "省水、半日照、耐忽略 — 種了就活的陽台組合",
+    desc_en: "Low-water, part-sun, forgiving — set it and forget it",
+    space: "balcony", sun: "part", water: "low", goals: ["easy"],
+  },
+  {
+    id: "edible-balcony",
+    icon: "🍅",
+    zh: "可食陽台菜園", en: "Edible balcony garden",
+    desc_zh: "全日照陽台菜園 — 香草、葉菜、家常蔬果",
+    desc_en: "Full-sun balcony pantry — herbs, greens, kitchen veg",
+    space: "balcony", sun: "full", water: "med", goals: ["edible"],
+  },
+  {
+    id: "fragrance-garden",
+    icon: "🌸",
+    zh: "香氣花園", en: "Fragrance garden",
+    desc_zh: "庭院香氣組合 — 夜來香、含笑、桂花為主角",
+    desc_en: "Yard scented combo — night-blooming jasmine & michelia centerpiece",
+    space: "yard", sun: "full", water: "med", goals: ["pollinator"],
+    // Auto-pin every plant with fragrance >= 2 so the design centers on scent.
+    pinFilter: (p, plantExpert) => (plantExpert.fragrance || 0) >= 2,
+  },
+  {
+    id: "biodiversity-yard",
+    icon: "🦋",
+    zh: "生態多樣性", en: "Biodiversity garden",
+    desc_zh: "原生復層庭院 — 蝴蝶、鳥、授粉昆蟲的家",
+    desc_en: "Native layered yard — home for butterflies, birds, pollinators",
+    space: "yard", sun: "full", water: "med", goals: ["pollinator"],
+    nativeOnly: true,
+  },
+  {
+    id: "indoor-office",
+    icon: "🏠",
+    zh: "室內辦公室", en: "Indoor office plants",
+    desc_zh: "弱光、低維護 — 辦公桌、會議室的安靜綠意",
+    desc_en: "Low-light, low-care — quiet greenery for desks & meeting rooms",
+    space: "indoor", sun: "shade", water: "low", goals: ["easy"],
+  },
+  {
+    id: "coastal-yard",
+    icon: "🌊",
+    zh: "海岸耐鹽", en: "Coastal salt-tolerant",
+    desc_zh: "海邊庭院 — 耐鹽耐風的隱私屏障",
+    desc_en: "Seaside yard — salt- and wind-tolerant privacy screen",
+    space: "yard", sun: "full", water: "low", goals: ["screen"],
+    detected: { county: "", zone: "S", coastal: true },
+  },
+];
+
+// Pre-fill state from a preset and jump straight to the result page.
+// Mirrors applyQuickFilter's "no-questions" pattern but lands on the plan view.
+function applyDesignPreset(presetId) {
+  const preset = DESIGN_PRESETS.find(p => p.id === presetId);
+  if (!preset) return;
+
+  // Clear any half-answered wizard state so the preset is the source of truth.
+  state.space = preset.space;
+  state.sun = preset.sun;
+  state.water = preset.water;
+  state.goals = Array.isArray(preset.goals) ? [...preset.goals] : [];
+  state.widthM = SPACE_DEFAULTS[preset.space].w;
+  state.depthM = SPACE_DEFAULTS[preset.space].d;
+  state.orientation = "S";
+  state.nativeOnly = !!preset.nativeOnly;
+  state.address = "";
+  state.detected = preset.detected ? { ...preset.detected } : null;
+  state.qty = {};
+  state.prefs = { liked: {}, disliked: {}, pinned: {} };
+  state.designPresetId = preset.id;
+
+  // Optional: auto-pin plants matching the preset's filter (e.g. fragrance >= 2).
+  if (typeof preset.pinFilter === "function") {
+    for (const p of PLANTS) {
+      try {
+        if (preset.pinFilter(p, expert(p))) state.prefs.pinned[p.id] = true;
+      } catch (_) { /* skip plants the filter can't evaluate */ }
+    }
+  }
+
+  state.view = "wizard";
+  state.step = 5;
+  state.resultTab = "preview";
+  initShoppingQty();
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 // Apply a pre-set filter on the dictionary view and jump there.
 function applyQuickFilter(kind) {
   // Reset baseline so multiple clicks don't compound filters unexpectedly
@@ -5965,7 +6131,8 @@ function renderDetectedChips(det) {
   if (det.display) {
     pieces.push(`<span class="detected-chip">📍 ${escapeHtml(det.display)}</span>`);
   } else if (det.county) {
-    pieces.push(`<span class="detected-chip">📍 ${det.county}（${zoneLabel}）</span>`);
+    // XSS: det.county may originate from a `#d=` snapshot (attacker-controlled).
+    pieces.push(`<span class="detected-chip">📍 ${escapeHtml(det.county)}（${zoneLabel}）</span>`);
   } else {
     pieces.push(`<span class="detected-chip">🌏 ${zoneLabel}</span>`);
   }
@@ -7140,8 +7307,11 @@ function renderResult() {
   const d = state.depthM || SPACE_DEFAULTS[state.space].d;
   const area = (w * d).toFixed(1);
   const det = state.detected;
-  const locText_zh = det?.county ? `${det.county}的` : "";
-  const locText_en = det?.county ? `${det.county}'s ` : "";
+  // XSS: det.county originates either from OSM Nominatim or from a `#d=` snapshot
+  // (attacker-controlled). Sanitize before interpolating into HTML attributes/text.
+  const detCountySafe = det?.county ? escapeHtml(det.county) : "";
+  const locText_zh = detCountySafe ? `${detCountySafe}的` : "";
+  const locText_en = detCountySafe ? `${detCountySafe}'s ` : "";
 
   // Shared-design viewing bar — only when user clicked "View shared" in the conflict banner.
   // It reminds them their own design is safe and offers two recoveries: commit shared or back to mine.
@@ -7171,7 +7341,7 @@ function renderResult() {
       </h1>
       <div class="chip-row">
         <span class="chip">📍 <span data-zh="${spaceLabel.zh} · ${area} m²" data-en="${spaceLabel.en} · ${area} m²">${spaceLabel.zh} · ${area} m²</span></span>
-        ${det?.county ? `<span class="chip">🗺 ${det.county}<span data-zh="（${ZONE_LABEL[det.zone].zh}）" data-en=" (${ZONE_LABEL[det.zone].en})">（${ZONE_LABEL[det.zone].zh}）</span></span>` : (det ? `<span class="chip">🌏 <span data-zh="${ZONE_LABEL[det.zone].zh}" data-en="${ZONE_LABEL[det.zone].en}">${ZONE_LABEL[det.zone].zh}</span></span>` : "")}
+        ${det?.county ? `<span class="chip">🗺 ${detCountySafe}<span data-zh="（${ZONE_LABEL[det.zone].zh}）" data-en=" (${ZONE_LABEL[det.zone].en})">（${ZONE_LABEL[det.zone].zh}）</span></span>` : (det ? `<span class="chip">🌏 <span data-zh="${ZONE_LABEL[det.zone].zh}" data-en="${ZONE_LABEL[det.zone].en}">${ZONE_LABEL[det.zone].zh}</span></span>` : "")}
         ${det?.coastal ? `<span class="chip">🌊 <span data-zh="近海岸 · 耐鹽" data-en="Coastal · salt-tolerant">近海岸 · 耐鹽</span></span>` : ""}
         <span class="chip">🧭 <span data-zh="朝${state.orientation === "N" ? "北" : state.orientation === "E" ? "東" : state.orientation === "S" ? "南" : "西"}" data-en="Facing ${state.orientation}">朝${state.orientation === "N" ? "北" : state.orientation === "E" ? "東" : state.orientation === "S" ? "南" : "西"}</span></span>
         <span class="chip">☀ <span data-zh="${sunLabel.zh}" data-en="${sunLabel.en}">${sunLabel.zh}</span></span>
@@ -8779,8 +8949,8 @@ window.exportCareICS = function () {
       `DTSTAMP:${yyyy}${pad2(new Date().getMonth() + 1)}${pad2(new Date().getDate())}T000000Z`,
       `DTSTART;VALUE=DATE:${startY}${pad2(m)}01`,
       `DTEND;VALUE=DATE:${endY}${pad2(endM)}01`,
-      `SUMMARY:${escapeICS(summary)}`,
-      `DESCRIPTION:${escapeICS(lines.join("\\n"))}`,
+      foldICS(`SUMMARY:${escapeICS(summary)}`),
+      foldICS(`DESCRIPTION:${escapeICS(lines.join("\\n"))}`),
       `RRULE:FREQ=YEARLY`,
       "TRANSP:TRANSPARENT",
       "END:VEVENT",
@@ -8793,7 +8963,7 @@ window.exportCareICS = function () {
     "VERSION:2.0",
     "PRODID:-//AI Landscape Copilot//Care Calendar//EN",
     "CALSCALE:GREGORIAN",
-    `X-WR-CALNAME:${state.lang === "zh" ? "景觀養護月曆" : "Landscape Care Calendar"}`,
+    foldICS(`X-WR-CALNAME:${state.lang === "zh" ? "景觀養護月曆" : "Landscape Care Calendar"}`),
     "X-WR-TIMEZONE:Asia/Taipei",
     ...events,
     "END:VCALENDAR",
@@ -8815,6 +8985,37 @@ function escapeICS(s) {
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
     .replace(/\n/g, "\\n");
+}
+
+// RFC 5545 §3.1 — content lines MUST NOT exceed 75 OCTETS (not characters).
+// Long lines must be folded: split into chunks ≤75 bytes, then join with CRLF +
+// single ASCII SPACE. A single CJK character is 3 UTF-8 bytes, so this matters
+// for our zh-locale calendar entries — pre-fold strict parsers (Apple Calendar,
+// many CalDAV servers) would otherwise reject or truncate the line.
+function foldICS(line) {
+  const enc = new TextEncoder();
+  const out = [];
+  let chunk = "";
+  let chunkBytes = 0;
+  // Iterate by code point (for…of) so we never split inside a multi-byte char.
+  // First line budget = 75 octets; continuation lines start with one ASCII space
+  // which itself counts as an octet (so effective budget per continuation = 74).
+  let isFirst = true;
+  for (const ch of line) {
+    const chBytes = enc.encode(ch).length;
+    const budget = isFirst ? 75 : 75; // chunk already includes the leading space
+    if (chunkBytes + chBytes > budget) {
+      out.push(chunk);
+      isFirst = false;
+      chunk = " " + ch;
+      chunkBytes = 1 + chBytes;
+    } else {
+      chunk += ch;
+      chunkBytes += chBytes;
+    }
+  }
+  if (chunk) out.push(chunk);
+  return out.join("\r\n");
 }
 
 // ── TAB: BUILD PLAN (step-by-step installation guide) ───────
