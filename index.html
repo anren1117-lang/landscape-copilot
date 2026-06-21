@@ -1788,6 +1788,27 @@
   .sustain-chip.co2 { background: rgba(110,126,96,0.12); color: var(--sage-deep); border-color: rgba(110,126,96,0.32); }
   .sustain-chip.water { background: rgba(80,120,160,0.10); color: #3D6086; border-color: rgba(80,120,160,0.28); }
   .sustain-chip.bio { background: rgba(196,160,76,0.13); color: #8C6F1E; border-color: rgba(196,160,76,0.30); }
+  .sustain-chip.carbon25 { background: rgba(110,126,96,0.10); color: var(--sage-deep); border-color: rgba(110,126,96,0.28); }
+  .sustain-chip.bill { background: rgba(140,111,82,0.12); color: var(--clay-deep); border-color: rgba(140,111,82,0.30); }
+  .sustain-chip .sub-line { font-size: 11px; font-weight: 500; opacity: 0.78; margin-left: 4px; }
+  /* native vs introduced breakdown — single-line stacked bar under the chips */
+  .nat-bar-wrap { margin: -6px 0 18px; }
+  .nat-bar {
+    display: flex; width: 100%; height: 8px; border-radius: 999px; overflow: hidden;
+    border: 1px solid var(--line); background: rgba(255,255,255,0.5);
+  }
+  .nat-bar .seg-native { background: var(--sage); height: 100%; }
+  .nat-bar .seg-intro  { background: var(--clay); height: 100%; }
+  .nat-bar-legend {
+    font-size: 11.5px; color: var(--ink-soft); margin-top: 6px;
+    font-family: var(--serif); letter-spacing: 0.02em;
+  }
+  .nat-bar-legend .swatch {
+    display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+    vertical-align: middle; margin-right: 4px;
+  }
+  .nat-bar-legend .swatch.s-native { background: var(--sage); }
+  .nat-bar-legend .swatch.s-intro  { background: var(--clay); }
 
   /* SHOPPING LIST */
   .shop-frame { padding: 18px; background: rgba(255,255,255,0.55); border: 1px solid var(--line); border-radius: 18px; }
@@ -9526,18 +9547,44 @@ function renderSustainChips(recs) {
   // Use shopping-list quantities so the totals match what the user actually plans to plant.
   let totalCO2 = 0;
   let totalWater = 0;
+  let nativeQty = 0;
+  let introQty = 0;
   const supportTagsSet = new Set();
   top.forEach(p => {
     const qty = state.qty[p.id] ?? 1;
     const e = expert(p);
     totalCO2 += (e.co2_kg_yr || 0) * qty;
     totalWater += (e.water_l_wk || 0) * qty;
+    // Native vs introduced — type_zh contains "原生" or "特有" for native/endemic.
+    // Everything else (引入/外來/歸化/cultivated) is counted as introduced.
+    const tz = p.type_zh || "";
+    if (tz.includes("原生") || tz.includes("特有")) nativeQty += qty;
+    else introQty += qty;
     (p.supports_zh || []).forEach(s => supportTagsSet.add(s));
   });
 
   // Tree-equivalent for CO2 — a typical urban tree absorbs ~22 kg CO2/yr.
   const treeEq = (totalCO2 / 22).toFixed(1);
   const ecoCount = supportTagsSet.size;
+
+  // 25-year cumulative CO2 sequestration. Bands not exact numbers — the per-plant
+  // co2_kg_yr is itself a rough estimate, so multiplying by 25 compounds uncertainty.
+  const totalCO2_25yr = totalCO2 * 25;
+  // Driving comparison — 1 km gasoline car ≈ 0.12 kg CO2.
+  const drivingKm = totalCO2 / 0.12;
+  // Annual water bill — Taipei tap water ~NT$ 12 per m³ (1000 L). Weekly L × 52 ÷ 1000 × 12.
+  const annualWaterL = totalWater * 52;
+  const annualWaterCost = annualWaterL / 1000 * 12;
+
+  // Native vs introduced shares for the stacked bar.
+  const totalQty = nativeQty + introQty;
+  const nativePct = totalQty > 0 ? Math.round((nativeQty / totalQty) * 100) : 0;
+  const introPct  = totalQty > 0 ? 100 - nativePct : 0;
+  // Pretty-format big numbers ("約 X,XXX kg" style) without false precision.
+  const fmt = (n) => Math.round(n).toLocaleString();
+  // Round costs to nearest NT$10 for the bill estimate — avoids "NT$ 137.4/年" precision.
+  const billRounded = Math.round(annualWaterCost / 10) * 10;
+  const drivingRounded = Math.round(drivingKm / 10) * 10;
 
   // Preference note — appears above the sustainability row only when the user
   // has explicitly tapped a 👍/👎. Shows how many prefs were set and how many
@@ -9578,22 +9625,58 @@ function renderSustainChips(recs) {
          data-zh="清除偏好" data-en="Clear preferences">清除偏好</a>
     </div>` : "";
 
+  // Native vs introduced single-line stacked bar — only shown if there's something to compare.
+  const nativeBar = totalQty > 0 ? `
+    <div class="nat-bar-wrap">
+      <div class="nat-bar" role="img"
+           aria-label="${nativePct}% native, ${introPct}% introduced"
+           title="原生 ${nativeQty} (${nativePct}%) · 引入 ${introQty} (${introPct}%) — Native ${nativeQty} (${nativePct}%) · Introduced ${introQty} (${introPct}%)">
+        <div class="seg-native" style="width:${nativePct}%;"></div>
+        <div class="seg-intro" style="width:${introPct}%;"></div>
+      </div>
+      <div class="nat-bar-legend">
+        <span class="swatch s-native"></span><span
+          data-zh="原生 ${nativeQty} (${nativePct}%)"
+          data-en="Native ${nativeQty} (${nativePct}%)">原生 ${nativeQty} (${nativePct}%)</span>
+        <span style="margin: 0 6px; opacity:0.5;">·</span>
+        <span class="swatch s-intro"></span><span
+          data-zh="引入 ${introQty} (${introPct}%)"
+          data-en="Introduced ${introQty} (${introPct}%)">引入 ${introQty} (${introPct}%)</span>
+      </div>
+    </div>` : "";
+
+  // CO2 driving-comparison tooltip on the 🌳 chip — gives the abstract "kg CO2"
+  // a tangible analogue without cluttering the chip face.
+  const co2Title = `約 ${drivingRounded.toLocaleString()} km 汽油車排放 · roughly ${drivingRounded.toLocaleString()} km of gas car driving (≈ 0.12 kg CO₂/km)`;
+
   return `
     ${prefNote}
     <div class="sustain-row">
-      <span class="sustain-chip co2">
+      <span class="sustain-chip co2" title="${co2Title}">
         🌳 <span data-zh="約 ${totalCO2.toFixed(0)} kg CO₂ / 年 · 約 ${treeEq} 棵都市樹"
                 data-en="≈ ${totalCO2.toFixed(0)} kg CO₂ / yr · ~${treeEq} urban-tree equivalent">約 ${totalCO2.toFixed(0)} kg CO₂ / 年 · 約 ${treeEq} 棵都市樹</span>
+        <span class="sub-line"
+              data-zh="= 約 ${drivingRounded.toLocaleString()} km 汽油車排放"
+              data-en="= roughly ${drivingRounded.toLocaleString()} km of gas car driving">= 約 ${drivingRounded.toLocaleString()} km 汽油車排放</span>
+      </span>
+      <span class="sustain-chip carbon25">
+        🌲 <span data-zh="25 年總固碳 約 ${fmt(totalCO2_25yr)} kg"
+                data-en="25-yr cumulative CO₂ ~${fmt(totalCO2_25yr)} kg">25 年總固碳 約 ${fmt(totalCO2_25yr)} kg</span>
       </span>
       <span class="sustain-chip water">
         💧 <span data-zh="約 ${totalWater.toFixed(0)} L / 週 · 估算用水"
                 data-en="≈ ${totalWater.toFixed(0)} L / week · estimated water">約 ${totalWater.toFixed(0)} L / 週 · 估算用水</span>
       </span>
+      <span class="sustain-chip bill" title="台北自來水 ~NT$ 12 / m³ · Taipei tap ~NT$ 12 per m³">
+        💰 <span data-zh="水費估算 ~NT$ ${billRounded.toLocaleString()} / 年"
+                data-en="Water bill ~NT$ ${billRounded.toLocaleString()} / yr">水費估算 ~NT$ ${billRounded.toLocaleString()} / 年</span>
+      </span>
       <span class="sustain-chip bio">
         🐝 <span data-zh="${ecoCount} 種生態貢獻"
                 data-en="${ecoCount} ecological roles">${ecoCount} 種生態貢獻</span>
       </span>
-    </div>`;
+    </div>
+    ${nativeBar}`;
 }
 
 // ── TAB: REALISTIC PREVIEW (Pollinations.ai) ────────────────
