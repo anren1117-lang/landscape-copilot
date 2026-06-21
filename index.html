@@ -637,6 +637,27 @@
     background: var(--forest); color: var(--paper); font-weight: 600;
     border-color: var(--forest);
   }
+  /* R41: native-plant overlay toggle — sits alongside the growth-year pills.
+     OFF by default; when ON, each native plant in the 3D scene gets a small
+     green-dot marker and a top-left chip summarises the native ratio. */
+  .native-toggle-btn {
+    margin-left: 6px;
+    padding: 6px 11px; background: none; border: 1px solid transparent; border-radius: 999px;
+    font-family: inherit; font-size: 12px; font-weight: 500;
+    color: var(--ink-soft); cursor: pointer; transition: all .15s;
+  }
+  .native-toggle-btn:hover { background: rgba(0,0,0,0.05); }
+  .native-toggle-btn.on {
+    background: #2F7A4A; color: var(--paper); font-weight: 600;
+    border-color: #2F7A4A;
+  }
+  @media print {
+    .native-toggle-btn { display: none !important; }
+    /* When printing, suppress the in-SVG native overlay markers + chip so the
+       printed iso scene stays clean. Toggle adds .native-overlay class on the
+       SVG root so the rule below scopes to just those nodes. */
+    .plan-svg .native-overlay { display: none !important; }
+  }
   .est-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .est-ref-row { display: grid; grid-template-columns: 1fr; gap: 6px; max-height: 200px; overflow-y: auto; padding-right: 4px; }
   .est-ref-row::-webkit-scrollbar { width: 6px; }
@@ -6024,6 +6045,12 @@ const state = {
   //    opt-in via the year selector. NOT persisted across designs; just a view
   //    knob like resultTab. NO animation between years — instant re-render.
   growthYear: 10,
+  // ── R41: Native-plant overlay toggle for the 3D isometric view. OFF by
+  //    default so the curated scene reads as-designed; when ON, each native
+  //    plant gets a small 🟢 marker above its centroid and a chip top-left
+  //    shows "N / total · M% 本土". View knob only — not persisted across
+  //    designs, just like growthYear.
+  show3DNative: false,
   // ── R36: Garden journal — text-only freeform notes attached to each named
   //    design entry. Persisted *inside* the LIST_KEY entry (no new storage
   //    key). UI state lives here so we can remember which cards are showing
@@ -11854,7 +11881,16 @@ function render3D(layers, recs, allRecs) {
       }
     }
 
-    return `<g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">${mulchRing}${shadow}${drift}${pot}${trunk}${crown}${blooms}${aerial}${critter}${label}</g>`;
+    // R41: Native indicator. Small 🟢 above the crown centroid for plants
+    // flagged p.native. Wrapped in a <g class="native-overlay"> so print CSS
+    // hides it without us having to special-case the rendering path.
+    let nativeMark = "";
+    if (state.show3DNative && p.native) {
+      const markY = ground.iy - trunkH - crownRy * 2 - 4;
+      nativeMark = `<g class="native-overlay" pointer-events="none"><text x="${ground.ix.toFixed(1)}" y="${markY.toFixed(1)}" text-anchor="middle" font-size="13">🟢</text></g>`;
+    }
+
+    return `<g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">${mulchRing}${shadow}${drift}${pot}${trunk}${crown}${blooms}${aerial}${critter}${label}${nativeMark}</g>`;
   }).join("");
 
   // ── Sun marker + rays — sun position computed above for shadow direction ─
@@ -11916,6 +11952,23 @@ function render3D(layers, recs, allRecs) {
   const heroSubEn = `${["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][curMonth]} · ${tod.labelEn}　${bloomingNow ? `🌸 ${bloomingNow} blooming　` : ""}${wildlifeNow ? `🦋 ${wildlifeNow} wildlife visitors` : ""}`;
   const heroTitle = state.lang === "zh" ? heroTitleZh : heroTitleEn;
   const heroSub = state.lang === "zh" ? heroSubZh : heroSubEn;
+  // R41: Native ratio chip — only rendered when the overlay toggle is ON.
+  // Drawn as an SVG group so it lives inside the iso scene; print CSS hides
+  // it via the .native-overlay class.
+  const nativeTotal = drawList.length;
+  const nativeCount = drawList.filter(d => d.p && d.p.native).length;
+  const nativePct = nativeTotal ? Math.round((nativeCount / nativeTotal) * 100) : 0;
+  const nativeChipText = state.lang === "zh"
+    ? `🟢 ${nativeCount} / ${nativeTotal} · ${nativePct}% 本土`
+    : `🟢 ${nativeCount} / ${nativeTotal} · ${nativePct}% native`;
+  const nativeChip = state.show3DNative ? `
+    <g class="native-overlay" pointer-events="none">
+      <rect x="12" y="12" width="${(nativeChipText.length * 7.5 + 18).toFixed(1)}" height="24" rx="12"
+            fill="rgba(47,122,74,0.92)" stroke="#1F5532" stroke-width="0.8"/>
+      <text x="${(12 + (nativeChipText.length * 7.5 + 18) / 2).toFixed(1)}" y="28" text-anchor="middle"
+            font-family="Noto Serif TC" font-size="12" font-weight="600" fill="#FCFCF6">${nativeChipText}</text>
+    </g>` : "";
+
   const pillW = 460;
   const pillX = (svgW - pillW) / 2;
   const heroPill = `
@@ -11967,6 +12020,12 @@ function render3D(layers, recs, allRecs) {
             data-zh="🕰️ 生長預覽 ·"
             data-en="🕰️ Growth preview ·">🕰️ 生長預覽 ·</span>
       ${yearPills}
+      <button class="native-toggle-btn ${state.show3DNative ? "on" : ""}"
+              type="button"
+              aria-pressed="${state.show3DNative ? "true" : "false"}"
+              title="${t('在 3D 視角中標示本土植物（🟢 標記 + 比例徽章）','Highlight native plants in the 3D view (🟢 markers + ratio chip)')}"
+              data-zh="🟢 顯示本土"
+              data-en="🟢 Show natives">${t("🟢 顯示本土", "🟢 Show natives")}</button>
     </div>
     <p class="lead-small" style="font-size:11px;color:#7A7C70;margin-top:-6px;"
        data-zh="Year 1 = 剛種下；Year 5 = 開始填滿；Year 10 = 成熟冠層。地被生長快，永遠以滿尺寸顯示。"
@@ -12008,6 +12067,7 @@ function render3D(layers, recs, allRecs) {
         ${sun}
         ${plantSvgs}
         ${heroPill}
+        ${nativeChip}
         <text x="${(c3.ix + 12).toFixed(1)}" y="${(c3.iy + 24).toFixed(1)}" font-size="11" fill="#5A5C50" font-family="Noto Serif TC" font-style="italic">${realW}m × ${realD}m ≈ ${area} m²</text>
       </svg>
       <div class="plan-legend">
@@ -12035,6 +12095,17 @@ function wire3DInteractions() {
       // shim if available.
       const recs  = (window.__lastRecs   || []);
       const layers= (window.__lastLayers || []);
+      renderTabPanel(recs, layers);
+    });
+  });
+  // R41: native-overlay toggle — flips state.show3DNative and re-renders the
+  // iso3d panel. State persists across re-renders because we mutate the global
+  // state object (same pattern as growthYear above).
+  document.querySelectorAll(".native-toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.show3DNative = !state.show3DNative;
+      const recs   = (window.__lastRecs   || []);
+      const layers = (window.__lastLayers || []);
       renderTabPanel(recs, layers);
     });
   });
