@@ -1788,6 +1788,25 @@
   }
   .photo-analyze-status.ok { color: var(--sage-deep); font-style: normal; font-weight: 600; }
   .photo-analyze-status.err { color: #B23A30; }
+  /* Inline retry button — shown next to error text in both the photo flow and the
+     wizard photo-assist. Keeps the failure recoverable without re-uploading. */
+  .photo-retry-inline, .qphoto-retry-inline {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 4px 10px;
+    font-size: 12.5px;
+    font-family: var(--serif);
+    font-style: normal;
+    font-weight: 600;
+    color: var(--sage-deep);
+    background: rgba(110,126,96,0.08);
+    border: 1px solid var(--sage);
+    border-radius: 999px;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: background 120ms ease;
+  }
+  .photo-retry-inline:hover, .qphoto-retry-inline:hover { background: rgba(110,126,96,0.18); }
   .photo-analysis-card {
     margin-top: 22px;
     padding: 22px;
@@ -7064,9 +7083,9 @@ function renderFirstVisitBanner() {
       <span class="fv-icon" aria-hidden="true">👋</span>
       <div class="fv-text">
         <strong data-zh="第一次來？" data-en="First time?">第一次來？</strong>
-        <span data-zh="這是一個免費的 AI 景觀設計工具。3 種開始方式：📸 拍照、✨ 5 個問題、📖 瀏覽植物。"
-              data-en="Free AI landscape design tool. 3 ways to start: 📸 photo, ✨ 5-question wizard, or 📖 browse plants.">
-          這是一個免費的 AI 景觀設計工具。3 種開始方式：📸 拍照、✨ 5 個問題、📖 瀏覽植物。
+        <span data-zh="免費的 AI 景觀設計工具 — 從下方任一入口開始：📸 拍照、✨ 5 個問題、📖 植物字典、⚡ 快速工具，或 🎨 13 種設計風格一鍵套用。"
+              data-en="Free AI landscape design tool — start anywhere below: 📸 photo, ✨ 5-question wizard, 📖 plant dictionary, ⚡ quick tools, or 🎨 13 one-click design presets.">
+          免費的 AI 景觀設計工具 — 從下方任一入口開始：📸 拍照、✨ 5 個問題、📖 植物字典、⚡ 快速工具，或 🎨 13 種設計風格一鍵套用。
         </span>
       </div>
       <button class="fv-dismiss" id="firstVisitDismiss"><span data-zh="✕ 知道了" data-en="✕ Got it">✕ 知道了</span></button>
@@ -8487,7 +8506,7 @@ function renderPhotoFlow() {
                    data-en="👇 Looks good? Tap analyze.">
                    👇 看起來對嗎？開始分析。
               </div>` : ""}
-            <div class="photo-analyze-status ${state.photoStatusKind}" id="photoStatus">${state.photoBusy ? `<span class="photo-spinner"></span>` : ""}${state.photoStatus}</div>
+            <div class="photo-analyze-status ${state.photoStatusKind}" id="photoStatus">${state.photoBusy ? `<span class="photo-spinner"></span>` : ""}${state.photoStatus}${(state.photoStatusKind === "err" && !state.photoBusy && state.photoDataUrl) ? ` <button class="photo-retry-inline" id="photoRetryBtn" type="button"><span data-zh="↻ 再試一次" data-en="↻ Try again">↻ 再試一次</span></button>` : ""}</div>
             ${!hasAnalysis ? `
               <div class="photo-actions">
                 ${state.photoBusy ? `
@@ -8607,6 +8626,10 @@ function wirePhotoFlow() {
   // Analyze
   const analyze = document.getElementById("analyzeBtn");
   if (analyze) analyze.addEventListener("click", analyzePhoto);
+
+  // Inline retry button shown next to an error status — re-runs the same analyze call.
+  const retry = document.getElementById("photoRetryBtn");
+  if (retry) retry.addEventListener("click", analyzePhoto);
 
   // Generate with analysis
   const gen = document.getElementById("photoGenerateBtn");
@@ -10236,7 +10259,7 @@ function qPhotoHTML(stepKey) {
              拍一張你想種植空間的照片，AI 會為你判斷這題與後續問題的答案。
         </div>
         ${inner}
-        <div class="qphoto-status ${err ? "err" : ""}" data-qphoto-status="${stepKey}">${err || ""}</div>
+        <div class="qphoto-status ${err ? "err" : ""}" data-qphoto-status="${stepKey}">${err || ""}${(err && has && !busy) ? ` <button class="qphoto-retry-inline" type="button" data-qphoto-retry="${stepKey}"><span data-zh="↻ 再試一次" data-en="↻ Try again">↻ 再試一次</span></button>` : ""}</div>
       </div>
     </div>`;
 }
@@ -10281,6 +10304,10 @@ function wireQPhoto(stepKey) {
   // Cancel in-flight analysis
   document.querySelectorAll(`[data-qphoto-cancel="${stepKey}"]`).forEach(el => {
     el.addEventListener("click", () => { if (typeof cancelVisionRequest === "function") cancelVisionRequest(); });
+  });
+  // Inline retry — same code path as the original analyze button.
+  document.querySelectorAll(`[data-qphoto-retry="${stepKey}"]`).forEach(el => {
+    el.addEventListener("click", () => analyzeWizardPhoto(stepKey));
   });
 }
 
