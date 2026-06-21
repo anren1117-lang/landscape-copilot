@@ -7012,13 +7012,22 @@ const CARE_MONTH_WARNINGS = {
   1:  { zh:"深冬 大幅修剪",  en:"Deep winter pruning" },
   2:  { zh:"早春前 果樹修剪", en:"Pre-spring fruit-tree pruning" },
 };
+// R39 — memoize PLANTS-by-id once. PLANTS is a module-level constant, so this
+// lookup table is identical for every call. Building it inside the function
+// meant every My Designs card paid for an Object.fromEntries over ~200 plants
+// on every render (N designs × ~200 plants per render). Compute once, reuse.
+let _plantsByIdCache = null;
+function _plantsByIdMemo() {
+  if (!_plantsByIdCache) _plantsByIdCache = Object.fromEntries(PLANTS.map(p => [p.id, p]));
+  return _plantsByIdCache;
+}
 function thisMonthCareForSnapshot(snap, monthIdx) {
   const tasks = [];
   if (!snap) return tasks;
   const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
   const ids = Object.keys(qtyMap).filter(id => Number(qtyMap[id]) > 0);
   if (!ids.length) return tasks;
-  const plantsById = Object.fromEntries(PLANTS.map(p => [p.id, p]));
+  const plantsById = _plantsByIdMemo();
   // Sort by qty desc so highest-impact plants surface first (mirrors designSummary).
   const entries = ids
     .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: plantsById[id] }))
@@ -7608,22 +7617,23 @@ function wireMyDesignsSection() {
     });
   });
   // R38: "📋 本月照護 (N)" — resume the design AND land on the care tab.
-  // resumeDesignById always lands on "preview", so we override resultTab
-  // immediately after and re-render. Cheaper than threading an option through.
+  // R39 — pass the tab via an option so we don't render twice. The previous
+  // two-render flow flashed the preview tab in the DOM for a frame and ran
+  // every heavy result-page subtree (3D, plan, layers) twice per click.
   document.querySelectorAll("[data-design-care]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const id = btn.dataset.designCare;
-      resumeDesignById(id);
-      state.resultTab = "care";
-      render();
-      applyLanguage();
+      resumeDesignById(id, { resultTab: "care" });
     });
   });
 }
 
 // Resume a saved design — copy its snapshot into state and jump to the result page.
-function resumeDesignById(id) {
+// R39 — accept an optional { resultTab } so callers (e.g. the My Designs care-jump
+// button) can land on a specific tab in ONE render instead of rendering preview
+// then re-rendering on care. Whitelisted against KNOWN_TABS for safety.
+function resumeDesignById(id, opts) {
   const entry = loadDesignById(id);
   if (!entry) return;
   applySnapshot(entry.snapshot);
@@ -7641,12 +7651,19 @@ function resumeDesignById(id) {
   state.view = "wizard";
   state.step = 5;
   state.resultTab = "preview";
+  // Optional override: caller can request a specific tab (e.g. "care"). Whitelist
+  // mirrors applySnapshot's so an unknown value silently falls back to preview.
+  const KNOWN_TABS = ["preview","plan","iso3d","layers","calendar","care","build","tutorials","shopping","dict"];
+  if (opts && opts.resultTab && KNOWN_TABS.includes(opts.resultTab)) {
+    state.resultTab = opts.resultTab;
+  }
   initShoppingQty();
   // Reapply any qty the snapshot saved
   if (entry.snapshot.qty && typeof entry.snapshot.qty === "object") {
     state.qty = { ...state.qty, ...entry.snapshot.qty };
   }
   render();
+  applyLanguage();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
