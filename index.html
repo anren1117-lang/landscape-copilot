@@ -148,6 +148,45 @@
   @keyframes slideIn { from { transform: translateX(40px); opacity: .4; } to { transform: none; opacity: 1; } }
 
   .kicker { font-size: 11.5px; letter-spacing: 0.28em; color: var(--clay-deep); font-weight: 600; margin-bottom: 18px; text-transform: uppercase; }
+
+  /* R34 — Wizard step indicator: small horizontal strip under the kicker showing
+     all 5 step names so the user always knows where they are in the flow. */
+  .wiz-steps {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin: 0 0 22px;
+    font-size: 11.5px; line-height: 1.3;
+    align-items: center;
+  }
+  .wiz-step {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 10px; border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,0.5);
+    color: var(--ink-soft);
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+    transition: all .25s ease;
+  }
+  .wiz-step.done {
+    color: var(--sage-deep);
+    background: rgba(110,126,96,0.08);
+    border-color: rgba(110,126,96,0.25);
+  }
+  .wiz-step.current {
+    background: var(--sage-deep, #6E7E60);
+    color: #fff;
+    border-color: var(--sage-deep, #6E7E60);
+    font-weight: 600;
+  }
+  .wiz-step.future { opacity: 0.55; }
+  .wiz-step-sep { color: var(--clay); opacity: 0.5; font-size: 11px; }
+  @media (max-width: 520px) {
+    .wiz-steps { font-size: 10.5px; gap: 4px; margin-bottom: 18px; }
+    .wiz-step { padding: 4px 7px; }
+    .wiz-step-label-zh, .wiz-step-label-en { display: none; }
+    .wiz-step.current .wiz-step-label-zh,
+    .wiz-step.current .wiz-step-label-en { display: inline; }
+  }
   h1.title { font-family: var(--serif); font-size: clamp(30px, 6vw, 46px); line-height: 1.18; font-weight: 600; color: var(--forest); letter-spacing: 0.01em; }
   h2.subtitle { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--forest); margin-top: 36px; margin-bottom: 6px; }
   p.lead { font-size: 15.5px; line-height: 1.7; color: var(--ink-soft); margin-top: 16px; max-width: 540px; }
@@ -2345,6 +2384,7 @@
   </div>
   <div class="right">
     <button class="btn text tips-link" id="tipsBtn" onclick="openTipsModal()" aria-label="Tips / 想法"><span data-zh="🎯 想法" data-en="🎯 Tips">🎯 想法</span></button>
+    <button class="btn text" id="aboutBtn" onclick="openAboutModal()" aria-label="About this app / 關於這個應用"><span data-zh="ℹ 關於" data-en="ℹ About">ℹ 關於</span></button>
     <button class="btn text" id="langToggle" aria-label="Toggle language / 切換語言">English</button>
     <button class="btn ghost" id="shareLinkBtn" onclick="copyShareLink(this)" aria-label="Copy share link / 複製連結">🔗 <span data-zh="複製連結" data-en="Copy link">複製連結</span></button>
     <a class="btn line" id="lineShareBtn" href="#" target="_blank" rel="noopener" aria-label="Share to LINE / 分享到 LINE">💬 LINE</a>
@@ -8003,6 +8043,33 @@ const DESIGN_PRESETS = [
     space: "indoor", sun: "part", water: "med", goals: [],
     pinList: ["haworthia", "crassula", "cereus"],
   },
+  {
+    id: "autumn-color",
+    icon: "🍂",
+    zh: "秋色", en: "Autumn foliage",
+    desc_zh: "全日照庭院 — 樟葉楓、楓香、台灣欒樹、銀杏的秋葉色彩",
+    desc_en: "Full-sun yard — autumn color from camphor-leaf maple, sweetgum, golden-rain tree, ginkgo",
+    space: "yard", sun: "full", water: "med", goals: [],
+    pinList: ["acer_a", "liquidambar", "koelreuteria", "ginkgo"],
+  },
+  {
+    id: "winter-color",
+    icon: "❄️",
+    zh: "冬色", en: "Winter color",
+    desc_zh: "半日照庭院 — 硃砂根、火棘的冬季紅果亮點",
+    desc_en: "Part-sun yard — winter red-berry highlights from coralberry & firethorn",
+    space: "yard", sun: "part", water: "med", goals: [],
+    pinList: ["ardisia", "pyracantha"],
+  },
+  {
+    id: "rooftop-herbs",
+    icon: "🌿",
+    zh: "屋頂香草", en: "Rooftop herbs",
+    desc_zh: "全日照頂樓 — 羅勒、紫蘇、迷迭香、薰衣草、香茅的可食香草組",
+    desc_en: "Full-sun rooftop — basil, perilla, rosemary, lavender, lemongrass edible herb mix",
+    space: "rooftop", sun: "full", water: "med", goals: ["edible"],
+    pinList: ["basil", "perilla", "rosemary", "lavender", "lemongrass"],
+  },
 ];
 
 // Pre-fill state from a preset and jump straight to the result page.
@@ -8138,6 +8205,32 @@ function wizardTipHTML(stepKey) {
     </div>`;
 }
 
+// R34 — small horizontal strip under the kicker showing all 5 wizard steps.
+// Current step highlighted (sage background, white text), past steps marked
+// with a check, future steps muted. Labels collapse to icon-only on mobile.
+const WIZARD_STEP_DEFS = [
+  { idx: 0, icon: "📍", zh: "空間", en: "Space" },
+  { idx: 1, icon: "📐", zh: "細節", en: "Details" },
+  { idx: 2, icon: "☀",  zh: "日照", en: "Sun" },
+  { idx: 3, icon: "💧", zh: "水分", en: "Water" },
+  { idx: 4, icon: "🎯", zh: "願景", en: "Goals" },
+];
+function wizardStepsHTML(currentIdx) {
+  const parts = WIZARD_STEP_DEFS.map((s, i) => {
+    let cls = "wiz-step ";
+    let icon = s.icon;
+    if (i < currentIdx) { cls += "done"; icon = "✓"; }
+    else if (i === currentIdx) cls += "current";
+    else cls += "future";
+    const ariaCurrent = i === currentIdx ? ' aria-current="step"' : "";
+    return `<span class="${cls}"${ariaCurrent}>` +
+      `<span class="wiz-step-ico" aria-hidden="true">${icon}</span>` +
+      `<span class="wiz-step-label-zh" data-zh="${escapeHtml(s.zh)}" data-en="${escapeHtml(s.en)}">${escapeHtml(s.zh)}</span>` +
+      `</span>`;
+  });
+  return `<nav class="wiz-steps" aria-label="${state.lang === "en" ? "Wizard progress" : "問卷進度"}">${parts.join('<span class="wiz-step-sep" aria-hidden="true">→</span>')}</nav>`;
+}
+
 function wireWizardTip(stepKey) {
   const btn = document.querySelector(`[data-wiz-tip="${stepKey}"]`);
   if (!btn) return;
@@ -8155,6 +8248,7 @@ function renderSpace() {
   app.innerHTML = `
     <div class="fade-up">
       <div class="kicker" data-zh="第 1 題（共 5 題）" data-en="Question 1 of 5">第 1 題（共 5 題）</div>
+      ${wizardStepsHTML(0)}
       <h1 class="title" data-zh="你想種在哪裡？" data-en="Where will you plant?">你想種在哪裡？</h1>
       <p class="lead" data-zh="先從這個簡單的問題開始 — 你的種植空間是哪一種？" data-en="Let's start with the easy question — what kind of space is yours?">先從這個簡單的問題開始 — 你的種植空間是哪一種？</p>
       ${suggestBanner("space", suggested)}
@@ -8215,6 +8309,7 @@ function renderDetails() {
   app.innerHTML = `
     <div class="fade-up">
       <div class="kicker" data-zh="第 2 題（可全部跳過）" data-en="Question 2 (all optional)">第 2 題（可全部跳過）</div>
+      ${wizardStepsHTML(1)}
       <h1 class="title" data-zh="你的空間有多大？" data-en="How big is your space?">你的空間有多大？</h1>
       <p class="lead"
          data-zh="不知道也沒關係 — 直接按「繼續」用預設值即可。提供越多細節，配置會越準。"
@@ -8977,6 +9072,7 @@ function renderSun() {
   app.innerHTML = `
     <div class="fade-up">
       <div class="kicker" data-zh="第 3 題（共 5 題）" data-en="Question 3 of 5">第 3 題（共 5 題）</div>
+      ${wizardStepsHTML(2)}
       <h1 class="title" data-zh="陽光夠嗎？" data-en="How sunny is it?">陽光夠嗎？</h1>
       <p class="lead" data-zh="走到你的空間，看看陽光直射的時間 — 大概就好。" data-en="Stand in your space and check how much direct sun it gets — rough estimate is fine.">走到你的空間，看看陽光直射的時間 — 大概就好。</p>
       ${suggestBanner("sun", suggested)}
@@ -8995,6 +9091,7 @@ function renderWater() {
   app.innerHTML = `
     <div class="fade-up">
       <div class="kicker" data-zh="第 4 題（共 5 題）" data-en="Question 4 of 5">第 4 題（共 5 題）</div>
+      ${wizardStepsHTML(3)}
       <h1 class="title" data-zh="你能多常澆水？" data-en="How often can you water?">你能多常澆水？</h1>
       <p class="lead" data-zh="老實說 — 經常出差還是每天都在家？這會決定要選哪一類植物。" data-en="Be honest — always on the road, or home every day? This decides which plants suit you.">老實說 — 經常出差還是每天都在家？這會決定要選哪一類植物。</p>
       <div class="grid cols-3">
@@ -9014,6 +9111,7 @@ function renderGoals() {
   app.innerHTML = `
     <div class="fade-up">
       <div class="kicker" data-zh="第 5 題（最後一題，可複選）" data-en="Question 5 of 5 (multi-select)">第 5 題（最後一題，可複選）</div>
+      ${wizardStepsHTML(4)}
       <h1 class="title" data-zh="你最想要什麼？" data-en="What do you want most?">你最想要什麼？</h1>
       <p class="lead" data-zh="可以選好幾個 — AI 會找能同時達成你願望的植物。" data-en="Pick as many as you like — AI will find plants that hit your wishlist.">可以選好幾個 — AI 會找能同時達成你願望的植物。</p>
       ${counterHTML}
@@ -13904,6 +14002,82 @@ window.closeTipsModal = function () {
   const o = document.getElementById("tipsOverlay");
   if (o) o.remove();
   document.removeEventListener("keydown", tipsEscHandler);
+};
+
+// ─────────────────────────────────────────────────────────────
+// R34 — About modal. Reuses the QR/Tips overlay pattern (.qr-overlay +
+// .tips-modal). Bilingual; explains the app's purpose, lists plant-database
+// stats, and links to the GitHub repo so users can see/contribute the source.
+// ─────────────────────────────────────────────────────────────
+window.openAboutModal = function () {
+  closeAboutModal();
+  const isZh = state.lang !== "en";
+  const titleText = isZh ? "ℹ 關於這個應用" : "ℹ About this app";
+  const closeText = isZh ? "關閉" : "Close";
+
+  // Cheap stats from PLANTS — no extra data file, no maintenance burden.
+  const plantCount  = PLANTS.length;
+  const nativeCount = PLANTS.filter(p => /原生|特有/.test(p.type_zh || "")).length;
+  const presetCount = (typeof DESIGN_PRESETS !== "undefined" && DESIGN_PRESETS.length) || 0;
+
+  const repoUrl = "https://github.com/anren1117-lang/landscape-copilot";
+
+  const sections = [
+    {
+      icon: "🌿",
+      zh: `<b>它是什麼</b>：一個免費的開源工具，幫你設計適合台灣氣候的陽台、頂樓、庭院或室內植栽。回答 5 個簡單問題（或選一個設計範本），就能得到一份量身打造的植物配置、3D 預覽、施工購物清單與全年照護日曆。`,
+      en: `<b>What it is</b>: a free, open-source tool that helps you design balcony, rooftop, yard or indoor planting tuned to Taiwan's climate. Answer 5 simple questions (or pick a design preset) and get a custom plant plan, 3D preview, install shopping list and full-year care calendar.`,
+    },
+    {
+      icon: "📚",
+      zh: `<b>植物資料庫</b>：共 <b>${plantCount}</b> 種植物，其中約 <b>${nativeCount}</b> 種為台灣原生或特有種；附 <b>${presetCount}</b> 個一鍵設計範本。每株植物都包含日照、水分、氣候區、生態功能、寵物安全與在地照護筆記。`,
+      en: `<b>Plant database</b>: <b>${plantCount}</b> species, ~<b>${nativeCount}</b> of them Taiwan natives or endemics; with <b>${presetCount}</b> one-click design presets. Every plant has sun/water, climate zone, wildlife role, pet safety and locally-tuned care notes.`,
+    },
+    {
+      icon: "🔒",
+      zh: `<b>隱私</b>：完全在你的瀏覽器執行 — 沒有後端、沒有帳號、沒有追蹤。地址查詢只在你按下查詢時才送到 OpenStreetMap 解析座標，QR 圖只在你開啟 QR 視窗時才向 qrserver.com 請求。`,
+      en: `<b>Privacy</b>: runs entirely in your browser — no backend, no signup, no tracking. Address lookup only hits OpenStreetMap when you press the lookup button; QR images only request qrserver.com when you open the QR modal.`,
+    },
+    {
+      icon: "👋",
+      zh: `<b>誰做的</b>：An-Ren Ho 與 Claude 一起寫的個人開源專案，獻給想為自己的空間種出一點生態的人。歡迎在 GitHub 提 issue、PR、或植物資料補充。`,
+      en: `<b>Who built it</b>: a personal open-source project by An-Ren Ho with Claude, made for anyone who wants to bring a little ecology back to their own space. Issues, PRs and plant-data contributions welcome on GitHub.`,
+    },
+    {
+      icon: "🔗",
+      zh: `<b>原始碼</b>：<a href="${repoUrl}" target="_blank" rel="noopener">GitHub · anren1117-lang/landscape-copilot</a>`,
+      en: `<b>Source</b>: <a href="${repoUrl}" target="_blank" rel="noopener">GitHub · anren1117-lang/landscape-copilot</a>`,
+    },
+  ];
+
+  const items = sections.map(s => `
+    <li>
+      <span class="ti-ico" aria-hidden="true">${s.icon}</span>
+      <span class="ti-txt" data-zh="${escapeHtml(s.zh)}" data-en="${escapeHtml(s.en)}">${isZh ? s.zh : s.en}</span>
+    </li>`).join("");
+
+  const overlay = document.createElement("div");
+  overlay.className = "qr-overlay";
+  overlay.id = "aboutOverlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", titleText);
+  overlay.innerHTML = `
+    <div class="tips-modal" id="aboutModal">
+      <button class="tips-close" id="aboutCloseBtn" aria-label="${closeText}">✕</button>
+      <h3 class="tips-title">${titleText}</h3>
+      <ul>${items}</ul>
+    </div>`;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeAboutModal(); });
+  document.body.appendChild(overlay);
+  document.getElementById("aboutCloseBtn").addEventListener("click", closeAboutModal);
+  document.addEventListener("keydown", aboutEscHandler);
+};
+function aboutEscHandler(e) { if (e.key === "Escape") closeAboutModal(); }
+window.closeAboutModal = function () {
+  const o = document.getElementById("aboutOverlay");
+  if (o) o.remove();
+  document.removeEventListener("keydown", aboutEscHandler);
 };
 
 // ─────────────────────────────────────────────────────────────
