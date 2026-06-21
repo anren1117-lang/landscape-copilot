@@ -2026,6 +2026,39 @@
   .home-stat { font-family: var(--serif); font-style: italic; }
   .home-stat strong { font-style: normal; color: var(--forest); font-weight: 600; font-size: 15px; margin-right: 4px; }
 
+  /* Hero CTA cluster — single decisive call-to-action so a first-time visitor
+     knows what to do in the first 5 seconds without scanning 4 entry cards.
+     Sits between tagline and stat row so the layout still flows naturally
+     for returning users (welcome-back banner renders above the hero anyway). */
+  .home-hero-cta {
+    display: flex; gap: 12px; justify-content: center; align-items: center; flex-wrap: wrap;
+    margin: 4px 0 0;
+  }
+  .home-hero-cta .cta-primary {
+    background: var(--forest); color: var(--paper); border: none;
+    border-radius: 30px;
+    padding: 15px 30px; font-size: 15.5px; font-weight: 600;
+    cursor: pointer; font-family: var(--sans); letter-spacing: 0.03em;
+    box-shadow: 0 14px 28px -12px rgba(44,53,38,0.55);
+    transition: transform .25s ease, box-shadow .25s ease;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .home-hero-cta .cta-primary:hover { transform: translateY(-2px); box-shadow: 0 18px 32px -12px rgba(44,53,38,0.6); }
+  .home-hero-cta .cta-primary .ico { font-size: 18px; }
+  .home-hero-cta .cta-secondary {
+    background: none; border: none; color: var(--forest);
+    font-family: var(--sans); font-size: 14px; font-weight: 500;
+    cursor: pointer; padding: 6px 4px;
+    text-decoration: underline; text-decoration-color: rgba(44,53,38,0.25);
+    text-underline-offset: 4px;
+    transition: text-decoration-color .2s ease;
+  }
+  .home-hero-cta .cta-secondary:hover { text-decoration-color: var(--forest); }
+  .home-hero-cta-hint {
+    text-align: center; margin: 10px auto 0;
+    font-size: 12px; color: var(--ink-soft); font-style: italic; font-family: var(--serif);
+  }
+
   /* 3 main entry cards */
   .home-paths {
     display: grid; grid-template-columns: 1fr; gap: 16px;
@@ -8021,6 +8054,17 @@ function renderHome() {
            data-en="Whether it's a 3 m² balcony or a 50 m² yard, get a complete landscape plan in 5 minutes — realistic preview, install guide, care calendar. All free.">
            不論是 3 m² 陽台還是 50 m² 庭院，5 分鐘生成完整的景觀規劃：實景參考、施工指南、養護月曆，全部免費。
         </p>
+        <div class="home-hero-cta">
+          <button class="cta-primary" id="homeHeroPrimaryBtn">
+            <span class="ico">📸</span>
+            <span data-zh="拍照開始，1 分鐘" data-en="Snap a photo · 1 min">拍照開始，1 分鐘</span>
+          </button>
+          <button class="cta-secondary" id="homeHeroSecondaryBtn"
+                  data-zh="或回答 5 個問題 →" data-en="or answer 5 questions →">或回答 5 個問題 →</button>
+        </div>
+        <div class="home-hero-cta-hint"
+             data-zh="免費 · 無需註冊 · 5 分鐘完成"
+             data-en="Free · No signup · Done in 5 min">免費 · 無需註冊 · 5 分鐘完成</div>
         <div class="home-stat-row">
           <span class="home-stat"><strong>${PLANTS.length}</strong><span data-zh="種植物" data-en="species">種植物</span></span>
           <span class="home-stat"><strong>${nativeCount}</strong><span data-zh="原生種" data-en="native">原生種</span></span>
@@ -8181,6 +8225,12 @@ function renderHome() {
     </div>`;
 
   // Wire entry buttons
+  // Hero CTA cluster — primary path is "snap a photo" (fastest); secondary is the wizard.
+  // These mirror the entry cards below but anchor the first paint with a clear decision.
+  const heroPrimary = document.getElementById("homeHeroPrimaryBtn");
+  if (heroPrimary) heroPrimary.addEventListener("click", () => startPhotoFlow());
+  const heroSecondary = document.getElementById("homeHeroSecondaryBtn");
+  if (heroSecondary) heroSecondary.addEventListener("click", () => startWizard());
   document.getElementById("homePhotoBtn").addEventListener("click", () => startPhotoFlow());
   document.getElementById("homeWizardBtn").addEventListener("click", () => startWizard());
   document.getElementById("homeBrowseBtn").addEventListener("click", () => jumpToDictionary());
