@@ -6960,9 +6960,11 @@ function designSummary(snap) {
   // surface the highest-impact plants first.
   const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
   const ids = Object.keys(qtyMap).filter(id => Number(qtyMap[id]) > 0);
-  const plantsById = Object.fromEntries(PLANTS.map(p => [p.id, p]));
+  // R40 — reuse the module-level PLANT_BY_ID instead of rebuilding the
+  // id→plant map on every designSummary call (My Designs renders this for
+  // every saved entry on each list re-render).
   const entries = ids
-    .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: plantsById[id] }))
+    .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: PLANT_BY_ID[id] }))
     .filter(e => e.plant)
     .sort((a, b) => b.qty - a.qty);
   // Aggregate sustainability metrics — single pass over committed plants.
@@ -7314,6 +7316,8 @@ function renderJournalRow(entry) {
   const badgeHtml = journal.length > 0 ? `
     <button class="journal-badge" data-journal-toggle="${escapeHtml(entry.id)}"
             aria-label="${t('查看筆記 / View journal', 'View journal / 查看筆記')}"
+            data-zh-aria="查看筆記 / View journal"
+            data-en-aria="View journal / 查看筆記"
             title="${t('查看筆記', 'View journal')}">
       <span data-zh="📔 ${journal.length} 筆紀錄"
             data-en="📔 ${journal.length} ${journal.length === 1 ? "note" : "notes"}"
@@ -7323,7 +7327,9 @@ function renderJournalRow(entry) {
 
   const addBtnHtml = `
     <button class="journal-add-btn" data-journal-add="${escapeHtml(entry.id)}"
-            aria-label="${t('新增筆記 / Add note', 'Add note / 新增筆記')}">
+            aria-label="${t('新增筆記 / Add note', 'Add note / 新增筆記')}"
+            data-zh-aria="新增筆記 / Add note"
+            data-en-aria="Add note / 新增筆記">
       <span data-zh="+ 寫筆記" data-en="+ Add note">+ 寫筆記</span>
     </button>
   `;
@@ -7361,6 +7367,8 @@ function renderJournalRow(entry) {
                   data-journal-delete="${escapeHtml(entry.id)}"
                   data-journal-id="${escapeHtml(j.id)}"
                   aria-label="${t('刪除這則筆記 / Delete this note', 'Delete this note / 刪除這則筆記')}"
+                  data-zh-aria="刪除這則筆記 / Delete this note"
+                  data-en-aria="Delete this note / 刪除這則筆記"
                   title="${t('刪除', 'Delete')}">✕</button>
         </li>
       `).join("")}
@@ -7409,7 +7417,9 @@ function renderCarePreviewRow(entry, monthIdx) {
   `;
   const jumpBtnHtml = total > 0 ? `
     <button class="care-jump-btn" type="button" data-design-care="${escapeHtml(entry.id)}"
-            aria-label="${t(`查看本月照護 共 ${total} 項`, `View this month's care, ${total} items`)}">
+            aria-label="${t(`查看本月照護 共 ${total} 項`, `View this month's care, ${total} items`)}"
+            data-zh-aria="${escapeHtml(`查看本月照護 共 ${total} 項`)}"
+            data-en-aria="${escapeHtml(`View this month's care, ${total} items`)}">
       <span data-zh="📋 本月照護 (${total})" data-en="📋 This month's care (${total})">📋 本月照護 (${total})</span>
     </button>
   ` : "";
@@ -7905,9 +7915,7 @@ function renderHome() {
       </div>
 
       <div class="home-presets-wrap">
-        <div class="home-presets-label"
-             data-zh="✨ 設計範本 · DESIGN PRESETS${escapeHtml(renderNewFeatBadge())}"
-             data-en="✨ Design presets${escapeHtml(renderNewFeatBadge())}">✨ 設計範本 · DESIGN PRESETS${renderNewFeatBadge()}</div>
+        <div class="home-presets-label"><span data-zh="✨ 設計範本 · DESIGN PRESETS" data-en="✨ Design presets">✨ 設計範本 · DESIGN PRESETS</span>${renderNewFeatBadge()}</div>
         <div class="home-presets-sub"
              data-zh="不想答 5 題？選一個範本，AI 直接生成符合該風格的景觀規劃。"
              data-en="Skip the 5 questions. Pick a preset and AI generates a plan tuned to that style.">
@@ -8824,7 +8832,7 @@ function wizardStepsHTML(currentIdx) {
       `<span class="wiz-step-label-zh" data-zh="${escapeHtml(s.zh)}" data-en="${escapeHtml(s.en)}">${escapeHtml(s.zh)}</span>` +
       `</span>`;
   });
-  return `<nav class="wiz-steps" aria-label="${state.lang === "en" ? "Wizard progress" : "問卷進度"}">${parts.join('<span class="wiz-step-sep" aria-hidden="true">→</span>')}</nav>`;
+  return `<nav class="wiz-steps" aria-label="${state.lang === "en" ? "Wizard progress" : "問卷進度"}" data-zh-aria="問卷進度" data-en-aria="Wizard progress">${parts.join('<span class="wiz-step-sep" aria-hidden="true">→</span>')}</nav>`;
 }
 
 function wireWizardTip(stepKey) {
@@ -12292,14 +12300,16 @@ function handleCareDoneClick(taskZh, taskEn, monthIdx) {
   }
   const ok = addJournalEntry(activeId, note);
   if (ok) {
+    // R40 — pass raw zh + en (not t(...)) so the toast's data-zh/data-en
+    // differ and the toast retranslates on language toggle.
     showSaveToast(
-      t("→ 已記入筆記 / Logged", "→ Logged / 已記入筆記"),
-      t("→ Logged / 已記入筆記", "→ Logged / 已記入筆記"),
+      "→ 已記入筆記 / Logged",
+      "→ Logged / 已記入筆記",
     );
   } else {
     showSaveToast(
-      t("⚠ 記入失敗，請再試 / Could not log", "⚠ Could not log / 記入失敗"),
-      t("⚠ Could not log / 記入失敗", "⚠ Could not log / 記入失敗"),
+      "⚠ 記入失敗，請再試 / Could not log",
+      "⚠ Could not log / 記入失敗",
     );
   }
 }
@@ -14560,6 +14570,9 @@ function applyLanguage() {
     // their own root for the language walk.
     document.getElementById("plantPickBar"),
     document.getElementById("plantCompareOverlay"),
+    // R40 — About modal is appended to <body> (not inside #app), so its
+    // bilingual nodes get frozen on lang toggle unless we walk it here.
+    document.getElementById("aboutOverlay"),
   ].filter(Boolean);
   for (const root of roots) {
     root.querySelectorAll("[data-zh][data-en]").forEach((el) => {
@@ -14718,7 +14731,9 @@ window.openAboutModal = function () {
 
   // Cheap stats from PLANTS — no extra data file, no maintenance burden.
   const plantCount  = PLANTS.length;
-  const nativeCount = PLANTS.filter(p => /原生|特有/.test(p.type_zh || "")).length;
+  // R40 — use the canonical `p.native` flag from PLANT_META rather than a
+  // brittle regex over type_zh (the text heuristic undercounts by ~4 species).
+  const nativeCount = PLANTS.filter(p => p.native).length;
   const presetCount = (typeof DESIGN_PRESETS !== "undefined" && DESIGN_PRESETS.length) || 0;
 
   const repoUrl = "https://github.com/anren1117-lang/landscape-copilot";
