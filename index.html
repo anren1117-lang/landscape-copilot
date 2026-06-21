@@ -7404,11 +7404,16 @@ function renderMyDesignsAggregate(list) {
 
 function renderMyDesignsSection() {
   const list = loadDesignList();
-  if (!list.designs.length) {
-    // Only show the empty-state hint if user has at least the single SAVE_KEY snapshot
-    // (otherwise it's noise on first visit). The pendingSnapshot path means user has
-    // ONE saved design but hasn't yet promoted it to a named entry.
-    if (!state.pendingSnapshot) return "";
+  const hasDesigns = list.designs.length > 0;
+  const hasPendingSnapshot = !!state.pendingSnapshot;
+  // True first-timer (no named designs AND no pending snapshot) — show nothing.
+  // The homepage hero already greets them; adding an empty "My Designs" header
+  // would only add noise. We only surface this section when there's actual
+  // content to show OR a pending snapshot the user can promote.
+  if (!hasDesigns && !hasPendingSnapshot) return "";
+  if (!hasDesigns) {
+    // hasPendingSnapshot === true: user has ONE saved design but hasn't yet
+    // promoted it to a named entry. Nudge them with an empty-state copy.
     return `
       <div class="my-designs-section">
         <div class="my-designs-head">
@@ -7969,33 +7974,62 @@ function render() {
 // ── MONTHLY SPOTLIGHT PLANT (本月主角植物) ──────────────────
 // Surfaces ONE plant that's in bloom right now, native, and has a rich
 // cultural note in EXPERT_META — a small daily-stable invitation card on
-// the homepage. Falls through gracefully if nothing qualifies.
+// the homepage. Degrades gracefully through a fallback chain so cold months
+// (e.g. mid-winter when few species bloom) still show *something*:
+//   1) bloom + native + has cultural_zh (best)
+//   2) bloom this month
+//   3) fruit this month
+//   4) evergreen / featured / native (random)
+//   5) any native plant (last resort)
+// Returns { plant, reason } where reason tells the widget which subtitle to use.
 function pickSpotlightPlant() {
   const now = new Date();
   const curMonth = now.getMonth() + 1;
-  // Primary pool: in bloom + native + has cultural_zh (rich content)
+  const inMonth = (arr) => Array.isArray(arr) && arr.includes(curMonth);
+
+  // Pseudo-random pick seeded by YYYY-MM-DD so it's stable for the whole day.
+  const pickStable = (pool) => {
+    if (!pool || pool.length === 0) return null;
+    const seedStr = `${now.getFullYear()}-${curMonth}-${now.getDate()}-${pool.length}`;
+    let h = 0;
+    for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) | 0;
+    return pool[Math.abs(h) % pool.length];
+  };
+
+  // 1) Rich: bloom + native + cultural note
   const rich = PLANTS.filter(p =>
-    Array.isArray(p.bloom) && p.bloom.includes(curMonth)
-    && p.native
+    inMonth(p.bloom) && p.native
     && EXPERT_META[p.id] && EXPERT_META[p.id].cultural_zh
   );
-  // Fallback pool: any plant in bloom this month
-  const blooming = PLANTS.filter(p =>
-    Array.isArray(p.bloom) && p.bloom.includes(curMonth)
+  if (rich.length) return { plant: pickStable(rich), reason: "bloom" };
+
+  // 2) Any blooming plant this month
+  const blooming = PLANTS.filter(p => inMonth(p.bloom));
+  if (blooming.length) return { plant: pickStable(blooming), reason: "bloom" };
+
+  // 3) Fruiting this month — still a seasonal hook
+  const fruiting = PLANTS.filter(p => inMonth(p.fruit));
+  if (fruiting.length) return { plant: pickStable(fruiting), reason: "fruit" };
+
+  // 4) Evergreen / featured / native — quietly seasonal
+  const evergreen = PLANTS.filter(p =>
+    p.native && (p.evergreen === true || p.featured === true
+      || (Array.isArray(p.tags) && (p.tags.includes("evergreen") || p.tags.includes("featured"))))
   );
-  const pool = rich.length > 0 ? rich : blooming;
-  if (pool.length === 0) return null;
-  // Pseudo-random pick seeded by YYYY-MM-DD so it's stable for the whole day.
-  const seedStr = `${now.getFullYear()}-${curMonth}-${now.getDate()}`;
-  let h = 0;
-  for (let i = 0; i < seedStr.length; i++) h = (h * 31 + seedStr.charCodeAt(i)) | 0;
-  const idx = Math.abs(h) % pool.length;
-  return pool[idx];
+  if (evergreen.length) return { plant: pickStable(evergreen), reason: "evergreen" };
+
+  // 5) Last resort — any native plant
+  const natives = PLANTS.filter(p => p.native);
+  if (natives.length) return { plant: pickStable(natives), reason: "native" };
+
+  return null;
 }
 
 function renderSpotlightPlantWidget() {
-  const p = pickSpotlightPlant();
-  if (!p) return "";
+  const pick = pickSpotlightPlant();
+  if (!pick || !pick.plant) return "";
+  const p = pick.plant;
+  const reason = pick.reason || "bloom";
   const curMonth = new Date().getMonth() + 1;
   const meta = EXPERT_META[p.id] || {};
   const truncate = (s, n) => {
@@ -8005,8 +8039,29 @@ function renderSpotlightPlantWidget() {
   const noteZh = truncate(p.note_zh || "", 80);
   const noteEn = truncate(p.note_en || "", 120);
   const monthNamesEn = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const monthLabelZh = `${curMonth} 月正盛開`;
-  const monthLabelEn = `Blooming in ${monthNamesEn[curMonth - 1]}`;
+  // Subtitle adapts to WHY this plant was picked, so users understand cold-month fallbacks.
+  let monthLabelZh, monthLabelEn, kickerZh, kickerEn;
+  if (reason === "bloom") {
+    monthLabelZh = `${curMonth} 月正盛開`;
+    monthLabelEn = `Blooming in ${monthNamesEn[curMonth - 1]}`;
+    kickerZh = "🌸 本月主角植物";
+    kickerEn = "🌸 Plant of the month";
+  } else if (reason === "fruit") {
+    monthLabelZh = `${curMonth} 月結果`;
+    monthLabelEn = `Fruiting in ${monthNamesEn[curMonth - 1]}`;
+    kickerZh = "🍒 本月結果植物";
+    kickerEn = "🍒 Fruiting this month";
+  } else if (reason === "evergreen") {
+    monthLabelZh = "全年常綠";
+    monthLabelEn = "Evergreen year-round";
+    kickerZh = "🌿 常綠主角";
+    kickerEn = "🌿 Evergreen pick";
+  } else {
+    monthLabelZh = "原生主角";
+    monthLabelEn = "Native pick";
+    kickerZh = "🌱 原生主角植物";
+    kickerEn = "🌱 Featured native plant";
+  }
   const culturalZh = meta.cultural_zh ? truncate(meta.cultural_zh, 90) : "";
   const culturalEn = meta.cultural_en ? truncate(meta.cultural_en, 130) : "";
   const swatch = p.color || "var(--sage)";
@@ -8015,7 +8070,7 @@ function renderSpotlightPlantWidget() {
             aria-label="${escapeHtml(t('查看本月主角植物：' + p.zh, 'View this month’s featured plant: ' + p.en))}">
       <span class="sp-swatch" style="background:${escapeHtml(swatch)}" aria-hidden="true"></span>
       <span class="sp-body">
-        <span class="sp-kicker" data-zh="🌸 本月主角植物" data-en="🌸 Plant of the month">🌸 本月主角植物</span>
+        <span class="sp-kicker" data-zh="${escapeHtml(kickerZh)}" data-en="${escapeHtml(kickerEn)}">${escapeHtml(kickerZh)}</span>
         <span class="sp-name" data-zh="${escapeHtml(p.zh)}" data-en="${escapeHtml(p.en)}">${escapeHtml(p.zh)}</span>
         <span class="sp-latin">${escapeHtml(p.lt || "")} · <span data-zh="${escapeHtml(monthLabelZh)}" data-en="${escapeHtml(monthLabelEn)}">${escapeHtml(monthLabelZh)}</span></span>
         ${noteZh ? `<span class="sp-note" data-zh="${escapeHtml(noteZh)}" data-en="${escapeHtml(noteEn || noteZh)}">${escapeHtml(noteZh)}</span>` : ""}
@@ -8121,12 +8176,12 @@ function renderHome() {
              data-en="What to plant this month? Cat-safe? Doesn't need much water? Indoor picks? Skip the wizard — get an answer instantly.">
              本月種什麼？貓咪安全嗎？哪些不用常澆水？室內適合什麼？跳過問卷，直接得到答案。
           </p>
-          <span class="home-path-arrow"><span data-zh="看下方 ↓" data-en="See below ↓">看下方 ↓</span></span>
+          <span class="home-path-arrow"><span data-zh="跳到快速工具 ↓" data-en="Jump to quick tools ↓">跳到快速工具 ↓</span></span>
         </button>
       </div>
 
       <div class="home-presets-wrap">
-        <div class="home-presets-label"><span data-zh="✨ 設計範本 · DESIGN PRESETS" data-en="✨ Design presets">✨ 設計範本 · DESIGN PRESETS</span>${renderNewFeatBadge()}</div>
+        <div class="home-presets-label"><span data-zh="✨ 設計範本 · DESIGN PRESETS" data-en="✨ Design presets · DESIGN PRESETS">✨ 設計範本 · DESIGN PRESETS</span>${renderNewFeatBadge()}</div>
         <div class="home-presets-sub"
              data-zh="不想答 5 題？選一個範本，AI 直接生成符合該風格的景觀規劃。"
              data-en="Skip the 5 questions. Pick a preset and AI generates a plan tuned to that style.">
