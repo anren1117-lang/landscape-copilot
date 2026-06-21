@@ -1252,6 +1252,32 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* Photo preview — small confirm thumbnail BEFORE analysis (max ~280px) so the
+     "Looks good? Analyze." moment is unmistakable and doesn't dominate the screen. */
+  .photo-preview.small { max-height: 280px; max-width: 280px; }
+  .photo-confirm-prompt {
+    margin-top: 12px;
+    font-family: var(--serif);
+    font-size: 14px;
+    color: var(--forest);
+    text-align: center;
+    line-height: 1.5;
+  }
+  /* Annotation overlay — text caption that floats over the bottom of the photo
+     after analysis succeeds, summarizing what AI saw (space · size · orientation · sun). */
+  .photo-annotation {
+    margin: 10px auto 0;
+    display: inline-block;
+    padding: 7px 14px;
+    background: rgba(44, 53, 38, 0.82);
+    color: #EDEAE0;
+    font-family: var(--serif);
+    font-size: 13.5px;
+    border-radius: 999px;
+    line-height: 1.4;
+    max-width: 95%;
+  }
+
   /* PHOTO-ASSIST — inline per-question helper inside wizard steps */
   .qphoto-row {
     margin-top: 22px;
@@ -7088,7 +7114,19 @@ function renderPhotoFlow() {
       <div style="margin-top: 30px;">
         ${hasPhoto ? `
           <div class="photo-preview-wrap">
-            <img class="photo-preview" id="photoPreview" src="${state.photoDataUrl}" alt="${t('你的空間照片', 'Your space photo')}" />
+            <img class="photo-preview ${!hasAnalysis ? "small" : ""}" id="photoPreview" src="${state.photoDataUrl}" alt="${t('你的空間照片', 'Your space photo')}" />
+            ${hasAnalysis ? `
+              <div class="photo-annotation" id="photoAnnotation"
+                   data-zh="AI 看到：${spaceZh(a.space)} · 大約 ${escapeHtml(a.estimated_width_m || "?")} × ${escapeHtml(a.estimated_depth_m || "?")}m · 朝${a.orientation_guess && a.orientation_guess !== "unknown" ? escapeHtml(a.orientation_guess) : "?"} · ${sunZh(a.sun)}"
+                   data-en="AI sees: ${spaceEn(a.space)} · ~${escapeHtml(a.estimated_width_m || "?")} × ${escapeHtml(a.estimated_depth_m || "?")}m · facing ${a.orientation_guess && a.orientation_guess !== "unknown" ? escapeHtml(a.orientation_guess) : "?"} · ${sunEn(a.sun)}">
+                AI 看到：${spaceZh(a.space)} · 大約 ${escapeHtml(a.estimated_width_m || "?")} × ${escapeHtml(a.estimated_depth_m || "?")}m · 朝${a.orientation_guess && a.orientation_guess !== "unknown" ? escapeHtml(a.orientation_guess) : "?"} · ${sunZh(a.sun)}
+              </div>` : ""}
+            ${!hasAnalysis && !state.photoBusy ? `
+              <div class="photo-confirm-prompt" id="photoConfirmPrompt"
+                   data-zh="👇 看起來對嗎？開始分析。"
+                   data-en="👇 Looks good? Tap analyze.">
+                   👇 看起來對嗎？開始分析。
+              </div>` : ""}
             <div class="photo-analyze-status ${state.photoStatusKind}" id="photoStatus">${state.photoBusy ? `<span class="photo-spinner"></span>` : ""}${state.photoStatus}</div>
             ${!hasAnalysis ? `
               <div class="photo-actions">
@@ -7097,9 +7135,12 @@ function renderPhotoFlow() {
                   <button class="btn ghost" id="cancelAnalyzeBtn" onclick="cancelVisionRequest()">✕ <span data-zh="取消分析" data-en="Cancel">取消分析</span></button>
                 ` : `
                   <button class="btn" id="analyzeBtn">✨ <span data-zh="開始分析" data-en="Analyze">開始分析</span></button>
-                  <button class="btn ghost" id="reuploadBtn">🔄 <span data-zh="重新選擇" data-en="Choose another">重新選擇</span></button>
+                  <button class="btn ghost" id="retakeBtn">📷 <span data-zh="重拍" data-en="Retake">重拍</span></button>
                 `}
-              </div>` : ""}
+              </div>` : `
+              <div class="photo-actions">
+                <button class="btn ghost" id="retakeBtn">📷 <span data-zh="重拍" data-en="Retake">重拍</span></button>
+              </div>`}
           </div>
         ` : `
           <label for="photoInput" class="photo-dropzone" id="dropzone"
@@ -7184,13 +7225,20 @@ function wirePhotoFlow() {
     });
   }
 
-  // Re-upload
-  const reupload = document.getElementById("reuploadBtn");
-  if (reupload) {
-    reupload.addEventListener("click", () => {
+  // Re-take — drops the current photo + any analysis and returns to upload state.
+  // Available both BEFORE analysis (next to Analyze) and AFTER analysis (so the
+  // user who doesn't love the AI result can shoot a clearer photo without
+  // dragging through the dropzone again).
+  const retake = document.getElementById("retakeBtn");
+  if (retake) {
+    retake.addEventListener("click", () => {
+      // If an analysis is in flight, cancel it first so the success/failure
+      // status doesn't fire on a stale, deleted photoDataUrl.
+      if (state.photoBusy) { try { cancelVisionRequest(); } catch (_) {} }
       state.photoDataUrl = null;
       state.photoAnalysis = null;
       state.photoStatus = "";
+      state.photoStatusKind = "";
       renderPhotoFlow();
       applyLanguage();
     });
@@ -7245,6 +7293,31 @@ function handlePhotoFile(file) {
 // Pollinations response. User-facing Cancel buttons call `cancelVisionRequest`.
 const VISION_TIMEOUT_MS = 30_000;
 let visionAbort = null;
+
+// Rotating progress copy — keeps the spinner status feeling alive during the
+// 15-30s vision call instead of a single static "Analyzing…" line. Cycles
+// through a small bilingual script every ~4.5s. Used by both the dedicated
+// photo flow (writes to state.photoStatus) and the wizard photo-assist
+// (writes to state.wizardPhotoError on the active step). The interval is
+// owned globally so cancelling/finishing a call can stop it cleanly.
+const VISION_PROGRESS_STEPS = [
+  { zh: "🔍 AI 正在看你的空間...",   en: "🔍 AI is examining your space..." },
+  { zh: "📐 估算尺寸與朝向...",      en: "📐 Estimating dimensions and orientation..." },
+  { zh: "🌿 媒合 184 種植物資料...", en: "🌿 Matching against 184 plant species..." },
+];
+let visionProgressTimer = null;
+function startVisionProgressRotation(applyFn) {
+  stopVisionProgressRotation();
+  let i = 0;
+  applyFn(VISION_PROGRESS_STEPS[i]);
+  visionProgressTimer = setInterval(() => {
+    i = (i + 1) % VISION_PROGRESS_STEPS.length;
+    applyFn(VISION_PROGRESS_STEPS[i]);
+  }, 4500);
+}
+function stopVisionProgressRotation() {
+  if (visionProgressTimer) { clearInterval(visionProgressTimer); visionProgressTimer = null; }
+}
 function startVisionRequest() {
   // If something is already running (shouldn't be, but defensively), abort it.
   if (visionAbort) { try { visionAbort.abort("superseded"); } catch (_) {} }
@@ -7271,6 +7344,20 @@ async function analyzePhoto() {
   state.photoBusy = true;
   renderPhotoFlow();
   applyLanguage();
+  // Cycle through specific progress copy ("looking at space", "estimating
+  // size", "matching plants") so the long wait feels like real work happening
+  // rather than a generic spinner. The interval writes directly to the
+  // already-rendered #photoStatus node so we don't trigger a full re-render
+  // every 4.5s (which would tear down event handlers).
+  startVisionProgressRotation((step) => {
+    state.photoStatus = t(step.zh, step.en);
+    const node = document.getElementById("photoStatus");
+    if (node) {
+      node.innerHTML = `<span class="photo-spinner"></span>${state.photoStatus}`;
+      node.setAttribute("data-zh", `<span class="photo-spinner"></span>${step.zh}`);
+      node.setAttribute("data-en", `<span class="photo-spinner"></span>${step.en}`);
+    }
+  });
 
   const systemPrompt = `You are a landscape design assistant in Taiwan analyzing a photo of someone's planting space. Output ONLY valid JSON, no markdown, no commentary. Use this exact schema:
 {
@@ -7308,6 +7395,7 @@ async function analyzePhoto() {
     // Try to extract JSON even if wrapped in code fences
     const jsonText = (text.match(/\{[\s\S]*\}/) || [text])[0];
     const parsed = JSON.parse(jsonText);
+    stopVisionProgressRotation();
     state.photoAnalysis = parsed;
     state.photoStatus = t("✓ 分析完成", "✓ Analysis complete");
     state.photoStatusKind = "ok";
@@ -7322,6 +7410,7 @@ async function analyzePhoto() {
       endVisionRequest(controller);
       return;
     }
+    stopVisionProgressRotation();
     state.photoBusy = false;
     if (reason === "user_cancel") {
       state.photoStatus = t("已取消分析", "Analysis cancelled");
@@ -7336,6 +7425,7 @@ async function analyzePhoto() {
     renderPhotoFlow();
     applyLanguage();
   } finally {
+    stopVisionProgressRotation();
     endVisionRequest(controller);
   }
 }
@@ -8686,13 +8776,13 @@ function qPhotoHTML(stepKey) {
         <div class="sub" data-zh="AI 已記住，下一題不用再傳" data-en="AI remembers it — no re-upload needed">AI 已記住，下一題不用再傳</div>
       </div>
       <div class="acts">
-        <button type="button" data-qphoto-swap="${stepKey}"><span data-zh="🔄 換一張" data-en="🔄 Swap">🔄 換一張</span></button>
+        <button type="button" data-qphoto-swap="${stepKey}"><span data-zh="📷 重拍" data-en="📷 Retake">📷 重拍</span></button>
         <button type="button" data-qphoto-close="${stepKey}"><span data-zh="✕ 收起" data-en="✕ Close">✕ 收起</span></button>
       </div>
     </div>
     <button class="qphoto-analyze-btn" type="button" data-qphoto-analyze="${stepKey}" ${busy ? "disabled" : ""}>
       ${busy
-        ? `<span class="photo-spinner"></span><span data-zh="AI 分析中…" data-en="AI thinking…">AI 分析中…</span>`
+        ? `<span class="photo-spinner"></span><span data-zh="🔍 AI 正在看你的空間..." data-en="🔍 AI is examining your space..." data-qphoto-progress="${stepKey}">🔍 AI 正在看你的空間...</span>`
         : `<span data-zh="✨ 用這張照片，給我建議" data-en="✨ Get an AI suggestion">✨ 用這張照片，給我建議</span>`}
     </button>
     ${busy ? `<button class="qphoto-cancel-btn" type="button" data-qphoto-cancel="${stepKey}"><span data-zh="✕ 取消分析" data-en="✕ Cancel">✕ 取消分析</span></button>` : ""}` : `
@@ -8804,6 +8894,19 @@ async function analyzeWizardPhoto(stepKey) {
   state.wizardPhotoBusy[stepKey] = true;
   state.wizardPhotoError[stepKey] = "";
   rerenderCurrentStep();
+  // Mirror the dedicated photo-flow rotation so the wizard helper shows the
+  // same "looking → measuring → matching plants" beat. The rotator writes
+  // directly to the in-DOM <span data-qphoto-progress> node and keeps its
+  // data-zh / data-en attributes in sync so applyLanguage() doesn't clobber
+  // the latest beat when the user toggles the language pill.
+  startVisionProgressRotation((step) => {
+    const node = document.querySelector(`[data-qphoto-progress="${stepKey}"]`);
+    if (node) {
+      node.setAttribute("data-zh", step.zh);
+      node.setAttribute("data-en", step.en);
+      node.textContent = t(step.zh, step.en);
+    }
+  });
 
   const systemPrompt = `You are a landscape design assistant analyzing a photo of a planting space in Taiwan. Output ONLY valid JSON, no markdown:
 {
@@ -8852,6 +8955,7 @@ async function analyzeWizardPhoto(stepKey) {
     state.wizardPhotoSuggestActed = {};
     state.wizardPhotoBusy[stepKey] = false;
     state.wizardPhotoOpen[stepKey] = false;   // collapse the panel — suggestion is now visible above the cards
+    stopVisionProgressRotation();
     rerenderCurrentStep();
   } catch (err) {
     const reason = controller.signal.reason;
@@ -8860,6 +8964,7 @@ async function analyzeWizardPhoto(stepKey) {
       endVisionRequest(controller);
       return;
     }
+    stopVisionProgressRotation();
     state.wizardPhotoBusy[stepKey] = false;
     if (reason === "user_cancel") {
       state.wizardPhotoError[stepKey] = t("已取消，可手動選擇", "Cancelled — pick manually");
@@ -8870,6 +8975,7 @@ async function analyzeWizardPhoto(stepKey) {
     }
     rerenderCurrentStep();
   } finally {
+    stopVisionProgressRotation();
     endVisionRequest(controller);
   }
 }
