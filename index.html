@@ -179,8 +179,27 @@
   .card-opt.active .card-opt-label { color: var(--paper); }
   .card-opt-sub { font-size: 13px; margin-top: 6px; line-height: 1.5; color: var(--ink-soft); }
   .card-opt.active .card-opt-sub { color: rgba(237,234,224,0.7); }
-  .check-dot { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--paper); }
+  .check-dot { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--clay); display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--paper); background: rgba(255,255,255,0.55); position: relative; flex: 0 0 22px; }
+  /* Rest state: subtle inner dot so the affordance reads as an empty checkbox, not "selected" or invisible */
+  .check-dot:not(.is-checked)::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--clay); opacity: 0.45; display: block; }
   .card-opt.active .check-dot { background: var(--sage); border-color: var(--sage); }
+  .card-opt.active .check-dot::before { display: none; }
+
+  /* Goals step — tiny multi-select counter shown once the user picks ≥1 wish */
+  .goals-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 14px 0 4px;
+    padding: 5px 12px;
+    background: rgba(122,138,93,0.14);
+    color: var(--forest);
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: var(--sans);
+    letter-spacing: 0.02em;
+  }
 
   /* DETAILS step — text + numeric inputs, orientation picker */
   .detail-grid { display: grid; grid-template-columns: 1fr; gap: 22px; margin-top: 32px; }
@@ -7706,6 +7725,10 @@ const WIZARD_TIPS = {
     zh: "「授粉」= 吸引蜜蜂與蝴蝶。「遮蔽」= 隱私綠籬。「可食」= 蔬菜、水果、香草。「免維護」= 耐旱 + 生長緩慢。",
     en: "'Pollinator' = bees & butterflies. 'Screen' = privacy hedge. 'Edible' = vegetables, fruits, herbs. 'Easy care' = drought-tolerant + slow-growing.",
   },
+  details: {
+    zh: "尺寸：拉皮尺量「可放盆器的長 × 深」，欄杆內側到牆面就是「深」。不會量？用 🔧 估算工具（用步幅推算）。朝向：早上太陽從哪邊曬進來 → 東；中午頭頂正對 → 南；傍晚最後一道光 → 西；幾乎沒直射 → 北。不確定可用 🧭 手機指南針。",
+    en: "Size: measure the usable length × depth where pots can sit. From the railing to the wall is your 'depth'. Don't know? Use the 🔧 estimator (steps-based). Orientation: morning sun side = East; overhead at noon = South; last light at sunset = West; no direct sun = North. Use the 🧭 phone compass if unsure.",
+  },
 };
 
 function wizardTipHTML(stepKey) {
@@ -7886,9 +7909,11 @@ function renderDetails() {
       </div>
 
       ${qPhotoHTML("details")}
+      ${wizardTipHTML("details")}
     </div>`;
 
   wireDetails();
+  wireWizardTip("details");
 }
 
 function renderDetectedChips(det) {
@@ -8591,11 +8616,16 @@ function renderWater() {
 }
 
 function renderGoals() {
+  const n = state.goals.length;
+  const counterHTML = n > 0
+    ? `<div class="goals-counter" data-zh="✓ 已選 ${n} 個願望" data-en="✓ ${n} ${n === 1 ? "wish" : "wishes"} selected">✓ 已選 ${n} 個願望</div>`
+    : "";
   app.innerHTML = `
     <div class="fade-up">
       <div class="kicker" data-zh="第 5 題（最後一題，可複選）" data-en="Question 5 of 5 (multi-select)">第 5 題（最後一題，可複選）</div>
       <h1 class="title" data-zh="你最想要什麼？" data-en="What do you want most?">你最想要什麼？</h1>
       <p class="lead" data-zh="可以選好幾個 — AI 會找能同時達成你願望的植物。" data-en="Pick as many as you like — AI will find plants that hit your wishlist.">可以選好幾個 — AI 會找能同時達成你願望的植物。</p>
+      ${counterHTML}
       <div class="grid cols-2">
         ${GOAL_OPTIONS.map(o => optCard(o, state.goals.includes(o.key), null, true)).join("")}
       </div>
@@ -8615,7 +8645,7 @@ function optCard(opt, active, iconHtml, checkable) {
       ${iconHtml ? `<div class="card-opt-icon">${iconHtml}</div>` : ""}
       <div class="card-opt-row">
         <span class="card-opt-label" data-zh="${opt.zh}" data-en="${opt.en}">${opt.zh}</span>
-        ${checkable ? `<span class="check-dot">${active ? "✓" : ""}</span>` : ""}
+        ${checkable ? `<span class="check-dot ${active ? "is-checked" : ""}">${active ? "✓" : ""}</span>` : ""}
       </div>
       <span class="card-opt-sub" data-zh="${opt.sub_zh}" data-en="${opt.sub_en}">${opt.sub_zh}</span>
     </button>`;
@@ -8632,7 +8662,7 @@ function optCardWithSuggest(opt, active, isSuggested, iconHtml, checkable) {
       ${iconHtml ? `<div class="card-opt-icon">${iconHtml}</div>` : ""}
       <div class="card-opt-row">
         <span class="card-opt-label" data-zh="${opt.zh}" data-en="${opt.en}">${opt.zh}</span>
-        ${checkable ? `<span class="check-dot">${active ? "✓" : ""}</span>` : ""}
+        ${checkable ? `<span class="check-dot ${active ? "is-checked" : ""}">${active ? "✓" : ""}</span>` : ""}
       </div>
       <span class="card-opt-sub" data-zh="${opt.sub_zh}" data-en="${opt.sub_en}">${opt.sub_zh}</span>
     </button>`;
@@ -9014,12 +9044,26 @@ function renderNav() {
                     (state.step === 3 && state.water) ||
                     (state.step === 4);
     const isLast = state.step === 4;
+    // Details step (step 1) — offer a "Skip" ghost button. Everything on this step is optional,
+    // and first-timers hesitate when faced with three fields. The skip jumps straight to Sun
+    // without touching any details fields (defaults apply automatically via renderDetails).
+    const showSkip = state.step === 1;
     navFooter.innerHTML = `
       <button class="nav-btn ${state.step === 0 ? "hidden" : ""}" id="navBack">← <span data-zh="上一步" data-en="Back">上一步</span></button>
+      ${showSkip ? `<button class="nav-btn" id="navSkip"><span data-zh="跳過（用預設值）" data-en="Skip (use defaults)">跳過（用預設值）</span></button>` : ""}
       <button class="cta" id="navNext" ${canNext ? "" : "disabled"}>
         <span data-zh="${isLast ? "生成我的景觀配置" : "繼續"}" data-en="${isLast ? "Generate my plan" : "Continue"}">${isLast ? "生成我的景觀配置" : "繼續"}</span> →
       </button>`;
     document.getElementById("navBack")?.addEventListener("click", () => { state.step = Math.max(0, state.step - 1); render(); });
+    document.getElementById("navSkip")?.addEventListener("click", () => {
+      // Skip = advance to step 2 (Sun) without modifying any details fields.
+      // renderDetails already applied size defaults on entry; orientation/address stay null.
+      state.step = 2;
+      autoApplySpaceDefaults();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      updateLineShare();
+    });
     document.getElementById("navNext")?.addEventListener("click", () => {
       if (!canNext) return;
       state.step++;
