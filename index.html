@@ -548,6 +548,44 @@
   }
   .rec-card .rec-swatch { position: relative; }
 
+  /* 🔁 plant-swap suggestion — appears inline under a 👎 just-disliked plant.
+     One row of compact "Try X (similar)" chips + a dismiss ✕. Sage palette so it
+     reads as helpful, not pushy. State is in-memory only (swapSuggestShown / Visible
+     module-level Sets) — no new persisted keys. */
+  .swap-suggest {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    margin: 6px 0 0;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: rgba(110,126,96,0.08);
+    border: 1px dashed rgba(110,126,96,0.35);
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+  .swap-suggest .swap-lead { font-weight: 600; color: var(--sage-deep); letter-spacing: 0.02em; }
+  .swap-suggest .swap-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 999px;
+    background: rgba(255,255,255,0.75);
+    border: 1px solid rgba(110,126,96,0.4);
+    color: var(--sage-deep);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s ease;
+  }
+  .swap-suggest .swap-chip:hover {
+    background: rgba(110,126,96,0.18);
+    transform: translateY(-1px);
+  }
+  .swap-suggest .swap-dismiss {
+    margin-left: auto;
+    border: none; background: transparent;
+    color: var(--ink-soft); cursor: pointer;
+    font-size: 13px; line-height: 1;
+    padding: 2px 4px; border-radius: 6px;
+  }
+  .swap-suggest .swap-dismiss:hover { background: rgba(0,0,0,0.06); color: var(--ink); }
+
   /* 🎯 preference impact note — sits above the sustainability chip row on the result page. */
   .pref-note {
     display: flex; align-items: center; justify-content: space-between;
@@ -6260,6 +6298,92 @@ function scorePlants(opts) {
   }).sort((a, b) => b.score - a.score);
 }
 
+// ── 🔁 Plant-swap suggestion (R42) — in-memory only, NOT persisted.
+//    When a user 👎-dislikes a plant we surface 1–2 similar alternates (same water
+//    tier, overlapping sun range, similar height bucket) so the user has a concrete
+//    next step instead of just rejecting. State lives in two module-level Sets so
+//    we don't add new keys to state.prefs / localStorage:
+//      swapSuggestShown   — every plant we've EVER suggested for this session.
+//                            Once shown + dismissed, we don't re-suggest the same
+//                            plant on subsequent dislike toggles.
+//      swapSuggestVisible — plants currently displaying the suggestion row.
+//                            Cleared on dismiss (✕) or when dislike is toggled off.
+const swapSuggestShown = new Set();
+const swapSuggestVisible = new Set();
+
+// Find up to 2 alternate plants similar to p. Filters: same water tier; sun ranges
+// overlap (sun1 ≤ p.sun2, sun2 ≥ p.sun1); height_max within ±50% of p.height_max;
+// not already in liked / disliked / pinned; not p itself. Sorted by an overlap
+// quality score (sun-overlap count + height closeness + same-tier bonus).
+function findSwapAlternates(p) {
+  if (!p || !Array.isArray(p.sun) || !Array.isArray(p.height)) return [];
+  const liked    = (state.prefs && state.prefs.liked)    || {};
+  const disliked = (state.prefs && state.prefs.disliked) || {};
+  const pinned   = (state.prefs && state.prefs.pinned)   || {};
+  const pHmax = p.height[1];
+  const hiBand = pHmax * 1.5;
+  const loBand = pHmax * 0.5;
+  const candidates = PLANTS.filter(q => {
+    if (q.id === p.id) return false;
+    if (liked[q.id] || disliked[q.id] || pinned[q.id]) return false;
+    if (q.water !== p.water) return false;
+    // Sun-range overlap: q.sun and p.sun share at least one tier.
+    const sunOverlap = q.sun.filter(s => p.sun.includes(s)).length;
+    if (sunOverlap === 0) return false;
+    // Height bucket: q.height_max within 50% of p.height_max in either direction.
+    const qHmax = Array.isArray(q.height) ? q.height[1] : 0;
+    if (qHmax < loBand || qHmax > hiBand) return false;
+    return true;
+  }).map(q => {
+    const sunOverlap = q.sun.filter(s => p.sun.includes(s)).length;
+    const qHmax = q.height[1];
+    const heightDelta = Math.abs(qHmax - pHmax) / Math.max(pHmax, 0.1);
+    // Higher overlap → better. Closer height → better. Same tier → small bonus.
+    const quality = sunOverlap * 10 - heightDelta * 5 + (q.tier === p.tier ? 4 : 0);
+    return { plant: q, quality };
+  }).sort((a, b) => b.quality - a.quality);
+  return candidates.slice(0, 2).map(c => c.plant);
+}
+
+// Click handler for a swap chip — "I'd rather try the alternate".
+//   • likes the alternate (so it gets scored UP and pinned to the user's profile)
+//   • removes the original from disliked (the swap REPLACES the rejection)
+//   • clears the swap suggestion row
+//   • re-scores via setPref's existing re-render path
+function applySwap(originalId, alternateId) {
+  if (state.viewingShared) return;
+  if (!state.prefs) state.prefs = { liked: {}, disliked: {}, pinned: {} };
+  if (!state.prefs.liked) state.prefs.liked = {};
+  if (!state.prefs.disliked) state.prefs.disliked = {};
+  // The original was just disliked — taking the swap means we no longer veto it,
+  // we just prefer the alternate. Remove the dislike to keep state clean.
+  delete state.prefs.disliked[originalId];
+  // If the alternate was somehow disliked already, clear that first (mutually
+  // exclusive with like — mirrors setPref's invariant).
+  delete state.prefs.disliked[alternateId];
+  state.prefs.liked[alternateId] = true;
+  // Hide the suggestion row for the original — the swap has been taken.
+  swapSuggestVisible.delete(originalId);
+  saveToLocal();
+  try { pushHashFromState(); } catch (e) {}
+  if (state.view === "wizard" && state.step === 5) {
+    initShoppingQty();
+    renderResult();
+    applyLanguage();
+  }
+}
+
+// Dismiss the swap suggestion row without taking either alternate.
+// We keep the dislike intact and mark shown=true so it won't reappear.
+function dismissSwap(originalId) {
+  swapSuggestVisible.delete(originalId);
+  // Re-render result page only — no scoring change, no state save needed.
+  if (state.view === "wizard" && state.step === 5) {
+    renderResult();
+    applyLanguage();
+  }
+}
+
 // ── Preference helpers — toggling 👍/👎 is mutually exclusive.
 //    Clicking the same kind again clears it (so a tap is fully reversible).
 //    After updating, we save the snapshot (which now includes prefs) and re-render.
@@ -6289,6 +6413,17 @@ function setPref(id, kind) {
     delete state.prefs.disliked[id];
     if (kind === "like" && !currentlyLiked) state.prefs.liked[id] = true;
     if (kind === "dislike" && !currentlyDisliked) state.prefs.disliked[id] = true;
+    // 🔁 R42: when dislike is freshly toggled ON, surface a swap suggestion
+    //         row — but only the first time per session per plant (don't be
+    //         pushy if the user has already seen + dismissed it).
+    if (kind === "dislike" && !currentlyDisliked) {
+      if (!swapSuggestShown.has(id)) {
+        swapSuggestShown.add(id);
+        swapSuggestVisible.add(id);
+      }
+    }
+    // Toggling dislike OFF (either to like or to neutral) hides the row.
+    if (currentlyDisliked) swapSuggestVisible.delete(id);
   }
   // Persist + reflect in URL hash so the preference travels with the design.
   saveToLocal();
@@ -12190,6 +12325,27 @@ function renderLayers(layers, recs) {
               👎 <span data-zh="不喜歡" data-en="Pass">不喜歡</span>
             </span>
           </div>
+          ${(disliked && swapSuggestVisible.has(p.id)) ? (() => {
+            // 🔁 R42: alternates have the same water tier + overlapping sun + similar
+            // height. If we can't find any (rare: niche plant), skip the row.
+            const alts = findSwapAlternates(p);
+            if (!alts.length) return "";
+            return `
+          <div class="swap-suggest" onclick="event.stopPropagation()">
+            <span class="swap-lead">🔁 <span data-zh="試試" data-en="Try">試試</span></span>
+            ${alts.map(a => `
+              <span class="swap-chip" role="button" tabindex="0"
+                    data-swap-from="${p.id}" data-swap-to="${a.id}"
+                    title="${t('改選此植物（相似屬性）','Swap to this plant (similar profile)')}">
+                <span data-zh="${a.zh}" data-en="${a.en}">${a.zh}</span>
+                <span class="swap-similar" data-zh="（相似）" data-en="(similar)" style="opacity:.7;font-weight:400;">（相似）</span>
+              </span>`).join("")}
+            <button class="swap-dismiss" type="button"
+                    data-swap-dismiss="${p.id}"
+                    aria-label="${t('關閉建議','Dismiss suggestion')}"
+                    title="${t('關閉建議','Dismiss suggestion')}">✕</button>
+          </div>`;
+          })() : ""}
           <div class="rec-reasons">
             ${(state.lang === "zh" ? p.reasons_zh : p.reasons_en).slice(0, 3).map(r => `<span class="rec-tag">${r}</span>`).join("")}
           </div>
@@ -12204,6 +12360,8 @@ function wireLayerCards() {
     el.addEventListener("click", (e) => {
       // Pref buttons live inside the card — don't open the drawer when they're clicked.
       if (e.target.closest(".pref-btn") || e.target.closest(".pref-row")) return;
+      // Swap suggestion row — chips and dismiss should NOT open the care drawer.
+      if (e.target.closest(".swap-suggest")) return;
       openDrawer(el.dataset.id);
     });
   });
@@ -12216,6 +12374,25 @@ function wireLayerCards() {
     el.addEventListener("click", handler);
     el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") handler(e);
+    });
+  });
+  // 🔁 R42 swap chips — click a similar alternate to like it + clear original dislike.
+  document.querySelectorAll(".swap-chip[data-swap-to]").forEach(el => {
+    const handler = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      applySwap(el.dataset.swapFrom, el.dataset.swapTo);
+    };
+    el.addEventListener("click", handler);
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") handler(e);
+    });
+  });
+  document.querySelectorAll(".swap-dismiss[data-swap-dismiss]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      dismissSwap(el.dataset.swapDismiss);
     });
   });
   // Plant-compare pick mode — wires overlay clicks on every rec-card.
