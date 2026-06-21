@@ -13833,8 +13833,9 @@ function renderShopping(recs) {
          * 不含土壤、盆器、肥料、人工。原生植物在台灣最佳栽種期為春季 (3–5月) 與秋季 (10–11月)。建議向農場、林試所、原生植物協會或在地有機苗圃詢問。
       </p>
       <div class="shop-actions">
-        <button class="btn ghost" onclick="exportShoppingCSV()">⬇ <span data-zh="下載 CSV" data-en="Download CSV">下載 CSV</span></button>
-        <button class="btn ghost" onclick="window.print()">📄 <span data-zh="列印清單" data-en="Print list">列印清單</span></button>
+        <button class="btn ghost" onclick="copyShoppingList(this)">📋 <span data-zh="複製清單" data-en="Copy list">複製清單</span></button>
+        <button class="btn ghost" onclick="exportShoppingCSV()">📄 <span data-zh="下載 CSV" data-en="Download CSV">下載 CSV</span></button>
+        <button class="btn ghost" onclick="printShoppingOnly()">🖨 <span data-zh="只列印此清單" data-en="Print only this list">只列印此清單</span></button>
       </div>
     </div>
 
@@ -14017,24 +14018,148 @@ function wireShoppingControls() {
   });
 }
 
-window.exportShoppingCSV = function() {
+// Shared helper: rebuild the current shopping list from scoring + qty state,
+// so all three export buttons (copy / CSV / print) see the same rows the
+// user is staring at. Returns { items, total }.
+function buildShoppingList() {
   const scored = scorePlants();
   const top = scored.filter(p => p.score >= 30).slice(0, 8);
-  const header = ["Name (中文)", "Name (English)", "Latin", "Qty", "Unit (NTD)", "Subtotal (NTD)"];
-  const rows = top.map(p => {
-    const q = state.qty[p.id] ?? 1;
-    return [p.zh, p.en, p.lt, q, p.cost, q * p.cost];
+  let total = 0;
+  const items = top.map(p => {
+    const qty = state.qty[p.id] ?? 1;
+    const subtotal = qty * p.cost;
+    total += subtotal;
+    const meta = expert(p);
+    const sunArr = Array.isArray(p.sun) ? p.sun : [];
+    return {
+      zh: p.zh, en: p.en, lt: p.lt,
+      qty, unit: p.cost, subtotal,
+      native: meta.native ? "Yes" : "No",
+      water: p.water || "",
+      sun: sunArr.join("/"),
+    };
   });
-  // RFC 4180: any " inside a quoted field must be doubled to "". Without this,
-  // a plant whose name contains a quote (or future free-text columns) breaks
-  // Excel / Numbers parsing for every row that follows.
+  return { items, total };
+}
+
+// Same date suffix all three buttons share (matches filename hint).
+function shoppingDateSuffix() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// (A) 📋 Copy list — plain text, tab-separated. Pasting into Sheets / Excel
+// puts each field in its own column; pasting into Notes / LINE stays legible.
+window.copyShoppingList = function(btn) {
+  const { items, total } = buildShoppingList();
+  const header = ["Plant (中文)", "Plant (English)", "Qty", "Unit NTD", "Subtotal NTD"];
+  const lines = [header.join("\t")];
+  items.forEach(it => {
+    lines.push([it.zh, it.en, it.qty, it.unit, it.subtotal].join("\t"));
+  });
+  lines.push(["TOTAL", "", "", "", total].join("\t"));
+  const text = lines.join("\n");
+  const done = () => {
+    if (!btn) return;
+    const span = btn.querySelector("span");
+    if (!span) return;
+    const zhPrev = span.getAttribute("data-zh");
+    const enPrev = span.getAttribute("data-en");
+    span.setAttribute("data-zh", "已複製 ✓");
+    span.setAttribute("data-en", "Copied ✓");
+    span.textContent = (document.documentElement.lang === "en") ? "Copied ✓" : "已複製 ✓";
+    setTimeout(() => {
+      span.setAttribute("data-zh", zhPrev);
+      span.setAttribute("data-en", enPrev);
+      if (typeof applyLanguage === "function") applyLanguage();
+    }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+};
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+  if (done) done();
+}
+
+// (B) 📄 Download CSV — UTF-8 with BOM so Excel reads Chinese correctly.
+// Columns: Plant (中文), Plant (English), Qty, Unit Price NTD, Subtotal,
+//          Native, Water, Sun. Plus a TOTAL row at bottom.
+window.exportShoppingCSV = function() {
+  const { items, total } = buildShoppingList();
+  const header = ["Plant (中文)", "Plant (English)", "Qty", "Unit Price NTD", "Subtotal NTD", "Native", "Water", "Sun"];
+  const rows = items.map(it => [it.zh, it.en, it.qty, it.unit, it.subtotal, it.native, it.water, it.sun]);
+  rows.push(["TOTAL", "", "", "", total, "", "", ""]);
+  // RFC 4180 escape: wrap every cell in "" and double any embedded ". This
+  // is the only safe way to handle commas / quotes / newlines that may sneak
+  // into plant fields in the future.
   const csvEsc = (c) => `"${String(c ?? "").replace(/"/g, '""')}"`;
-  const csv = [header, ...rows].map(r => r.map(csvEsc).join(",")).join("\n");
+  const csv = [header, ...rows].map(r => r.map(csvEsc).join(",")).join("\r\n");
+  // ﻿ BOM tells Excel/Numbers to decode as UTF-8 instead of guessing
+  // Big5 — without it, Chinese plant names render as mojibake.
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `landscape-plan-${state.space}.csv`; a.click();
+  a.href = url;
+  a.download = `landscape-shopping-${shoppingDateSuffix()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+// (C) 🖨 Print only this list — drops a one-shot print stylesheet that
+// hides everything except the shopping frame, fires window.print(), then
+// removes the stylesheet so the regular full-page print still works.
+window.printShoppingOnly = function() {
+  const style = document.createElement("style");
+  style.id = "shop-only-print-style";
+  style.media = "print";
+  // Walk up from .shop-frame: keep all ancestors visible (so the frame can
+  // render), hide every sibling on the way up, hide TCO frame, hide the
+  // action buttons themselves so the printout is clean.
+  style.textContent = `
+    @media print {
+      body * { visibility: hidden !important; }
+      .shop-frame:not(.tco-frame),
+      .shop-frame:not(.tco-frame) * { visibility: visible !important; }
+      .shop-frame:not(.tco-frame) .shop-actions { display: none !important; }
+      .shop-frame:not(.tco-frame) .shop-qty-btn { display: none !important; }
+      .shop-frame:not(.tco-frame) {
+        position: absolute !important;
+        left: 0; top: 0; right: 0;
+        margin: 0 !important;
+        padding: 16px !important;
+        background: #fff !important;
+        border: none !important;
+      }
+      @page { margin: 12mm; }
+    }
+  `;
+  document.head.appendChild(style);
+  // afterprint fires after the dialog closes (or on cancel). Remove the
+  // override so subsequent normal prints aren't constrained.
+  const cleanup = () => {
+    const s = document.getElementById("shop-only-print-style");
+    if (s) s.remove();
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  // Belt-and-suspenders for browsers that fire afterprint inconsistently.
+  setTimeout(cleanup, 60000);
+  window.print();
 };
 
 // ── TAB: PLANT DICTIONARY (browse all) ──────────────────────
