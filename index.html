@@ -6132,6 +6132,12 @@ const state = {
   dictCoastalOnly: false,// used by "耐鹽風" quick tool
   dictThisMonth: false,  // used by "本月可種" — show plants blooming/fruiting this month
   dictSeason: "all",     // all | spring (3-5) | summer (6-8) | autumn (9-11) | winter (12,1,2) — bloom/fruit-month overlap
+  // ── Dictionary pagination (R52 perf) ──
+  // Render plants in pages of dictPageSize to keep mobile DOM light.
+  // dictShown resets to dictPageSize whenever any filter changes (rerenderDict()).
+  // Print/export paths bypass renderDictionary(), so this only affects the live view.
+  dictPageSize: 30,
+  dictShown: 30,
   // ── Wizard photo-assist (per-question photo helper) ──
   // One photo is reused across all wizard steps. Each step asks a different
   // focused question of Pollinations.ai vision. Suggestions are highlighted
@@ -14375,6 +14381,16 @@ function renderDictionary() {
     return true;
   });
 
+  // ── R52 pagination ──
+  // Cap state.dictShown to the filtered length, then slice. When the filter
+  // result is small (<= page size) we render everything and skip the button.
+  // Print/export paths bypass renderDictionary(), so all plants still print.
+  const pageSize = state.dictPageSize || 30;
+  if (typeof state.dictShown !== "number" || state.dictShown < pageSize) state.dictShown = pageSize;
+  const shownCount = Math.min(state.dictShown, filtered.length);
+  const visible = filtered.slice(0, shownCount);
+  const remaining = Math.max(0, filtered.length - shownCount);
+
   const tierKey = (k) => ({ all:t("全部","All"), T:t("喬木","Canopy"), S:t("灌木","Shrub"), G:t("地被","Ground"), W:t("水生","Water"), C:t("藤本","Climber") })[k];
 
   return `
@@ -14431,7 +14447,7 @@ function renderDictionary() {
                🧹 <span data-zh="清除所有篩選" data-en="Clear all filters">清除所有篩選</span>
              </button>
            </div>`
-        : filtered.map(p => {
+        : visible.map(p => {
           const liked = !!(state.prefs && state.prefs.liked && state.prefs.liked[p.id]);
           const disliked = !!(state.prefs && state.prefs.disliked && state.prefs.disliked[p.id]);
           const isPinned = !!(state.prefs && state.prefs.pinned && state.prefs.pinned[p.id]);
@@ -14471,12 +14487,23 @@ function renderDictionary() {
           <div class="rec-view" style="margin-top:auto; padding-top:14px;" data-zh="詳細 →" data-en="Details →">詳細 →</div>
           ${plantPickOverlayHTML()}
         </button>`;}).join("")}
-    </div>`;
+    </div>
+    ${remaining > 0 ? `
+      <div style="display:flex; justify-content:center; margin: 18px 0 24px;">
+        <button class="est-toggle" id="dictShowMoreBtn" type="button"
+                style="font-size:14px; padding: 12px 22px;"
+                data-zh="顯示更多（剩餘 ${remaining} 種）"
+                data-en="Show ${Math.min(pageSize, remaining)} more (${remaining} left)">
+          顯示更多（剩餘 ${remaining} 種） / Show ${Math.min(pageSize, remaining)} more
+        </button>
+      </div>` : ""}`;
 }
 
 function wireDictionary() {
   document.getElementById("dictSearch")?.addEventListener("input", (e) => {
     state.dictQuery = e.target.value;
+    // Search filters change the result set — reset pagination to page 1.
+    state.dictShown = state.dictPageSize || 30;
     const host = document.getElementById("tabPanel");
     if (host) host.innerHTML = renderDictionary();
     wireDictionary();
@@ -14484,6 +14511,14 @@ function wireDictionary() {
     // Keep focus on the input after re-render
     const s = document.getElementById("dictSearch");
     if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+  });
+  // "Show more" — bump dictShown by one page and re-render in place.
+  document.getElementById("dictShowMoreBtn")?.addEventListener("click", () => {
+    state.dictShown = (state.dictShown || state.dictPageSize || 30) + (state.dictPageSize || 30);
+    const host = document.getElementById("tabPanel");
+    if (host) host.innerHTML = renderDictionary();
+    wireDictionary();
+    applyLanguage();
   });
   document.querySelectorAll(".dict-chip[data-tier]").forEach(el => {
     el.addEventListener("click", () => { state.dictTier = el.dataset.tier; rerenderDict(); });
@@ -14542,6 +14577,9 @@ function wireDictionary() {
 }
 
 function rerenderDict() {
+  // Any filter change funnels through here, so resetting dictShown here
+  // covers every chip / search / quick-tool path without per-handler edits.
+  state.dictShown = state.dictPageSize || 30;
   const host = document.getElementById("tabPanel");
   if (host) host.innerHTML = renderDictionary();
   wireDictionary();
