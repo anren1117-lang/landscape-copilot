@@ -335,11 +335,24 @@
   .chip { font-size: 12.5px; padding: 6px 14px; border-radius: 30px; background: rgba(138,154,123,0.18); color: var(--sage-deep); border: 1px solid rgba(138,154,123,0.3); font-weight: 500; }
 
   /* result tabs */
-  .tabs { display: flex; gap: 2px; background: rgba(255,255,255,0.5); border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin: 24px 0 30px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .tabs-wrap { position: relative; margin: 24px 0 30px; }
+  /* fade-edge scroll indicator — soft hint that more tabs are off-screen.
+     CSS mask is purely visual; the inner .tabs still scrolls horizontally. */
+  .tabs-wrap::before, .tabs-wrap::after {
+    content: ""; position: absolute; top: 0; bottom: 0; width: 28px;
+    pointer-events: none; z-index: 1;
+    transition: opacity .2s ease;
+  }
+  .tabs-wrap::before { left: 0; background: linear-gradient(to right, var(--paper), transparent); border-radius: 999px 0 0 999px; }
+  .tabs-wrap::after  { right: 0; background: linear-gradient(to left,  var(--paper), transparent); border-radius: 0 999px 999px 0; }
+  .tabs-wrap.at-start::before { opacity: 0; }
+  .tabs-wrap.at-end::after    { opacity: 0; }
+  .tabs { display: flex; gap: 2px; background: rgba(255,255,255,0.5); border: 1px solid var(--line); border-radius: 999px; padding: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
   .tabs::-webkit-scrollbar { display: none; }
-  .tab { padding: 11px 16px; min-height: 44px; background: none; border: none; border-radius: 999px; font-family: inherit; font-size: 13.5px; color: var(--ink-soft); cursor: pointer; white-space: nowrap; font-weight: 500; transition: all .2s; display: inline-flex; align-items: center; }
+  .tab { padding: 11px 16px; min-height: 44px; background: none; border: none; border-radius: 999px; font-family: inherit; font-size: 13.5px; color: var(--ink-soft); cursor: pointer; white-space: nowrap; font-weight: 500; transition: all .2s; display: inline-flex; align-items: center; -webkit-tap-highlight-color: transparent; }
   .tab:hover { color: var(--forest); }
   .tab.active { background: var(--forest); color: var(--paper); }
+  .tab.active:active { transform: scale(0.98); transition: transform .08s; }
 
   /* section diagram (vertical layers) */
   .layer-stack { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
@@ -1829,8 +1842,9 @@
   .similar-name { font-size: 13px; font-weight: 600; color: var(--forest); font-family: var(--serif); line-height: 1.2; }
   .similar-role { font-size: 10.5px; color: var(--ink-soft); letter-spacing: 0.02em; }
 
-  /* responsive */
-  @media (max-width: 640px) {
+  /* responsive — single mobile breakpoint at 700px covering layout reflow,
+     plus a 480px refinement for compact phones. R24 mobile audit. */
+  @media (max-width: 700px) {
     main.body { padding: 30px 20px 0; }
     header.brand { padding: 22px 20px 0; }
     .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr; }
@@ -1838,8 +1852,83 @@
     .layer-info { flex: 0 0 100%; }
     h1.title { font-size: 30px; }
     h2.subtitle { font-size: 20px; }
-    .shop-table th, .shop-table td { padding: 10px 6px; font-size: 13px; }
     footer.nav { padding: 14px 20px; }
+
+    /* (3) Shopping table → card stack. Each <tr> becomes a card with the plant
+       info on top and qty + price row on the bottom. We hide the <thead> and
+       reflow the <tr>/<td> using display: block. */
+    .shop-frame:not(.tco-frame) .shop-table thead { display: none; }
+    .shop-frame:not(.tco-frame) .shop-table,
+    .shop-frame:not(.tco-frame) .shop-table tbody { display: block; width: 100%; }
+    .shop-frame:not(.tco-frame) .shop-table tr {
+      display: block;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid var(--line); border-radius: 14px;
+      padding: 12px 14px; margin-bottom: 10px;
+    }
+    .shop-frame:not(.tco-frame) .shop-table tr:last-child { margin-bottom: 0; }
+    .shop-frame:not(.tco-frame) .shop-table td { display: block; border: none; padding: 0; }
+    .shop-frame:not(.tco-frame) .shop-table td:nth-child(1) { margin-bottom: 10px; }
+    .shop-frame:not(.tco-frame) .shop-table td:nth-child(2) {
+      display: inline-flex; vertical-align: middle;
+    }
+    .shop-frame:not(.tco-frame) .shop-table td:nth-child(3),
+    .shop-frame:not(.tco-frame) .shop-table td:nth-child(4) {
+      display: inline-block; margin-left: 12px; vertical-align: middle;
+      font-size: 13px; text-align: left;
+    }
+    .shop-frame:not(.tco-frame) .shop-table td:nth-child(4) { float: right; font-weight: 600; }
+
+    /* (4) Bloom calendar — horizontal scroll snap on whole months */
+    .cal-frame { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+    .cal-table th, .cal-table td:not(.plant-cell) { scroll-snap-align: start; }
+
+    /* (6) Comparison panel stacks vertically with snap between A and B */
+    .compare-grid {
+      grid-template-columns: 100% 100%;
+      overflow-x: auto; scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      gap: 12px; padding-bottom: 4px;
+    }
+    .compare-grid::-webkit-scrollbar { display: none; }
+    .compare-col { scroll-snap-align: start; }
+
+    /* (7) 3D / plan SVG — bump labels so they stay legible when the SVG
+       shrinks to viewport width. Inline SVG font-size attrs win unless we
+       use !important, so we override only on small screens. */
+    .plan-svg text { font-size: 13px !important; }
+
+    /* (8) Sticky footer overlap — extra breathing room under tab panels */
+    main.body { padding-bottom: 24px; }
+    .tab-panel { padding-bottom: 12px; }
+  }
+
+  /* (5) Touch tap states — extend the snappy .rec-card:active pattern to all
+     major touchable surfaces. Always-on (not gated by media query) so desktop
+     mouse-down also gets the micro-feedback. */
+  .my-design-card, .home-path-card, .home-preset-card, .dict-chip {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .my-design-card:active,
+  .home-path-card:active,
+  .home-preset-card:active {
+    transform: scale(0.985);
+    transition: transform .08s ease;
+  }
+
+  /* Refinement for compact phones (≤ 480px) — tighten paddings and drawer */
+  @media (max-width: 480px) {
+    /* (2) Plant drawer auto-fit — full-screen on small phones, tighter padding */
+    .drawer { width: 100vw; padding: 24px 18px 32px; }
+    .drawer-close { top: 16px; right: 16px; }
+    .drawer-name { font-size: 26px; }
+    .drawer-meta { gap: 8px; margin: 18px 0; padding: 14px 0; }
+    .drawer-block { margin-bottom: 18px; }
+    /* shopping list cards lose horizontal flex on the very small screen */
+    .shop-frame:not(.tco-frame) .shop-table td:nth-child(3),
+    .shop-frame:not(.tco-frame) .shop-table td:nth-child(4) { font-size: 12.5px; }
+    .shop-total { padding: 14px; }
+    .shop-total .amount { font-size: 22px; }
   }
 
   /* QR MODAL — same overlay pattern as drawer, but centered */
@@ -8981,20 +9070,22 @@ function renderResult() {
 
       ${renderSustainChips(recs)}
 
-      <div class="tabs" role="tablist" aria-label="${t('結果頁籤', 'Result tabs')}">
-        ${RESULT_TABS.map(tab => {
-          const selected = state.resultTab === tab.k;
-          return `
-          <button class="tab ${selected ? "active" : ""}"
-                  role="tab"
-                  data-tab="${tab.k}"
-                  id="tab-${tab.k}"
-                  aria-selected="${selected ? "true" : "false"}"
-                  aria-controls="tabPanel"
-                  tabindex="${selected ? "0" : "-1"}">
-            <span data-zh="${tab.zh}" data-en="${tab.en}">${tab.zh}</span>
-          </button>`;
-        }).join("")}
+      <div class="tabs-wrap at-start" id="tabsWrap">
+        <div class="tabs" role="tablist" aria-label="${t('結果頁籤', 'Result tabs')}">
+          ${RESULT_TABS.map(tab => {
+            const selected = state.resultTab === tab.k;
+            return `
+            <button class="tab ${selected ? "active" : ""}"
+                    role="tab"
+                    data-tab="${tab.k}"
+                    id="tab-${tab.k}"
+                    aria-selected="${selected ? "true" : "false"}"
+                    aria-controls="tabPanel"
+                    tabindex="${selected ? "0" : "-1"}">
+              <span data-zh="${tab.zh}" data-en="${tab.en}">${tab.zh}</span>
+            </button>`;
+          }).join("")}
+        </div>
       </div>
 
       <div class="tab-panel" id="tabPanel" role="tabpanel" tabindex="0"></div>
@@ -9034,6 +9125,23 @@ function renderResult() {
       }
     });
   });
+
+  // Tab-bar fade-edge sync — hide the gradient when scrolled flush against an end
+  // so the indicator honestly reflects whether more tabs are off-screen.
+  const tabsWrap = app.querySelector("#tabsWrap");
+  const tabsScroller = tabsWrap?.querySelector(".tabs");
+  if (tabsWrap && tabsScroller) {
+    const updateEdges = () => {
+      const max = tabsScroller.scrollWidth - tabsScroller.clientWidth;
+      const x = tabsScroller.scrollLeft;
+      tabsWrap.classList.toggle("at-start", x <= 1);
+      tabsWrap.classList.toggle("at-end",   x >= max - 1 || max <= 0);
+    };
+    tabsScroller.addEventListener("scroll", updateEdges, { passive: true });
+    // initial state + after layout settles
+    requestAnimationFrame(updateEdges);
+    setTimeout(updateEdges, 200);
+  }
 
   // Viewing-shared bar actions (only present when state.viewingShared is true)
   document.getElementById("vsSaveBtn")?.addEventListener("click", () => {
@@ -11793,7 +11901,7 @@ function renderTCOTable(plantsTop, plantsSubtotal) {
        data-en="Most landscape projects fail in year 2-3 because owners didn't budget recurring costs. This breakdown shows the real picture.">
        多數景觀工程在第 2-3 年失敗，是因為主人沒有預算到「持續開銷」。這份估算讓你看清楚真實成本。</p>
 
-    <div class="shop-frame">
+    <div class="shop-frame tco-frame">
       <table class="shop-table">
         <thead>
           <tr>
