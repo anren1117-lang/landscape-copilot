@@ -6477,6 +6477,17 @@ function dismissSwap(originalId) {
   }
 }
 
+// R54 — clear the in-memory swap-suggestion Sets. Called whenever the design
+// state is wholesale replaced (Start fresh, apply preset, apply shared snapshot,
+// clear-all-prefs). Without this, a plant the user once dismissed in a previous
+// design would never resurface its swap row even after the design changes.
+function resetSwapSuggestState() {
+  try {
+    swapSuggestShown.clear();
+    swapSuggestVisible.clear();
+  } catch (e) { /* defensive — Sets are module-scoped, this shouldn't fail */ }
+}
+
 // ── Preference helpers — toggling 👍/👎 is mutually exclusive.
 //    Clicking the same kind again clears it (so a tap is fully reversible).
 //    After updating, we save the snapshot (which now includes prefs) and re-render.
@@ -6560,6 +6571,9 @@ function clearPrefs() {
   // previewing a shared link.
   if (state.viewingShared) return;
   state.prefs = { liked: {}, disliked: {}, pinned: {} };
+  // R54 — wipe swap memory so any plant whose suggestion was dismissed earlier
+  // becomes eligible to resurface its swap row on next dislike.
+  resetSwapSuggestState();
   saveToLocal();
   try { pushHashFromState(); } catch (e) {}
   if (state.view === "wizard" && state.step === 5) {
@@ -6700,6 +6714,10 @@ function applySnapshot(snap) {
   // away any cached tab HTML from the previous design before the next render
   // reads it. Belt-and-suspenders alongside the renderResult() invalidator.
   if (typeof invalidateTabCache === "function") invalidateTabCache();
+  // R54 — also wipe the swap-suggest session memory. The snapshot brings a
+  // new prefs set, so plants dismissed against the old design shouldn't stay
+  // silenced under the new one.
+  resetSwapSuggestState();
   // Defensive: never let a malicious / stale snapshot smuggle a base64 photo
   // back into state. Even though snapshotState() strips these on write, an
   // older payload from localStorage or a hand-crafted #d= URL could carry one.
@@ -9030,6 +9048,9 @@ function applyDesignPreset(presetId) {
   state.detected = preset.detected ? { ...preset.detected } : null;
   state.qty = {};
   state.prefs = { liked: {}, disliked: {}, pinned: {} };
+  // R54 — applying a preset wipes prefs; the swap-suggest memory belongs to
+  // the old design so reset it too (otherwise dismissed plants stay silent).
+  resetSwapSuggestState();
   state.designPresetId = preset.id;
 
   // Optional: auto-pin plants matching the preset's filter (e.g. fragrance >= 2).
@@ -14501,6 +14522,12 @@ function renderDictionary() {
 
 function wireDictionary() {
   document.getElementById("dictSearch")?.addEventListener("input", (e) => {
+    // R54 — preserve the caret position across the re-render. The old code
+    // jumped the cursor to the end of the string, which made editing in the
+    // middle of a query feel broken (delete one char → cursor leaps to end).
+    const caret = (typeof e.target.selectionStart === "number")
+      ? e.target.selectionStart
+      : e.target.value.length;
     state.dictQuery = e.target.value;
     // Search filters change the result set — reset pagination to page 1.
     state.dictShown = state.dictPageSize || 30;
@@ -14508,9 +14535,13 @@ function wireDictionary() {
     if (host) host.innerHTML = renderDictionary();
     wireDictionary();
     applyLanguage();
-    // Keep focus on the input after re-render
+    // Restore focus + caret on the freshly mounted input.
     const s = document.getElementById("dictSearch");
-    if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+    if (s) {
+      s.focus();
+      const pos = Math.min(caret, s.value.length);
+      try { s.setSelectionRange(pos, pos); } catch (e) { /* unsupported on some types */ }
+    }
   });
   // "Show more" — bump dictShown by one page and re-render in place.
   document.getElementById("dictShowMoreBtn")?.addEventListener("click", () => {
@@ -15272,6 +15303,11 @@ function applyLanguage() {
     // R40 — About modal is appended to <body> (not inside #app), so its
     // bilingual nodes get frozen on lang toggle unless we walk it here.
     document.getElementById("aboutOverlay"),
+    // R54 — printResultBundle() appends #printBundle to <body> with bilingual
+    // [data-zh][data-en] nodes inside render3D + renderCareCalendar. Without
+    // walking this root, EN-language users get Chinese in the printed PDF for
+    // the 3D and care-calendar sections (data attrs never get swapped over).
+    document.getElementById("printBundle"),
   ].filter(Boolean);
   for (const root of roots) {
     root.querySelectorAll("[data-zh][data-en]").forEach((el) => {
