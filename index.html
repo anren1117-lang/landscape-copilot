@@ -12954,9 +12954,18 @@ function renderDictionary() {
 
     <div class="rec-grid">
       ${filtered.length === 0
-        ? `<div style="grid-column:1/-1; padding:30px; text-align:center; color:var(--ink-soft); font-style:italic; font-family:var(--serif);"
-                data-zh="沒有符合條件的植物 — 試試放寬篩選"
-                data-en="No matches — try loosening the filters">沒有符合條件的植物 — 試試放寬篩選</div>`
+        ? `<div style="grid-column:1/-1; padding:36px 24px; text-align:center; background:rgba(168,138,106,0.08); border:1px dashed var(--clay); border-radius:14px;">
+             <div style="font-size:30px; line-height:1; margin-bottom:10px;">🌱</div>
+             <div style="font-family:var(--serif); font-size:16px; color:var(--forest); margin-bottom:6px;"
+                  data-zh="沒有符合條件的植物"
+                  data-en="No plants match your filters">沒有符合條件的植物</div>
+             <div style="font-size:13px; color:var(--ink-soft); margin-bottom:16px; line-height:1.55;"
+                  data-zh="試試放寬篩選條件，或一鍵清除全部重新挑選。"
+                  data-en="Try loosening your filters, or clear them all to start fresh.">試試放寬篩選條件，或一鍵清除全部重新挑選。</div>
+             <button class="est-toggle" id="dictClearAllBtn" type="button" style="font-size:13.5px;">
+               🧹 <span data-zh="清除所有篩選" data-en="Clear all filters">清除所有篩選</span>
+             </button>
+           </div>`
         : filtered.map(p => {
           const liked = !!(state.prefs && state.prefs.liked && state.prefs.liked[p.id]);
           const disliked = !!(state.prefs && state.prefs.disliked && state.prefs.disliked[p.id]);
@@ -13043,6 +13052,23 @@ function wireDictionary() {
   });
   // Plant-compare pick mode — wires overlay clicks on every dict rec-card.
   wirePlantComparePicking();
+
+  // Empty-state "Clear all filters" CTA — resets every dictionary filter
+  // (query, tier, native, fragrance, pet-safe, water, space, edible, coastal,
+  // this-month) so the user can start fresh without manually un-toggling each chip.
+  document.getElementById("dictClearAllBtn")?.addEventListener("click", () => {
+    state.dictQuery = "";
+    state.dictTier = "all";
+    state.dictNative = "all";
+    state.dictFragOnly = false;
+    state.dictPetSafeOnly = false;
+    state.dictWater = "all";
+    state.dictSpace = "all";
+    state.dictEdibleOnly = false;
+    state.dictCoastalOnly = false;
+    state.dictThisMonth = false;
+    rerenderDict();
+  });
 }
 
 function rerenderDict() {
