@@ -909,10 +909,23 @@
     position: absolute; top: 14px; right: 16px;
     background: none; border: none; font-size: 18px;
     color: var(--ink-soft); cursor: pointer; padding: 4px 8px;
+    border-radius: 6px;
+  }
+  /* R31 — visible focus ring for keyboard users (matches our --sage focus
+     style elsewhere). Subtle but honest, no layout shift. */
+  .plant-compare-modal .pcm-close:focus-visible {
+    outline: 2px solid var(--sage-deep); outline-offset: 2px;
   }
   .plant-compare-modal .pcm-title {
     font-family: var(--serif); font-size: 19px; font-weight: 600;
     color: var(--forest); margin: 0 0 16px; text-align: center;
+    padding-right: 32px; /* avoid colliding with close-button cap on mobile */
+    line-height: 1.35;
+  }
+  /* Tighter title on narrow screens — the title now includes plant names,
+     so it can wrap; keep it legible without dominating the modal. */
+  @media (max-width: 480px) {
+    .plant-compare-modal .pcm-title { font-size: 16px; }
   }
   .plant-compare-modal .pcm-grid {
     display: grid; grid-template-columns: 1fr; gap: 14px;
@@ -5571,6 +5584,13 @@ const WILDLIFE_META = {
   annona:           [{ i:"🪲", zh:"露尾甲蟲（夜間授粉）", en:"Sap beetles (night pollinators)" }, { i:"🐦", zh:"白頭翁（成熟果）", en:"Bulbul (ripe fruit)" }],
   aglaia:           [{ i:"🐦", zh:"白頭翁、綠繡眼（小果）", en:"Bulbul, white-eye (small fruit)" }, { i:"🦋", zh:"夜行性蛾（米蘭香）", en:"Night moths (drawn to fragrance)" }],
   alstonia:         [{ i:"🦋", zh:"天蛾（夜訪花）", en:"Hawk moths (night-blooming flowers)" }, { i:"🐦", zh:"小型鳥（種子）", en:"Small birds (seeds)" }],
+  // R31 — final fill-ins so every R21 endemic / iconic plant carries a
+  // wildlife note. Sources same as R20/R22 sets (TaiBIF, 林務局, 蝴蝶學會,
+  // 特生中心 native-orchid surveys, 陽明山國家公園夢幻湖生態調查).
+  pleione_f:        [{ i:"🐝", zh:"高山小型蜂（早春授粉）", en:"High-altitude small bees (early-spring pollinators)" }, { i:"🦋", zh:"山區小型蛾", en:"Montane small moths" }],
+  cymbidium_s:      [{ i:"🐝", zh:"原生蜂（年節花期蜜源）", en:"Native bees (Lunar New Year nectar)" }, { i:"🦋", zh:"小型蛾類（夜訪香花）", en:"Small moths (drawn to fragrance)" }],
+  isoetes_t:        [{ i:"🐸", zh:"澤蛙、貢德氏赤蛙（池畔）", en:"Pond frogs (Menghuan-style wetland)" }, { i:"🐉", zh:"蜻蜓、豆娘", en:"Dragonflies, damselflies" }, { i:"🐌", zh:"水生螺貝", en:"Aquatic snails" }],
+  mahonia_o:        [{ i:"🐝", zh:"原生熊蜂（冬季花蜜稀缺資源）", en:"Native bumblebees (rare winter nectar source)" }, { i:"🐦", zh:"山區小型鳥（藍黑果）", en:"Montane small birds (blue-black berries)" }],
 };
 
 function wildlife(p) { return WILDLIFE_META[p.id] || []; }
@@ -7016,6 +7036,14 @@ const drawerHost = document.getElementById("drawerHost");
 function t(zh, en) { return state.lang === "zh" ? zh : en; }
 
 function render() {
+  // R31 — when we're about to leave the result page (anything other than
+  // wizard step 5), detach the tab-bar fade-edge scroll listener so it
+  // doesn't keep a dead DOM node referenced. renderResult() re-attaches it.
+  const leavingResult = !(state.view === "wizard" && state.step === 5);
+  if (leavingResult && window.__tabsFadeCleanup) {
+    try { window.__tabsFadeCleanup(); } catch (e) { /* node already gone */ }
+    window.__tabsFadeCleanup = null;
+  }
   // Top-bar left content switches based on view: brand on home, "← back to home" link elsewhere.
   const tbLeft = document.getElementById("topBarLeft");
   if (state.view === "home") {
@@ -9541,6 +9569,11 @@ function renderResult() {
         <span class="chip">📐 <span data-zh="${spaceLabel.zh} · ${area} m²" data-en="${spaceLabel.en} · ${area} m²">${spaceLabel.zh} · ${area} m²</span></span>
         ${det?.zone ? `<button type="button" class="chip zone-chip" id="zoneChip"
               data-zone="${det.zone}"
+              role="button"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="zoneClimatePop"
+              tabindex="0"
               aria-label="${t('查看氣候區資訊', 'View climate-zone info')}"
               title="${t('點擊查看本區氣候摘要', 'Tap for climate summary')}">📍 <span data-zh="${ZONE_LABEL[det.zone].zh}" data-en="${ZONE_LABEL[det.zone].en}">${ZONE_LABEL[det.zone].zh}</span><span class="zone-chip-hint" aria-hidden="true">ⓘ</span></button>` : ""}
         ${det?.county ? `<span class="chip">🗺 ${detCountySafe}</span>` : ""}
@@ -9621,6 +9654,13 @@ function renderResult() {
 
   // Tab-bar fade-edge sync — hide the gradient when scrolled flush against an end
   // so the indicator honestly reflects whether more tabs are off-screen.
+  // R31 — first detach any prior listener (each renderResult() rebuilds the
+  // tab bar from scratch, so old listeners pointed at detached nodes would
+  // leak until GC). __tabsFadeCleanup is module-scoped via window.
+  if (window.__tabsFadeCleanup) {
+    try { window.__tabsFadeCleanup(); } catch (e) { /* node already gone */ }
+    window.__tabsFadeCleanup = null;
+  }
   const tabsWrap = app.querySelector("#tabsWrap");
   const tabsScroller = tabsWrap?.querySelector(".tabs");
   if (tabsWrap && tabsScroller) {
@@ -9634,6 +9674,11 @@ function renderResult() {
     // initial state + after layout settles
     requestAnimationFrame(updateEdges);
     setTimeout(updateEdges, 200);
+    // Expose a cleanup so the next render (or a leave-result transition) can
+    // detach this listener. Prevents memory leaks across many tab switches.
+    window.__tabsFadeCleanup = () => {
+      tabsScroller.removeEventListener("scroll", updateEdges, { passive: true });
+    };
   }
 
   // Viewing-shared bar actions (only present when state.viewingShared is true)
@@ -9674,6 +9719,7 @@ function renderResult() {
   // R30 — zone chip tap opens climate summary popup.
   document.getElementById("zoneChip")?.addEventListener("click", (e) => {
     const z = e.currentTarget.dataset.zone;
+    e.currentTarget.setAttribute("aria-expanded", "true");
     openZoneClimatePopup(z);
   });
 
@@ -9703,12 +9749,16 @@ function openZoneClimatePopup(zone) {
          data-zh="* 數據為中央氣象署 30 年平均氣候，非即時天氣"
          data-en="* 30-year climate norms (CWB), not a live forecast">* 數據為中央氣象署 30 年平均氣候，非即時天氣</p>
     </div>`;
-  wrap.addEventListener("click", () => wrap.remove());
+  // R31 — keep the chip's aria-expanded honest as the popup tears down.
+  const resetChipExpanded = () => {
+    document.getElementById("zoneChip")?.setAttribute("aria-expanded", "false");
+  };
+  wrap.addEventListener("click", () => { wrap.remove(); resetChipExpanded(); });
   document.body.appendChild(wrap);
-  document.getElementById("zonePopClose")?.addEventListener("click", () => wrap.remove());
+  document.getElementById("zonePopClose")?.addEventListener("click", () => { wrap.remove(); resetChipExpanded(); });
   // Close on Escape
   const onKey = (ev) => {
-    if (ev.key === "Escape") { wrap.remove(); document.removeEventListener("keydown", onKey); }
+    if (ev.key === "Escape") { wrap.remove(); resetChipExpanded(); document.removeEventListener("keydown", onKey); }
   };
   document.addEventListener("keydown", onKey);
   applyLanguage();
@@ -13478,13 +13528,16 @@ function openPlantCompareModal() {
   const overlay = document.createElement("div");
   overlay.className = "qr-overlay";
   overlay.id = "plantCompareOverlay";
+  // R31 — full dialog ARIA. aria-labelledby points to the bilingual title
+  // header so screen readers announce "↔ Compare plants" / "↔ 植物比較"
+  // (instead of the generic aria-label that doesn't toggle with language).
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-label", t("植物比較", "Plant comparison"));
+  overlay.setAttribute("aria-labelledby", "pcmTitle");
   overlay.innerHTML = `
     <div class="plant-compare-modal" id="plantCompareModal">
       <button class="pcm-close" id="plantCompareClose" aria-label="${t('關閉','Close')}">✕</button>
-      <h3 class="pcm-title" data-zh="↔ 植物比較" data-en="↔ Compare plants">↔ 植物比較</h3>
+      <h3 class="pcm-title" id="pcmTitle" data-zh="↔ 植物比較：${escapeHtml(a.zh)} vs ${escapeHtml(b.zh)}" data-en="↔ Compare: ${escapeHtml(a.en)} vs ${escapeHtml(b.en)}">↔ 植物比較：${escapeHtml(a.zh)} vs ${escapeHtml(b.zh)}</h3>
       <div class="pcm-grid">
         ${col(a, ea, ma, "a")}
         ${col(b, eb, mb, "b")}
@@ -13497,14 +13550,46 @@ function openPlantCompareModal() {
   // Click-outside (overlay backdrop) closes.
   overlay.addEventListener("click", (e) => { if (e.target === overlay) closePlantCompareModal(); });
   document.body.appendChild(overlay);
-  document.getElementById("plantCompareClose").addEventListener("click", closePlantCompareModal);
+  const closeBtn = document.getElementById("plantCompareClose");
+  closeBtn.addEventListener("click", closePlantCompareModal);
   document.addEventListener("keydown", plantCompareEscHandler);
+  // R31 — basic focus management. Move focus into the modal so keyboard
+  // and screen-reader users land inside the dialog; trap Tab so focus
+  // can't escape back into the (inert) result page behind the overlay.
+  closeBtn.focus();
+  overlay.addEventListener("keydown", plantCompareTrapTab);
   applyLanguage();
+}
+
+// R31 — naive but effective focus trap for the compare modal. The modal
+// only has a handful of focusable elements (close button + any badges
+// nothing focusable inside the columns), so we just cycle between the
+// first and last focusable nodes inside #plantCompareOverlay.
+function plantCompareTrapTab(e) {
+  if (e.key !== "Tab") return;
+  const overlay = document.getElementById("plantCompareOverlay");
+  if (!overlay) return;
+  const focusables = overlay.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 
 function closePlantCompareModal() {
   const o = document.getElementById("plantCompareOverlay");
-  if (o) o.remove();
+  if (o) {
+    o.removeEventListener("keydown", plantCompareTrapTab);
+    o.remove();
+  }
   document.removeEventListener("keydown", plantCompareEscHandler);
   // Closing the modal also exits compare mode entirely — clear the picks
   // so the pickable overlays and banner go away.
