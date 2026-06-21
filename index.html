@@ -2188,6 +2188,41 @@
   .m-pill.warn  { background: rgba(178,58,48,0.10); color: #8C2A22; border-color: rgba(178,58,48,0.28); }
   .m-empty { font-size: 12px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); }
 
+  /* R37: "✓ 完成 / Mark done" mini-button per care-calendar task.
+     Logs a journal entry into the currently-resumed named design.
+     Yearly/repeating semantics of the underlying task are preserved — we
+     intentionally do NOT add a persistent "done" badge. Hidden in print. */
+  .care-done-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-left: 6px;
+    background: transparent;
+    border: 1px dashed rgba(110,126,96,0.45);
+    color: var(--sage-deep);
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 11px; font-weight: 600;
+    font-family: var(--serif);
+    cursor: pointer;
+    vertical-align: middle;
+    transition: all .15s;
+  }
+  .care-done-btn:hover { background: rgba(110,126,96,0.10); border-style: solid; }
+  .care-done-btn:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; }
+  @media print { .care-done-btn { display: none !important; } }
+  .save-toast.toast-warn { background: var(--clay-deep); }
+  .save-toast .toast-inline-save {
+    margin-left: 8px;
+    background: rgba(255,255,255,0.18);
+    color: var(--paper);
+    border: 1px solid rgba(255,255,255,0.45);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+    font-family: var(--serif);
+  }
+  .save-toast .toast-inline-save:hover { background: rgba(255,255,255,0.28); }
+
   /* BUILD PLAN */
   .phase-list { display: flex; flex-direction: column; gap: 14px; }
   .phase {
@@ -11966,6 +12001,9 @@ function renderCareCalendar(recs) {
   const today = new Date();
   const curM = today.getMonth() + 1;
 
+  // English month abbreviations for ARIA labels (independent of state.lang).
+  const monthNamesEn = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
   const rows = [];
   for (let m = 1; m <= 12; m++) {
     const bloom = top.filter(p => (p.bloom || []).includes(m));
@@ -11978,6 +12016,20 @@ function renderCareCalendar(recs) {
       ? `<div class="m-pills">${plants.map(p => `<button class="m-pill ${kind}" data-id="${p.id}"><span data-zh="${p.zh}" data-en="${p.en}">${p.zh}</span></button>`).join("")}</div>`
       : `<span class="m-empty" data-zh="無" data-en="—">無</span>`;
 
+    // R37 — "✓ 完成 / Mark done" mini-button for actionable tasks (prune /
+    // fertilize / monthly warning). Bloom & fruit are observation events, not
+    // tasks, so they don't get the button. Encodes the task name in both
+    // languages + month index so the click handler can build the journal entry
+    // without re-reading state.
+    const doneBtn = (taskZh, taskEn) =>
+      `<button class="care-done-btn" type="button"
+               data-care-done="1"
+               data-task-zh="${taskZh}" data-task-en="${taskEn}"
+               data-month="${m}"
+               aria-label="${t(`記錄完成 ${taskZh} ${m} 月`, `Log done: ${taskEn} (${monthNamesEn[m-1]})`)}">
+         ✓ <span data-zh="完成" data-en="Mark done">完成</span>
+       </button>`;
+
     rows.push(`
       <div class="month-row ${m === curM ? "current" : ""}">
         <div>
@@ -11987,9 +12039,9 @@ function renderCareCalendar(recs) {
         <div class="m-body">
           ${bloom.length ? `<div class="m-block"><div class="label">🌸 <span data-zh="花期" data-en="Bloom">花期</span></div>${pillsHtml(bloom, "bloom")}</div>` : ""}
           ${fruit.length ? `<div class="m-block"><div class="label">🍎 <span data-zh="果期" data-en="Fruit">果期</span></div>${pillsHtml(fruit, "fruit")}</div>` : ""}
-          ${prune.length ? `<div class="m-block"><div class="label">✂️ <span data-zh="修剪" data-en="Prune">修剪</span></div>${pillsHtml(prune, "prune")}</div>` : ""}
-          ${fert.length  ? `<div class="m-block"><div class="label">🌱 <span data-zh="施肥" data-en="Fertilize">施肥</span></div>${pillsHtml(fert, "fert")}</div>` : ""}
-          ${warning ? `<div class="m-block"><div class="label">⚠ <span data-zh="本月注意" data-en="Watch out">本月注意</span></div><div class="m-pill warn" data-zh="${warning.zh}" data-en="${warning.en}">${warning.zh}</div></div>` : ""}
+          ${prune.length ? `<div class="m-block"><div class="label">✂️ <span data-zh="修剪" data-en="Prune">修剪</span>${doneBtn("修剪", "Prune")}</div>${pillsHtml(prune, "prune")}</div>` : ""}
+          ${fert.length  ? `<div class="m-block"><div class="label">🌱 <span data-zh="施肥" data-en="Fertilize">施肥</span>${doneBtn("施肥", "Fertilize")}</div>${pillsHtml(fert, "fert")}</div>` : ""}
+          ${warning ? `<div class="m-block"><div class="label">⚠ <span data-zh="本月注意" data-en="Watch out">本月注意</span>${doneBtn(warning.zh, warning.en)}</div><div class="m-pill warn" data-zh="${warning.zh}" data-en="${warning.en}">${warning.zh}</div></div>` : ""}
           ${(!bloom.length && !fruit.length && !prune.length && !fert.length && !warning) ? `<span class="m-empty" data-zh="這個月沒有特別任務 — 享受花園吧" data-en="No tasks this month — just enjoy the garden">這個月沒有特別任務 — 享受花園吧</span>` : ""}
         </div>
       </div>`);
@@ -12027,6 +12079,94 @@ function renderCareCalendar(recs) {
 function wireCarePlantChips() {
   document.querySelectorAll(".month-row .m-pill[data-id]").forEach(el =>
     el.addEventListener("click", () => openDrawer(el.dataset.id)));
+
+  // R37 — "✓ 完成 / Mark done" buttons: drop a bilingual journal entry into
+  // the currently-resumed named design, or — if the user hasn't saved this
+  // design yet — show a toast inviting them to save first.
+  document.querySelectorAll(".month-row .care-done-btn").forEach(btn =>
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const taskZh = btn.dataset.taskZh || "";
+      const taskEn = btn.dataset.taskEn || "";
+      const m = parseInt(btn.dataset.month, 10) || 1;
+      handleCareDoneClick(taskZh, taskEn, m);
+    }));
+}
+
+// R37 — Bridge a care-calendar task to the garden-journal entry list.
+// Reuses addJournalEntry / loadDesignList — no new storage keys.
+// The care task itself stays yearly/repeating in its label; we deliberately
+// do NOT mutate the calendar to mark this row "done forever".
+function handleCareDoneClick(taskZh, taskEn, monthIdx) {
+  const monthZh = `${monthIdx}月`;
+  const monthEnArr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthEn = monthEnArr[monthIdx - 1] || String(monthIdx);
+  // Bilingual entry: one line in each language so the same note reads in any
+  // session lang. Truncation by addJournalEntry (200-char cap) is fine.
+  const noteZh = `✓ ${taskZh} (${monthZh})`;
+  const noteEn = `✓ ${taskEn} (${monthEn})`;
+  const note = state.lang === "zh"
+    ? `${noteZh} / ${noteEn}`
+    : `${noteEn} / ${noteZh}`;
+
+  const list = loadDesignList();
+  const activeId = list && list.activeId;
+  const activeEntry = activeId ? list.designs.find(e => e.id === activeId) : null;
+  if (!activeId || !activeEntry) {
+    showCareDoneSaveFirstToast();
+    return;
+  }
+  const ok = addJournalEntry(activeId, note);
+  if (ok) {
+    showSaveToast(
+      t("→ 已記入筆記 / Logged", "→ Logged / 已記入筆記"),
+      t("→ Logged / 已記入筆記", "→ Logged / 已記入筆記"),
+    );
+  } else {
+    showSaveToast(
+      t("⚠ 記入失敗，請再試 / Could not log", "⚠ Could not log / 記入失敗"),
+      t("⚠ Could not log / 記入失敗", "⚠ Could not log / 記入失敗"),
+    );
+  }
+}
+
+// R37 — Toast variant for the "no active design" branch. Reuses the
+// .save-toast styling but adds a tiny inline "💾 Save now" action that
+// kicks off the same prompt() flow as the result-page nav button.
+function showCareDoneSaveFirstToast() {
+  // Remove any earlier toast first so they don't stack.
+  document.querySelectorAll(".save-toast").forEach(n => n.remove());
+  const el = document.createElement("div");
+  el.className = "save-toast toast-warn";
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
+  el.setAttribute("aria-atomic", "true");
+  const msgZh = "→ 請先儲存設計才能記錄";
+  const msgEn = "→ Save this design first to log notes";
+  const saveZh = "💾 立即儲存";
+  const saveEn = "💾 Save now";
+  el.innerHTML = `
+    <span data-zh="${msgZh}" data-en="${msgEn}">${state.lang === "zh" ? msgZh : msgEn}</span>
+    <button class="toast-inline-save" type="button" data-care-toast-save="1">
+      <span data-zh="${saveZh}" data-en="${saveEn}">${state.lang === "zh" ? saveZh : saveEn}</span>
+    </button>`;
+  document.body.appendChild(el);
+  const saveBtn = el.querySelector("[data-care-toast-save]");
+  saveBtn?.addEventListener("click", () => {
+    const defaultName = defaultDesignName(snapshotState());
+    const name = prompt(t("為這個設計命名：", "Name this design:"), defaultName);
+    if (name === null) return;
+    saveCurrentAsNewDesign(name);
+    el.remove();
+    showSaveToast(
+      t("✓ 已儲存 — 再次點 ✓ 完成即可記入", "✓ Saved — tap ✓ Mark done again to log"),
+      t("✓ Saved — tap ✓ Mark done again to log", "✓ Saved — tap ✓ Mark done again to log"),
+    );
+  });
+  // Toast lives longer than the default save-toast since it requires user action.
+  setTimeout(() => { el.style.transition = "opacity .4s"; el.style.opacity = "0"; }, 5800);
+  setTimeout(() => { el.remove(); }, 6300);
 }
 
 // ── ICS export — write the auto-generated care calendar to a downloadable
