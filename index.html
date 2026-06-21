@@ -892,6 +892,140 @@
     font-style: italic;
   }
 
+  /* R36: Garden journal — inline notes per saved design.
+     Lives inside .my-design-card as a full-width row spanning all 3 columns. */
+  .my-design-card { grid-template-rows: auto auto; }
+  .journal-row {
+    grid-column: 1 / -1;
+    border-top: 1px dashed rgba(110,126,96,0.25);
+    margin-top: 10px;
+    padding-top: 10px;
+    font-family: var(--serif);
+  }
+  .journal-controls {
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+  }
+  .journal-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(196,160,76,0.14);
+    color: var(--clay-deep);
+    border: 1px solid rgba(196,160,76,0.35);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 11.5px; font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .journal-badge:hover { background: rgba(196,160,76,0.25); }
+  .journal-add-btn {
+    background: transparent;
+    border: 1px dashed rgba(110,126,96,0.5);
+    color: var(--sage-deep);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11.5px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s;
+  }
+  .journal-add-btn:hover { background: rgba(110,126,96,0.10); border-style: solid; }
+  .journal-composer {
+    margin-top: 8px;
+    display: flex; flex-direction: column; gap: 6px;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(110,126,96,0.25);
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+  .journal-composer textarea {
+    width: 100%;
+    min-height: 54px;
+    resize: vertical;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-family: var(--serif);
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--paper);
+    box-sizing: border-box;
+  }
+  .journal-composer textarea:focus { outline: none; border-color: var(--sage-deep); }
+  .journal-composer-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 11.5px; color: var(--ink-soft);
+  }
+  .journal-counter.over { color: #8C2A22; font-weight: 600; }
+  .journal-composer-buttons { display: flex; gap: 6px; }
+  .journal-composer-buttons button {
+    border: none; cursor: pointer;
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    transition: all .15s;
+  }
+  .journal-save {
+    background: var(--sage-deep); color: var(--paper);
+  }
+  .journal-save:hover { background: var(--forest); }
+  .journal-save:disabled { background: rgba(110,126,96,0.4); cursor: not-allowed; }
+  .journal-cancel {
+    background: transparent; color: var(--ink-soft);
+    border: 1px solid var(--line) !important;
+  }
+  .journal-cancel:hover { background: rgba(0,0,0,0.05); }
+  .journal-list {
+    margin: 8px 0 0; padding: 0; list-style: none;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .journal-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    align-items: start;
+    font-size: 12.5px;
+    color: var(--ink);
+    padding: 3px 0;
+  }
+  .journal-item-date {
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding-top: 1px;
+  }
+  .journal-item-note {
+    overflow: hidden;
+    word-break: break-word;
+  }
+  .journal-item-note.truncated {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .journal-item-del {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-soft); font-size: 12px;
+    padding: 0 4px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: all .15s;
+  }
+  .journal-item-del:hover { background: rgba(178,58,48,0.10); color: #8C2A22; }
+  .journal-toggle-all {
+    margin-top: 4px;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--sage-deep); font-size: 11.5px;
+    font-family: inherit; font-style: italic;
+    padding: 2px 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .journal-toggle-all:hover { color: var(--forest); }
+
   /* "↔ Compare two plants" (R28) — drawer-header button, top-bar pick banner,
      pickable rec-card overlay, side-by-side modal. Reuses .qr-overlay /
      .compare-col / .compare-grid CSS where possible. */
@@ -5806,6 +5940,13 @@ const state = {
   //    opt-in via the year selector. NOT persisted across designs; just a view
   //    knob like resultTab. NO animation between years — instant re-render.
   growthYear: 10,
+  // ── R36: Garden journal — text-only freeform notes attached to each named
+  //    design entry. Persisted *inside* the LIST_KEY entry (no new storage
+  //    key). UI state lives here so we can remember which cards are showing
+  //    their inline note composer / which have expanded the "show all" list.
+  //    Maps designId → boolean. Cleared implicitly when the design is deleted.
+  journalComposerOpen: {},   // { [designId]: true } — note textarea is showing
+  journalExpanded: {},       // { [designId]: true } — full list shown (else top 3)
   lang: "zh",
 };
 
@@ -6403,6 +6544,46 @@ function loadDesignById(id) {
   return list.designs.find(e => e.id === id) || null;
 }
 
+// ── R36: Garden journal — text-only notes on a named design ───────────────
+// Stored as entry.journal = [{ id, ts, note }]. Persisted via LIST_KEY (no
+// new storage key). Hard limit: 200 chars per note, no images.
+const JOURNAL_NOTE_MAX = 200;
+
+function makeJournalId() {
+  return "j_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+}
+
+function addJournalEntry(designId, noteText) {
+  const trimmed = String(noteText || "").trim().slice(0, JOURNAL_NOTE_MAX);
+  if (!trimmed) return false;
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return false;
+  if (!Array.isArray(entry.journal)) entry.journal = [];
+  entry.journal.unshift({ id: makeJournalId(), ts: Date.now(), note: trimmed });
+  saveDesignList(list);
+  return true;
+}
+
+function deleteJournalEntry(designId, journalId) {
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry || !Array.isArray(entry.journal)) return;
+  entry.journal = entry.journal.filter(j => j.id !== journalId);
+  saveDesignList(list);
+}
+
+// Short YYYY-MM-DD for journal entry display. Falls back to "?" if invalid.
+function formatJournalDate(ts) {
+  if (!ts) return "?";
+  const dt = new Date(ts);
+  if (isNaN(dt.getTime())) return "?";
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // URL hash encoding — base64-encoded JSON. Used for sharing / bookmarking.
 function encodeHashFromState() {
   try {
@@ -6968,6 +7149,7 @@ function renderMyDesignsSection() {
                           aria-label="${t('刪除設計 / Delete design','Delete design / 刪除設計')}"
                           title="${t('刪除','Delete')}">🗑</button>
                 </div>
+                ${renderJournalRow(entry)}
               </div>`;
           }).join("")}
         </div>
@@ -6975,11 +7157,98 @@ function renderMyDesignsSection() {
     </div>`;
 }
 
+// R36: Render the inline journal section for one design card.
+// Returns markup for a full-width row appended inside .my-design-card.
+function renderJournalRow(entry) {
+  const journal = Array.isArray(entry.journal) ? entry.journal : [];
+  const composerOpen = !!state.journalComposerOpen[entry.id];
+  const expanded = !!state.journalExpanded[entry.id];
+  const visible = expanded ? journal : journal.slice(0, 3);
+  const hasMore = journal.length > 3;
+
+  const badgeHtml = journal.length > 0 ? `
+    <button class="journal-badge" data-journal-toggle="${escapeHtml(entry.id)}"
+            aria-label="${t('查看筆記 / View journal', 'View journal / 查看筆記')}"
+            title="${t('查看筆記', 'View journal')}">
+      <span data-zh="📔 ${journal.length} 筆紀錄"
+            data-en="📔 ${journal.length} ${journal.length === 1 ? "note" : "notes"}"
+      >📔 ${journal.length} 筆紀錄</span>
+    </button>
+  ` : "";
+
+  const addBtnHtml = `
+    <button class="journal-add-btn" data-journal-add="${escapeHtml(entry.id)}"
+            aria-label="${t('新增筆記 / Add note', 'Add note / 新增筆記')}">
+      <span data-zh="+ 寫筆記" data-en="+ Add note">+ 寫筆記</span>
+    </button>
+  `;
+
+  const composerHtml = composerOpen ? `
+    <div class="journal-composer" data-journal-composer="${escapeHtml(entry.id)}">
+      <textarea data-journal-textarea="${escapeHtml(entry.id)}"
+                maxlength="${JOURNAL_NOTE_MAX}"
+                placeholder="${t('今天種了什麼？澆水了嗎？發芽了嗎？', 'What did you plant today? Watered? Sprouted?')}"
+                aria-label="${t('筆記內容', 'Note text')}"></textarea>
+      <div class="journal-composer-row">
+        <span class="journal-counter" data-journal-counter="${escapeHtml(entry.id)}">0 / ${JOURNAL_NOTE_MAX}</span>
+        <div class="journal-composer-buttons">
+          <button class="journal-cancel" data-journal-cancel="${escapeHtml(entry.id)}">
+            <span data-zh="取消" data-en="Cancel">取消</span>
+          </button>
+          <button class="journal-save" data-journal-save="${escapeHtml(entry.id)}" disabled>
+            <span data-zh="儲存" data-en="Save">儲存</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  ` : "";
+
+  // Visible list — shown when there's any journal AND (composer is open OR
+  // there's something to show). We always render the list whenever notes exist
+  // so the badge click can scroll to it; tap the badge to toggle expansion.
+  const listHtml = journal.length > 0 ? `
+    <ul class="journal-list">
+      ${visible.map((j) => `
+        <li class="journal-item">
+          <span class="journal-item-date">${escapeHtml(formatJournalDate(j.ts))}</span>
+          <span class="journal-item-note ${expanded ? "" : "truncated"}">${escapeHtml(j.note)}</span>
+          <button class="journal-item-del"
+                  data-journal-delete="${escapeHtml(entry.id)}"
+                  data-journal-id="${escapeHtml(j.id)}"
+                  aria-label="${t('刪除這則筆記 / Delete this note', 'Delete this note / 刪除這則筆記')}"
+                  title="${t('刪除', 'Delete')}">✕</button>
+        </li>
+      `).join("")}
+    </ul>
+    ${hasMore ? `
+      <button class="journal-toggle-all" data-journal-expand="${escapeHtml(entry.id)}">
+        <span data-zh="${expanded ? '收合' : `查看所有 ${journal.length} 筆紀錄`}"
+              data-en="${expanded ? 'Collapse' : `View all ${journal.length} notes`}"
+        >${expanded ? "收合" : `查看所有 ${journal.length} 筆紀錄`}</span>
+      </button>
+    ` : ""}
+  ` : "";
+
+  return `
+    <div class="journal-row">
+      <div class="journal-controls">
+        ${badgeHtml}
+        ${addBtnHtml}
+      </div>
+      ${composerHtml}
+      ${listHtml}
+    </div>
+  `;
+}
+
 function wireMyDesignsSection() {
   document.querySelectorAll(".my-design-card").forEach((card) => {
     card.addEventListener("click", (e) => {
       // Ignore clicks on the action buttons
       if (e.target.closest("button")) return;
+      // R36: clicks inside the journal row (textarea, dates, etc.) must NOT
+      // resume the design — that would lose the in-progress note.
+      if (e.target.closest(".journal-row")) return;
       const id = card.dataset.designId;
       // In "select second design" mode, clicking a pickable card sets the
       // second id and triggers a re-render — which swaps the grid for the
@@ -7061,9 +7330,103 @@ function wireMyDesignsSection() {
         // Deleted card might have been part of an active compare — clear safely.
         if (state.compareFirstId === id) state.compareFirstId = null;
         if (state.compareSecondId === id) state.compareSecondId = null;
+        // Clear any per-design journal UI state for the deleted entry.
+        delete state.journalComposerOpen[id];
+        delete state.journalExpanded[id];
         renderHome();
         applyLanguage();
       }
+    });
+  });
+
+  // ── R36: journal wiring ───────────────────────────────────────────────
+  // "+ 寫筆記" → open the inline composer for that design.
+  document.querySelectorAll("[data-journal-add]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.journalAdd;
+      state.journalComposerOpen[id] = true;
+      renderHome();
+      applyLanguage();
+      // Focus the new textarea so the user can start typing immediately.
+      const ta = document.querySelector(`[data-journal-textarea="${id}"]`);
+      if (ta) ta.focus();
+    });
+  });
+  // Textarea — live-update char counter and toggle the Save button disabled state.
+  document.querySelectorAll("[data-journal-textarea]").forEach((ta) => {
+    const id = ta.dataset.journalTextarea;
+    const counterEl = document.querySelector(`[data-journal-counter="${id}"]`);
+    const saveBtn = document.querySelector(`[data-journal-save="${id}"]`);
+    const sync = () => {
+      const len = ta.value.length;
+      if (counterEl) {
+        counterEl.textContent = `${len} / ${JOURNAL_NOTE_MAX}`;
+        counterEl.classList.toggle("over", len >= JOURNAL_NOTE_MAX);
+      }
+      if (saveBtn) saveBtn.disabled = ta.value.trim().length === 0;
+    };
+    ta.addEventListener("input", sync);
+    ta.addEventListener("click", (e) => e.stopPropagation());
+    sync();
+  });
+  // Save the note → persist + re-render.
+  document.querySelectorAll("[data-journal-save]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.journalSave;
+      const ta = document.querySelector(`[data-journal-textarea="${id}"]`);
+      if (!ta) return;
+      const ok = addJournalEntry(id, ta.value);
+      if (ok) {
+        state.journalComposerOpen[id] = false;
+        renderHome();
+        applyLanguage();
+      }
+    });
+  });
+  // Cancel composer.
+  document.querySelectorAll("[data-journal-cancel]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.journalCancel;
+      state.journalComposerOpen[id] = false;
+      renderHome();
+      applyLanguage();
+    });
+  });
+  // Delete a single journal entry.
+  document.querySelectorAll("[data-journal-delete]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const designId = btn.dataset.journalDelete;
+      const journalId = btn.dataset.journalId;
+      if (!designId || !journalId) return;
+      if (confirm(t("刪除這則筆記？", "Delete this note?"))) {
+        deleteJournalEntry(designId, journalId);
+        renderHome();
+        applyLanguage();
+      }
+    });
+  });
+  // "查看所有 N 筆紀錄" / collapse — toggle expansion of the journal list.
+  document.querySelectorAll("[data-journal-expand]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.journalExpand;
+      state.journalExpanded[id] = !state.journalExpanded[id];
+      renderHome();
+      applyLanguage();
+    });
+  });
+  // Badge click — same toggle as expand link (acts as a shortcut).
+  document.querySelectorAll("[data-journal-toggle]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.journalToggle;
+      state.journalExpanded[id] = !state.journalExpanded[id];
+      renderHome();
+      applyLanguage();
     });
   });
 }
