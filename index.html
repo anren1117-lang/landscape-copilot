@@ -567,6 +567,23 @@
     color: var(--ink-soft); cursor: pointer; transition: all .2s;
   }
   .est-tab.on { background: var(--forest); color: var(--paper); font-weight: 600; }
+  /* R32: 3D growth-year selector — small pill row above the iso scene. */
+  .growth-year-bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    background: rgba(0,0,0,0.04); border-radius: 999px;
+    padding: 5px 10px; margin: 4px 0 8px;
+  }
+  .growth-year-label { font-size: 12px; color: var(--ink-soft); font-weight: 500; padding: 0 4px; }
+  .growth-year-btn {
+    padding: 6px 11px; background: none; border: 1px solid transparent; border-radius: 999px;
+    font-family: inherit; font-size: 12px; font-weight: 500;
+    color: var(--ink-soft); cursor: pointer; transition: all .15s;
+  }
+  .growth-year-btn:hover { background: rgba(0,0,0,0.05); }
+  .growth-year-btn.on {
+    background: var(--forest); color: var(--paper); font-weight: 600;
+    border-color: var(--forest);
+  }
   .est-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .est-ref-row { display: grid; grid-template-columns: 1fr; gap: 6px; max-height: 200px; overflow-y: auto; padding-right: 4px; }
   .est-ref-row::-webkit-scrollbar { width: 6px; }
@@ -5728,6 +5745,13 @@ const state = {
   //    Transient — never persisted, cleared on Start-fresh.
   plantCompareFirstId: null,
   plantCompareSecondId: null,
+  // ── R32: Growth-year preview for the 3D view. Lets the user see what their
+  //    design looks like at year 1 (newly planted, mostly bare), year 3 (filling
+  //    in), year 5 (most things established), and year 10 (mature canopy).
+  //    Default 10 preserves the original "mature" rendering — the feature is
+  //    opt-in via the year selector. NOT persisted across designs; just a view
+  //    knob like resultTab. NO animation between years — instant re-render.
+  growthYear: 10,
   lang: "zh",
 };
 
@@ -9767,6 +9791,10 @@ function openZoneClimatePopup(zone) {
 function renderTabPanel(recs, layers) {
   const host = document.getElementById("tabPanel");
   if (!host) return;
+  // R32: stash refs so the iso3d year-selector buttons can re-render in place
+  // without plumbing recs/layers through every callsite.
+  window.__lastRecs = recs;
+  window.__lastLayers = layers;
   switch (state.resultTab) {
     case "preview":  host.innerHTML = renderRealisticPreview(recs); wirePreview(recs); break;
     case "plan":     host.innerHTML = renderPlan(layers, recs); wirePlanInteractions(); break;
@@ -10705,13 +10733,40 @@ function render3D(layers, recs, allRecs) {
     return "#" + toHex(nr) + toHex(ng) + toHex(nb);
   }
 
+  // ── R32: growth-year scaling ───────────────────────────────
+  // Each plant has a `mature_yr` (years until visually mature/established).
+  // We compute growthFactor = min(1, currentYear / mature_yr). Plants younger
+  // than mature render with shorter trunk + smaller crown (with a floor so
+  // they stay visible). Groundcover (G) and water (W) always render at full
+  // size — groundcover fills in within a season, water features are infrastructure.
+  // Canopy trees with long mature_yr (15-20+) end up dramatically smaller at year 1,
+  // which is the honest visual: "your saplings will be sticks for a few years".
+  const currentYear = Math.max(1, Math.min(50, state.growthYear || 10));
+
   const plantSvgs = drawList.map(({ p, ground, sortKey }) => {
     const tier = TIER_3D[p.tier] || TIER_3D.G;
     const spreadFactor = Math.max(0.7, Math.min(1.7, (p.spread?.[1] || 1) / 1.5));
-    const crownR  = tier.crownR  * spreadFactor;
-    const crownRy = crownR * tier.crownAspect;
-    const trunkH  = tier.trunkH;
-    const trunkW  = tier.trunkW;
+    let crownR  = tier.crownR  * spreadFactor;
+    let crownRy = crownR * tier.crownAspect;
+    let trunkH  = tier.trunkH;
+    let trunkW  = tier.trunkW;
+
+    // Apply growth scaling — skip for groundcover (fills in fast) and water (infrastructure).
+    if (p.tier !== "G" && p.tier !== "W") {
+      const matureYr = Math.max(1, p.mature_yr || 5);
+      const growthFactor = Math.min(1, currentYear / matureYr);
+      // Floor per tier so a year-1 sapling still shows up — 35% for canopy
+      // (a planted T sapling is ~1.5m), 45% for shrubs, 55% for climbers.
+      const floor = p.tier === "T" ? 0.35 : (p.tier === "S" ? 0.45 : 0.55);
+      const scale = Math.max(floor, growthFactor);
+      // Crown radius and trunk height scale together so the silhouette
+      // stays proportional. trunkW scales mildly (a sapling trunk is thin
+      // but not as thin as a strict linear scale would imply).
+      crownR  = crownR  * scale;
+      crownRy = crownRy * scale;
+      trunkH  = trunkH  * scale;
+      trunkW  = trunkW  * (0.6 + scale * 0.4);
+    }
 
     // ── Mulch ring under canopy & shrub plants — small darker ellipse at base.
     // Suggests a designed bed, not bare lawn. Skipped for water and groundcover.
@@ -11141,8 +11196,11 @@ function render3D(layers, recs, allRecs) {
   const topPlants = drawList.slice(0, 3).map(d => d.p);
   const topZh = topPlants.map(p => p.zh).join("、") || "原生植物";
   const topEn = topPlants.map(p => p.en).join(", ") || "native plants";
-  const captionZh = `你的 ${area} m² ${spaceZh} · ${topZh} · ${tod.labelZh}`;
-  const captionEn = `Your ${area} m² ${spaceEn} · ${topEn} · ${tod.labelEn}`;
+  // R32: year tag in the caption — "Year 10" with "成熟/mature" hint for the default.
+  const yearTagZh = `Year ${currentYear}${currentYear >= 10 ? " · 成熟" : ""}`;
+  const yearTagEn = `Year ${currentYear}${currentYear >= 10 ? " · mature" : ""}`;
+  const captionZh = `你的設計 · ${yearTagZh} · ${area} m² ${spaceZh} · ${topZh} · ${tod.labelZh}`;
+  const captionEn = `Your design · ${yearTagEn} · ${area} m² ${spaceEn} · ${topEn} · ${tod.labelEn}`;
 
   // ── HERO PILL (priority 5) — large serif title on a translucent paper card
   // floating at the top of the SVG. Subtitle shows month + bloom count + critter
@@ -11170,6 +11228,28 @@ function render3D(layers, recs, allRecs) {
             fill="#6B7560" data-zh="${heroSubZh}" data-en="${heroSubEn}">${heroSub}</text>
     </g>`;
 
+  // R32: year-selector pills. Tooltip on each button explains the moment;
+  // hint line beneath summarises the whole spectrum. Bilingual.
+  const yearOpts = [
+    { y: 1,  icon: "🌱", zh: "Year 1 · 1 年",            en: "Year 1 · 1 yr",
+      titleZh: "Year 1：剛種下，地被先綠、樹木只是小苗。",
+      titleEn: "Year 1: newly planted — groundcover greens up, trees are sticks." },
+    { y: 3,  icon: "🌿", zh: "Year 3 · 3 年",            en: "Year 3 · 3 yrs",
+      titleZh: "Year 3：灌木開始成形，喬木仍在長大。",
+      titleEn: "Year 3: shrubs taking shape; canopy trees still filling in." },
+    { y: 5,  icon: "🌳", zh: "Year 5 · 5 年",            en: "Year 5 · 5 yrs",
+      titleZh: "Year 5：多數植物已扎根成形、開始相互連接。",
+      titleEn: "Year 5: most plants established and starting to fill in." },
+    { y: 10, icon: "🌲", zh: "Year 10 · 10 年 成熟",     en: "Year 10 · mature",
+      titleZh: "Year 10：喬木冠層完全展開，這就是成熟的樣貌。",
+      titleEn: "Year 10: mature canopy — this is what the design grows into." },
+  ];
+  const yearPills = yearOpts.map(o => `
+    <button class="growth-year-btn ${currentYear === o.y ? "on" : ""}"
+            data-growth-year="${o.y}"
+            title="${state.lang === "zh" ? o.titleZh : o.titleEn}"
+            data-zh="${o.icon} ${o.zh}" data-en="${o.icon} ${o.en}">${o.icon} ${state.lang === "zh" ? o.zh : o.en}</button>`).join("");
+
   return `
     <h2 class="subtitle" data-zh="3D 視角 · Isometric View" data-en="3D Isometric View">3D 視角 · Isometric View</h2>
     <p class="lead-small" style="font-style:italic;color:#5A5C50;"
@@ -11179,6 +11259,17 @@ function render3D(layers, recs, allRecs) {
        data-zh="從 30° 等角度俯視你的景觀，喬木立起、灌木中層、地被在地。圓圈尺寸對應冠幅，圓柱代表樹幹。點植物查看養護指南。"
        data-en="A 30° isometric view of your garden — canopy stands tall, shrubs in the middle, groundcover on the ground. Circle size = mature spread; columns = trunks. Tap a plant for the care guide.">
        從 30° 等角度俯視你的景觀，喬木立起、灌木中層、地被在地。圓圈尺寸對應冠幅，圓柱代表樹幹。點植物查看養護指南。</p>
+    <div class="growth-year-bar" role="tablist"
+         title="${t('預覽你的設計在不同生長階段的樣貌（Year 1 剛種下 / Year 5 開始填滿 / Year 10 成熟冠層）','Preview how your design looks at each growth stage — Year 1 newly planted, Year 5 filling in, Year 10 mature canopy.')}">
+      <span class="growth-year-label"
+            data-zh="🕰️ 生長預覽 ·"
+            data-en="🕰️ Growth preview ·">🕰️ 生長預覽 ·</span>
+      ${yearPills}
+    </div>
+    <p class="lead-small" style="font-size:11px;color:#7A7C70;margin-top:-6px;"
+       data-zh="Year 1 = 剛種下；Year 5 = 開始填滿；Year 10 = 成熟冠層。地被生長快，永遠以滿尺寸顯示。"
+       data-en="Year 1 = newly planted. Year 5 = filling in. Year 10 = mature canopy. Groundcover grows fast and always shows at full size.">
+       Year 1 = 剛種下；Year 5 = 開始填滿；Year 10 = 成熟冠層。地被生長快，永遠以滿尺寸顯示。</p>
     <div class="plan-frame">
       <svg viewBox="0 0 ${svgW} ${svgH}" class="plan-svg" preserveAspectRatio="xMidYMid meet">
         <defs>
@@ -11229,6 +11320,21 @@ function render3D(layers, recs, allRecs) {
 function wire3DInteractions() {
   document.querySelectorAll(".plan-plant").forEach((g) => {
     g.addEventListener("click", () => openDrawer(g.dataset.id));
+  });
+  // R32: growth-year pills — instant re-render only, no animation between years.
+  // We re-render the iso3d panel in place via renderTabPanel so other tabs are unaffected.
+  document.querySelectorAll(".growth-year-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const y = parseInt(btn.dataset.growthYear, 10);
+      if (!Number.isFinite(y) || y === state.growthYear) return;
+      state.growthYear = y;
+      // Re-render just the active tab panel (iso3d). We need recs+layers from
+      // the global cache the result page populated. Fall back to a global state
+      // shim if available.
+      const recs  = (window.__lastRecs   || []);
+      const layers= (window.__lastLayers || []);
+      renderTabPanel(recs, layers);
+    });
   });
 }
 
