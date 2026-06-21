@@ -6603,6 +6603,10 @@ function snapshotState() {
 
 function applySnapshot(snap) {
   if (!snap || !snap.space) return false;
+  // R43: applying a snapshot swaps wizard answers + prefs wholesale, so blow
+  // away any cached tab HTML from the previous design before the next render
+  // reads it. Belt-and-suspenders alongside the renderResult() invalidator.
+  if (typeof invalidateTabCache === "function") invalidateTabCache();
   // Defensive: never let a malicious / stale snapshot smuggle a base64 photo
   // back into state. Even though snapshotState() strips these on write, an
   // older payload from localStorage or a hand-crafted #d= URL could carry one.
@@ -10405,6 +10409,13 @@ function renderResult() {
   // becomes the user's personal "dashboard".
   persistDashboard();
 
+  // R43: invalidate the tab-render cache on every fresh result render.
+  // The cache key already includes every state input, so this is mostly a
+  // bounded-memory hygiene measure — it also explicitly covers the spec's
+  // "wizard answers / likes / dislikes / nativeOnly changed" callsites since
+  // every one of them ends in renderResult().
+  if (typeof invalidateTabCache === "function") invalidateTabCache();
+
   const scored = scorePlants();
   // Apply native-only filter at the result level (scoring stays the same so the
   // filter can be toggled live without recomputing scores).
@@ -10652,6 +10663,73 @@ function openZoneClimatePopup(zone) {
   applyLanguage();
 }
 
+// ── R43: Tab-render memoization ─────────────────────────────
+// The three SVG-heavy tabs (plan, iso3d, preview) cost the most when the user
+// flicks between tabs — every click re-runs layoutPlan + a ~700-element SVG
+// string build. We cache the rendered HTML keyed by a snapshot of every input
+// that affects the output, so repeat clicks return the cached string instantly.
+//
+// In-memory only — no new storage keys, never persisted, cleared on reload.
+// Bounded at a handful of entries (one per tab) so memory stays trivial.
+//
+// We DELIBERATELY do NOT memoize:
+//   - care / calendar — depend on today's date / curMonthIdx; staleness would
+//     mislead the user about what to do *this* week.
+//   - dict — has interactive search input state that re-renders sub-trees.
+//   - layers / build / tutorials / shopping — quick to render and have wired
+//     interactions (qty inputs, chip selections) that need fresh DOM each time.
+//
+// Time-sensitive bits we DO want to keep correct on the cached tabs:
+//   - render3D reads new Date().getHours() (sun phase) + getMonth() (season).
+//     We include both in the cache key so an hour-long session still recomputes
+//     the iso scene when the sun phase rolls over.
+const __tabCache = new Map();  // key: `${tab}::${hash}` → rendered HTML string
+
+function __tabCacheKey(tab) {
+  // Snapshot every state value that influences plan/iso3d/preview output.
+  // Wizard inputs (space + dimensions + sun/water/orientation/coastal/style/
+  // pet/children/nativeOnly) drive recs+layers; prefs reorder them; growthYear
+  // + show3DNative are iso3d view knobs; previewSeeds + override drive the AI
+  // tab; lang flips every label. Time bucket (only for iso3d) tracks sun phase.
+  const p = state.prefs || {};
+  const likedKeys = Object.keys(p.liked || {}).sort().join(",");
+  const dislikedKeys = Object.keys(p.disliked || {}).sort().join(",");
+  const pinnedKeys = Object.keys(p.pinned || {}).sort().join(",");
+  const parts = [
+    tab,
+    state.space, state.widthM, state.depthM, state.orientation,
+    state.sun, state.water, state.coastal ? 1 : 0,
+    state.style || "", state.pet ? 1 : 0, state.children ? 1 : 0,
+    state.nativeOnly ? 1 : 0,
+    state.growthYear, state.show3DNative ? 1 : 0,
+    state.lang,
+    likedKeys, dislikedKeys, pinnedKeys,
+  ];
+  if (tab === "preview") {
+    parts.push((state.previewSeeds || []).join("."));
+    parts.push(state.previewPromptOverride || "");
+  }
+  if (tab === "iso3d") {
+    // Hour bucket — render3D pulls new Date().getHours() for the sun-phase
+    // palette. Including it means a session that crosses 14:59→15:00 will
+    // correctly re-render once at the boundary.
+    const d = new Date();
+    parts.push(d.getMonth(), d.getHours());
+  }
+  return parts.join("|");
+}
+
+function invalidateTabCache() {
+  // Belt-and-suspenders. The cache key already includes every state input
+  // that should bust it, so this is mostly redundant — but we call it from a
+  // few high-impact sites (renderResult start, snapshot apply, language flip)
+  // so memory doesn't grow if the key shape ever drifts from reality.
+  __tabCache.clear();
+}
+// Expose so debug + tests can poke it.
+window.__tabCache = __tabCache;
+window.invalidateTabCache = invalidateTabCache;
+
 function renderTabPanel(recs, layers) {
   const host = document.getElementById("tabPanel");
   if (!host) return;
@@ -10659,17 +10737,40 @@ function renderTabPanel(recs, layers) {
   // without plumbing recs/layers through every callsite.
   window.__lastRecs = recs;
   window.__lastLayers = layers;
-  switch (state.resultTab) {
-    case "preview":  host.innerHTML = renderRealisticPreview(recs); wirePreview(recs); break;
-    case "plan":     host.innerHTML = renderPlan(layers, recs); wirePlanInteractions(); break;
-    case "iso3d":    host.innerHTML = render3D(layers, recs, recs); wire3DInteractions(); break;
-    case "layers":   host.innerHTML = renderLayers(layers, recs); wireLayerCards(); break;
-    case "calendar": host.innerHTML = renderCalendar(recs); break;
-    case "care":     host.innerHTML = renderCareCalendar(recs); wireCarePlantChips(); break;
-    case "build":    host.innerHTML = renderBuildPlan(layers, recs); wireBuildPlantChips(); break;
-    case "tutorials":host.innerHTML = renderTutorials(recs); wireTutorials(); break;
-    case "shopping": host.innerHTML = renderShopping(recs); wireShoppingControls(); break;
-    case "dict":     host.innerHTML = renderDictionary(); wireDictionary(); break;
+
+  // R43: Memoize the three SVG-heavy tabs. Cache hit = instant tab switch with
+  // zero recomputation. Cache miss = render once, stash, wire interactions.
+  const tab = state.resultTab;
+  const cacheable = (tab === "plan" || tab === "iso3d" || tab === "preview");
+  let html = null;
+  if (cacheable) {
+    const key = __tabCacheKey(tab);
+    if (__tabCache.has(key)) {
+      html = __tabCache.get(key);
+    } else {
+      switch (tab) {
+        case "preview": html = renderRealisticPreview(recs); break;
+        case "plan":    html = renderPlan(layers, recs); break;
+        case "iso3d":   html = render3D(layers, recs, recs); break;
+      }
+      __tabCache.set(key, html);
+    }
+    host.innerHTML = html;
+    // Wire interactions — must run on every paint (DOM nodes are fresh even
+    // when the string came from cache).
+    if (tab === "preview") wirePreview(recs);
+    else if (tab === "plan") wirePlanInteractions();
+    else if (tab === "iso3d") wire3DInteractions();
+  } else {
+    switch (tab) {
+      case "layers":   host.innerHTML = renderLayers(layers, recs); wireLayerCards(); break;
+      case "calendar": host.innerHTML = renderCalendar(recs); break;
+      case "care":     host.innerHTML = renderCareCalendar(recs); wireCarePlantChips(); break;
+      case "build":    host.innerHTML = renderBuildPlan(layers, recs); wireBuildPlantChips(); break;
+      case "tutorials":host.innerHTML = renderTutorials(recs); wireTutorials(); break;
+      case "shopping": host.innerHTML = renderShopping(recs); wireShoppingControls(); break;
+      case "dict":     host.innerHTML = renderDictionary(); wireDictionary(); break;
+    }
   }
   applyLanguage();
 }
