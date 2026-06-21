@@ -303,7 +303,8 @@
   .zone-pop-overlay {
     position: fixed; inset: 0; z-index: 26;
     background: rgba(44,53,38,0.36); backdrop-filter: blur(4px);
-    display: flex; align-items: center; justify-content: center; padding: 24px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 24px max(24px, env(safe-area-inset-bottom));
   }
   .zone-pop {
     background: var(--paper-warm);
@@ -437,7 +438,7 @@
   footer.nav {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 3;
     display: flex; justify-content: space-between; align-items: center;
-    padding: 16px 30px; max-width: 880px; margin: 0 auto;
+    padding: 16px 30px max(16px, env(safe-area-inset-bottom)); max-width: 880px; margin: 0 auto;
     background: linear-gradient(transparent, rgba(237,234,224,0.95) 40%);
     backdrop-filter: blur(6px);
   }
@@ -1117,7 +1118,7 @@
     display: flex; flex-direction: column; gap: 3px;
   }
   .care-preview-item {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--forest);
     line-height: 1.45;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -2272,6 +2273,19 @@
 
   /* BLOOM CALENDAR */
   .cal-frame { padding: 18px; background: rgba(255,255,255,0.55); border: 1px solid var(--line); border-radius: 18px; overflow-x: auto; }
+  /* R49 — mobile-only swipe hint above the 600px-wide cal-table.
+     Pure CSS pseudo-element so we don't touch the DOM/print bundle. */
+  @media (max-width: 520px) {
+    .cal-frame::before {
+      content: "↔ 左右滑動 / Swipe to scroll";
+      display: block;
+      font-size: 11.5px;
+      color: var(--ink-soft);
+      font-style: italic;
+      margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+  }
   .cal-table { width: 100%; min-width: 600px; border-collapse: collapse; font-size: 12.5px; }
   .cal-table th { font-family: var(--serif); font-weight: 600; color: var(--forest); padding: 8px 4px; font-size: 12px; text-align: center; border-bottom: 1px solid var(--line); }
   .cal-table th.plant-col { text-align: left; padding-left: 8px; min-width: 130px; }
@@ -2324,7 +2338,7 @@
     border: 1px solid var(--line);
     border-radius: 999px;
     padding: 4px 11px;
-    font-size: 12px; color: var(--forest);
+    font-size: 13px; color: var(--forest);
     font-family: inherit; cursor: pointer;
     transition: all .15s;
   }
@@ -2492,7 +2506,7 @@
   .drawer {
     width: min(440px, 92vw); height: 100%;
     background: var(--paper-warm);
-    padding: 30px 30px 40px;
+    padding: 30px 30px max(40px, env(safe-area-inset-bottom));
     overflow-y: auto; position: relative;
     box-shadow: -30px 0 60px -20px rgba(0,0,0,0.3);
   }
@@ -2625,13 +2639,15 @@
     .shop-total .amount { font-size: 22px; }
   }
 
-  /* QR MODAL — same overlay pattern as drawer, but centered */
+  /* QR MODAL — same overlay pattern as drawer, but centered.
+     padding-bottom uses max() so iPhone home-indicator never collides
+     with the modal's close button or QR sheet. */
   .qr-overlay {
     position: fixed; inset: 0; z-index: 25;
     background: rgba(44,53,38,0.4);
     backdrop-filter: blur(4px);
     display: flex; align-items: center; justify-content: center;
-    padding: 24px;
+    padding: 24px 24px max(24px, env(safe-area-inset-bottom));
   }
   .qr-modal {
     background: var(--paper-warm);
