@@ -15449,14 +15449,62 @@ window.openAboutModal = function () {
   // brittle regex over type_zh (the text heuristic undercounts by ~4 species).
   const nativeCount = PLANTS.filter(p => p.native).length;
   const presetCount = (typeof DESIGN_PRESETS !== "undefined" && DESIGN_PRESETS.length) || 0;
+  // R53 — quick-tool count is derived from the switch table in jumpToQuickTool
+  // (thisMonth, petSafe, drought, indoor, fragrant, edible, native, coastal).
+  // Kept as a single source so a future tool addition only updates one number.
+  const quickToolCount = 8;
 
   const repoUrl = "https://github.com/anren1117-lang/landscape-copilot";
+
+  // R53 — feature bullet list. Captures the major capability classes the
+  // earlier one-sentence description undersold (journal, swap, native overlay,
+  // share/QR, photo flow). Kept short + bilingual; pulls counts from data.
+  const features = [
+    {
+      zh: `📸 拍照或 5 題問答兩種入口`,
+      en: `📸 Photo upload or 5-question wizard`,
+    },
+    {
+      zh: `📊 ${plantCount} 種植物資料庫 · 原生比例即時顯示`,
+      en: `📊 ${plantCount}-species database · live native-percentage indicator`,
+    },
+    {
+      zh: `🎨 ${presetCount} 個設計範本 + ${quickToolCount} 個快速工具`,
+      en: `🎨 ${presetCount} design presets + ${quickToolCount} quick tools`,
+    },
+    {
+      zh: `📅 全年照護月曆（可匯出 .ics 行事曆）`,
+      en: `📅 Year-round care calendar (.ics export)`,
+    },
+    {
+      zh: `📔 每個設計都有園藝日誌記錄成長`,
+      en: `📔 Per-design garden journal to log growth`,
+    },
+    {
+      zh: `🔁 植物替換建議（不喜歡就一鍵換）`,
+      en: `🔁 Plant-swap suggestions (one-click replace)`,
+    },
+    {
+      zh: `📱 LINE / QR / 列印 / 分享連結一鍵帶走`,
+      en: `📱 LINE / QR / print / share-link export`,
+    },
+  ];
+  // R53 — render two parallel lists so the parent <li>'s data-zh / data-en
+  // each contain their own language; applyLanguage swaps the entire ti-txt
+  // innerHTML on toggle, so we cannot rely on inner data-zh nodes alone.
+  const featuresListZh = features.map(f => `<div style="margin:3px 0;">${f.zh}</div>`).join("");
+  const featuresListEn = features.map(f => `<div style="margin:3px 0;">${f.en}</div>`).join("");
 
   const sections = [
     {
       icon: "🌿",
-      zh: `<b>它是什麼</b>：一個免費的開源工具，幫你設計適合台灣氣候的陽台、頂樓、庭院或室內植栽。回答 5 個簡單問題（或選一個設計範本），就能得到一份量身打造的植物配置、3D 預覽、施工購物清單與全年照護日曆。`,
-      en: `<b>What it is</b>: a free, open-source tool that helps you design balcony, rooftop, yard or indoor planting tuned to Taiwan's climate. Answer 5 simple questions (or pick a design preset) and get a custom plant plan, 3D preview, install shopping list and full-year care calendar.`,
+      zh: `<b>它是什麼</b>：一個免費的開源工具，幫你設計適合台灣氣候的陽台、頂樓、庭院或室內植栽。回答 5 個簡單問題（或拍一張照、選一個設計範本），就能得到量身打造的植物配置、3D 預覽、施工購物清單、全年照護月曆、園藝日誌、植物比較、原生覆蓋圖層，並可一鍵以分享連結或 QR 帶走。`,
+      en: `<b>What it is</b>: a free, open-source tool that helps you design balcony, rooftop, yard or indoor planting tuned to Taiwan's climate. Answer 5 simple questions (or upload a photo, pick a design preset) and get a custom plant plan, 3D preview, install shopping list, year-round care calendar, garden journal, plant compare, native-species overlay, plus one-click share link / QR.`,
+    },
+    {
+      icon: "✨",
+      zh: `<b>主要功能</b>：<div style="margin-top:6px;line-height:1.7;">${featuresListZh}</div>`,
+      en: `<b>Features</b>:<div style="margin-top:6px;line-height:1.7;">${featuresListEn}</div>`,
     },
     {
       icon: "📚",
