@@ -41,6 +41,20 @@
   html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
   body { min-height: 100vh; position: relative; overflow-x: hidden; padding-bottom: 100px; }
 
+  /* R35 — Respect prefers-reduced-motion. Users who opt in (OS/browser setting)
+     get near-instant animations/transitions instead of the cubic-bezier easing
+     used throughout the app. We don't remove motion entirely — a 0.01ms
+     duration still fires the `transitionend`/`animationend` events some
+     handlers depend on (e.g. toast cleanup, drawer slide-in). */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   /* atmospheric layer (light texture + corner glows) */
   .grain {
     position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.35;
@@ -6944,10 +6958,15 @@ function renderMyDesignsSection() {
                 <div class="my-design-actions">
                   ${enableCompare ? `
                     <button class="cmp ${isFirstPick ? "armed" : ""}" data-design-compare="${escapeHtml(entry.id)}"
+                            aria-label="${t('比較此設計 / Compare this design','Compare this design / 比較此設計')}"
                             title="${t('比較此設計','Compare this design')}">↔</button>
                   ` : ""}
-                  <button data-design-rename="${escapeHtml(entry.id)}" title="${t('重新命名','Rename')}">✎</button>
-                  <button class="del" data-design-delete="${escapeHtml(entry.id)}" title="${t('刪除','Delete')}">🗑</button>
+                  <button data-design-rename="${escapeHtml(entry.id)}"
+                          aria-label="${t('重新命名 / Rename','Rename / 重新命名')}"
+                          title="${t('重新命名','Rename')}">✎</button>
+                  <button class="del" data-design-delete="${escapeHtml(entry.id)}"
+                          aria-label="${t('刪除設計 / Delete design','Delete design / 刪除設計')}"
+                          title="${t('刪除','Delete')}">🗑</button>
                 </div>
               </div>`;
           }).join("")}
@@ -7078,9 +7097,15 @@ function resumeDesignById(id) {
 }
 
 // Small ephemeral toast — used when the user saves a design.
+// R35 — `role="status"` + `aria-live="polite"` so screen readers announce the
+// save confirmation without interrupting the user's current focus. (Save isn't
+// an error, so status/polite is correct; use role="alert" only for failures.)
 function showSaveToast(msgZh, msgEn) {
   const el = document.createElement("div");
   el.className = "save-toast";
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
+  el.setAttribute("aria-atomic", "true");
   el.dataset.zh = msgZh;
   el.dataset.en = msgEn;
   el.textContent = state.lang === "zh" ? msgZh : msgEn;
@@ -13193,7 +13218,7 @@ function openDrawer(id) {
                 title="${t('開始比較 · 從植物字典或結果頁選擇第二個植物','Start a side-by-side compare · then pick a second plant from the dictionary or result page')}">
           ↔ <span data-zh="${state.plantCompareFirstId === plant.id ? "已選為 #1" : "比較植物"}" data-en="${state.plantCompareFirstId === plant.id ? "Selected #1" : "Compare"}">${state.plantCompareFirstId === plant.id ? "已選為 #1" : "比較植物"}</span>
         </button>
-        <button class="drawer-close" id="drawerClose">✕</button>
+        <button class="drawer-close" id="drawerClose" aria-label="${t('關閉植物詳細資訊 / Close plant details','Close plant details / 關閉植物詳細資訊')}">✕</button>
         <div class="drawer-swatch" style="background:${plant.color}"></div>
         <div class="drawer-type" data-zh="${plant.type_zh}" data-en="${plant.type_en}">${plant.type_zh}</div>
         <h2 class="drawer-name" data-zh="${plant.zh}" data-en="${plant.en}">${plant.zh}</h2>
