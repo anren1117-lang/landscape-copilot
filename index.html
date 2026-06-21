@@ -1026,6 +1026,55 @@
   }
   .journal-toggle-all:hover { color: var(--forest); }
 
+  /* R38: This month's care preview — compact list of seasonal tasks for the
+     saved design's top plants. Lives below the journal row inside a card. */
+  .care-preview-row {
+    grid-column: 1 / -1;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(110,126,96,0.20);
+    font-family: var(--serif);
+  }
+  .care-preview-title {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .care-preview-list {
+    list-style: none;
+    margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .care-preview-item {
+    font-size: 12px;
+    color: var(--forest);
+    line-height: 1.45;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .care-preview-empty {
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  .care-jump-btn {
+    margin-top: 8px;
+    background: rgba(110,126,96,0.10);
+    border: 1px solid rgba(110,126,96,0.30);
+    color: var(--sage-deep);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11.5px; font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex; align-items: center; gap: 4px;
+    transition: all 0.15s;
+  }
+  .care-jump-btn:hover { background: var(--sage-deep); color: var(--paper); border-color: var(--sage-deep); }
+  @media print { .care-preview-row { display: none !important; } }
+
   /* "↔ Compare two plants" (R28) — drawer-header button, top-bar pick banner,
      pickable rec-card overlay, side-by-side modal. Reuses .qr-overlay /
      .compare-col / .compare-grid CSS where possible. */
@@ -6941,6 +6990,55 @@ function designSummary(snap) {
   };
 }
 
+// R38: thisMonthCareForSnapshot(snap, monthIdx)
+// Build a compact, ordered list of THIS-month care tasks for a saved design's
+// plants. Reuses expert(p).prune_months / fertilize_months — no new data.
+// Each task is { icon, kindZh, kindEn, plantZh, plantEn } so the renderer can
+// emit "🌱 施肥 月橘" / "🌱 Fertilize 月橘" without re-looking-up plants.
+// One generic seasonal warning is appended when applicable (e.g. typhoon).
+// Cheap: walks at most ~8 plants and reads two arrays each. Caller memoizes
+// by passing the same monthIdx for every card in a single render pass.
+const CARE_MONTH_WARNINGS = {
+  3:  { zh:"春季蚜蟲爆發",  en:"Aphid season" },
+  4:  { zh:"梅雨將至 加強排水", en:"Plum-rain — drainage" },
+  5:  { zh:"注意白粉病",    en:"Watch powdery mildew" },
+  6:  { zh:"颱風季 檢查支撐", en:"Typhoon — check staking" },
+  7:  { zh:"盛夏 每日澆水",  en:"Peak summer — daily water" },
+  8:  { zh:"高溫 葉面噴霧",  en:"Heat — mist leaves" },
+  9:  { zh:"颱風尾 注意倒伏", en:"Late typhoon — guard against falls" },
+  10: { zh:"秋涼 補施緩效肥", en:"Slow-release feed" },
+  11: { zh:"落葉樹休眠",    en:"Deciduous dormancy" },
+  12: { zh:"冬季減半澆水",  en:"Winter — water 1/2" },
+  1:  { zh:"深冬 大幅修剪",  en:"Deep winter pruning" },
+  2:  { zh:"早春前 果樹修剪", en:"Pre-spring fruit-tree pruning" },
+};
+function thisMonthCareForSnapshot(snap, monthIdx) {
+  const tasks = [];
+  if (!snap) return tasks;
+  const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
+  const ids = Object.keys(qtyMap).filter(id => Number(qtyMap[id]) > 0);
+  if (!ids.length) return tasks;
+  const plantsById = Object.fromEntries(PLANTS.map(p => [p.id, p]));
+  // Sort by qty desc so highest-impact plants surface first (mirrors designSummary).
+  const entries = ids
+    .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: plantsById[id] }))
+    .filter(e => e.plant)
+    .sort((a, b) => b.qty - a.qty)
+    .slice(0, 8); // mirror initShoppingQty's top-8 cap
+  entries.forEach(({ plant }) => {
+    const e = expert(plant);
+    if ((e.fertilize_months || []).includes(monthIdx)) {
+      tasks.push({ icon:"🌱", kindZh:"施肥", kindEn:"Fertilize", plantZh:plant.zh, plantEn:plant.en });
+    }
+    if ((e.prune_months || []).includes(monthIdx)) {
+      tasks.push({ icon:"✂️", kindZh:"修剪", kindEn:"Prune", plantZh:plant.zh, plantEn:plant.en });
+    }
+  });
+  const warn = CARE_MONTH_WARNINGS[monthIdx];
+  if (warn) tasks.push({ icon:"⚠", kindZh:warn.zh, kindEn:warn.en, plantZh:"", plantEn:"" });
+  return tasks;
+}
+
 // compareDesigns(a, b) — diff two designSummary results.
 // Returns shared / aOnly / bOnly plant ids and a list of field-level diffs
 // (space, sun, water, goals). Goals are treated as a set: each goal whose
@@ -7132,6 +7230,8 @@ function renderMyDesignsSection() {
   const enableCompare = list.designs.length >= 2;
   const inSelectSecondMode = enableCompare && state.compareFirstId && !state.compareSecondId;
   const aggregateHtml = renderMyDesignsAggregate(list);
+  // R38: compute the calendar month once per render so per-card previews are cheap.
+  const curMonthIdx = new Date().getMonth() + 1;
 
   return `
     <div class="my-designs-section">
@@ -7185,6 +7285,7 @@ function renderMyDesignsSection() {
                           title="${t('刪除','Delete')}">🗑</button>
                 </div>
                 ${renderJournalRow(entry)}
+                ${renderCarePreviewRow(entry, curMonthIdx)}
               </div>`;
           }).join("")}
         </div>
@@ -7276,6 +7377,44 @@ function renderJournalRow(entry) {
   `;
 }
 
+// R38: "This month's care" mini-preview inside each My Designs card.
+// Reuses thisMonthCareForSnapshot — no new data, just surfacing existing
+// prune_months / fertilize_months. Capped at 3 entries; a "📋 本月照護 (N)"
+// button jumps directly into the care tab of the resumed design.
+function renderCarePreviewRow(entry, monthIdx) {
+  const tasks = thisMonthCareForSnapshot(entry.snapshot, monthIdx);
+  const total = tasks.length;
+  const visible = tasks.slice(0, 3);
+  const itemsHtml = visible.length ? `
+    <ul class="care-preview-list">
+      ${visible.map(t => {
+        const zh = t.plantZh ? `${t.icon} ${t.kindZh} ${t.plantZh}` : `${t.icon} ${t.kindZh}`;
+        const en = t.plantEn ? `${t.icon} ${t.kindEn} ${t.plantEn}` : `${t.icon} ${t.kindEn}`;
+        return `<li class="care-preview-item" data-zh="${escapeHtml(zh)}" data-en="${escapeHtml(en)}">${escapeHtml(zh)}</li>`;
+      }).join("")}
+    </ul>
+  ` : `
+    <div class="care-preview-empty"
+         data-zh="🌿 本月無特別照護"
+         data-en="🌿 Nothing scheduled this month">🌿 本月無特別照護</div>
+  `;
+  const jumpBtnHtml = total > 0 ? `
+    <button class="care-jump-btn" type="button" data-design-care="${escapeHtml(entry.id)}"
+            aria-label="${t(`查看本月照護 共 ${total} 項`, `View this month's care, ${total} items`)}">
+      <span data-zh="📋 本月照護 (${total})" data-en="📋 This month's care (${total})">📋 本月照護 (${total})</span>
+    </button>
+  ` : "";
+  return `
+    <div class="care-preview-row">
+      <div class="care-preview-title"
+           data-zh="本月照護 · This month"
+           data-en="This month's care">本月照護 · This month</div>
+      ${itemsHtml}
+      ${jumpBtnHtml}
+    </div>
+  `;
+}
+
 function wireMyDesignsSection() {
   document.querySelectorAll(".my-design-card").forEach((card) => {
     card.addEventListener("click", (e) => {
@@ -7284,6 +7423,10 @@ function wireMyDesignsSection() {
       // R36: clicks inside the journal row (textarea, dates, etc.) must NOT
       // resume the design — that would lose the in-progress note.
       if (e.target.closest(".journal-row")) return;
+      // R38: the care preview row has its own jump button (handled below).
+      // Treat any click inside it as deliberate (not a "resume design") so
+      // accidental misses on the button don't dump the user on the preview tab.
+      if (e.target.closest(".care-preview-row")) return;
       const id = card.dataset.designId;
       // In "select second design" mode, clicking a pickable card sets the
       // second id and triggers a re-render — which swaps the grid for the
@@ -7461,6 +7604,19 @@ function wireMyDesignsSection() {
       const id = btn.dataset.journalToggle;
       state.journalExpanded[id] = !state.journalExpanded[id];
       renderHome();
+      applyLanguage();
+    });
+  });
+  // R38: "📋 本月照護 (N)" — resume the design AND land on the care tab.
+  // resumeDesignById always lands on "preview", so we override resultTab
+  // immediately after and re-render. Cheaper than threading an option through.
+  document.querySelectorAll("[data-design-care]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.designCare;
+      resumeDesignById(id);
+      state.resultTab = "care";
+      render();
       applyLanguage();
     });
   });
