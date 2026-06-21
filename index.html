@@ -233,6 +233,58 @@
   }
   .detected-chip.coastal { background: rgba(80,120,160,0.15); color: #3D6086; border-color: rgba(80,120,160,0.3); }
   .detected-chip.muted { background: transparent; color: var(--ink-soft); border-color: var(--line); font-style: italic; font-family: var(--serif); font-size: 12.5px; }
+
+  /* R30 — result-page zone chip: tappable, opens climate-summary popup.
+     Built on top of .chip so it stays visually consistent with the area/orientation chips. */
+  .chip.zone-chip {
+    cursor: pointer; transition: background 0.18s, border-color 0.18s, color 0.18s;
+    border-style: dashed;
+  }
+  .chip.zone-chip:hover, .chip.zone-chip:focus-visible {
+    background: rgba(138,154,123,0.32); border-color: var(--sage-deep); color: var(--forest);
+    outline: none;
+  }
+  .chip.zone-chip .zone-chip-hint { font-size: 10.5px; margin-left: 2px; opacity: 0.7; }
+
+  /* R30 — climate popup. Uses qr-overlay's pattern but lightweight. */
+  .zone-pop-overlay {
+    position: fixed; inset: 0; z-index: 26;
+    background: rgba(44,53,38,0.36); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .zone-pop {
+    background: var(--paper-warm);
+    border-radius: 18px; padding: 24px 26px 22px;
+    width: min(360px, 92vw);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.35);
+    position: relative; text-align: left;
+  }
+  .zone-pop-close {
+    position: absolute; top: 10px; right: 12px;
+    background: none; border: none; font-size: 18px;
+    color: var(--ink-soft); cursor: pointer; padding: 4px 8px;
+  }
+  .zone-pop-title {
+    font-family: var(--serif); font-size: 19px; font-weight: 600;
+    color: var(--forest); margin: 0 0 4px;
+  }
+  .zone-pop-sub {
+    font-size: 12px; letter-spacing: 0.08em; color: var(--clay-deep);
+    text-transform: uppercase; margin-bottom: 14px;
+  }
+  .zone-pop-body {
+    font-size: 14.5px; line-height: 1.7; color: var(--ink-soft);
+    font-family: var(--serif);
+  }
+  .zone-pop-foot {
+    font-size: 11px; color: var(--ink-soft); font-style: italic;
+    margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+  }
+
+  /* R30 — plant-zone badge variants. Reuse .badge geometry. */
+  .badge.zone-ok   { background: rgba(110,126,96,0.18); color: var(--sage-deep); border-color: rgba(110,126,96,0.35); }
+  .badge.zone-warn { background: rgba(196,160,76,0.16); color: #8C6F1E; border-color: rgba(196,160,76,0.32); }
+
   .dim-row { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 10px; align-items: end; }
   .dim-row .field-input-num { text-align: right; font-variant-numeric: tabular-nums; padding: 12px 14px; font-size: 17px; font-weight: 600; }
   .dim-x { font-family: var(--serif); font-size: 18px; color: var(--clay); padding-bottom: 14px; }
@@ -5700,10 +5752,31 @@ const COUNTY_ZONES = {
 const COASTAL_KEYWORDS = ["海","濱","灘","港","澳","漁","沙崙","淡水","三芝","金山","萬里","八里","蘇澳","頭城","壯圍","五結","南方澳","梧棲","鹿港","布袋","東石","安平","旗津","林園","小琉球","恆春","車城","枋寮","蘇花","成功","大武"];
 
 const ZONE_LABEL = {
-  N: { zh: "北部 · 涼濕", en: "North · cool/wet" },
-  C: { zh: "中部 · 溫和", en: "Central · moderate" },
-  S: { zh: "南部 · 炎熱", en: "South · hot/dry" },
+  N: { zh: "北部 · 涼濕", en: "North · cool-humid" },
+  C: { zh: "中部 · 溫和", en: "Central · temperate" },
+  S: { zh: "南部 · 炎熱", en: "South · hot" },
   E: { zh: "東部 · 多雨", en: "East · rainy" },
+};
+
+// R30 — short climate summary per zone, shown in the result-page zone chip popup.
+// Numbers are annual climate norms (CWB 30-yr means), not a live forecast.
+const ZONE_CLIMATE = {
+  N: {
+    zh: "年均 22°C · 冬季 10–15°C · 降雨集中冬春",
+    en: "Annual 22°C · Winter 10–15°C · Rain peaks in winter/spring",
+  },
+  C: {
+    zh: "年均 23°C · 冬季 14–18°C · 降雨均勻",
+    en: "Annual 23°C · Winter 14–18°C · Even rainfall year-round",
+  },
+  S: {
+    zh: "年均 25°C · 冬季 17–22°C · 降雨夏季",
+    en: "Annual 25°C · Winter 17–22°C · Rain concentrated in summer",
+  },
+  E: {
+    zh: "年均 22°C · 多雨高濕 · 颱風頻繁",
+    en: "Annual 22°C · Wet & humid · Frequent typhoons",
+  },
 };
 
 function detectLocation(address) {
@@ -5724,6 +5797,33 @@ function detectLocation(address) {
   const coastal = COASTAL_KEYWORDS.some(k => s.includes(k));
   if (!zone && !coastal) return null;
   return { county, zone: zone || "C", coastal };
+}
+
+// R30 — bilingual badge HTML showing whether a plant's zones list
+// matches the user's detected zone. Returns "" when the plant has no
+// zones declared (most plants in the DB are zone-agnostic) or when the
+// user hasn't picked a location yet. Never filters — only badges.
+function plantZoneBadgeHTML(plant) {
+  if (!plant || !Array.isArray(plant.zones) || plant.zones.length === 0) return "";
+  const userZone = state.detected?.zone;
+  if (!userZone || !ZONE_LABEL[userZone]) return "";
+  const zh = ZONE_LABEL[userZone].zh.split(" · ")[0];   // "北部" / "中部" / "南部" / "東部"
+  const en = ({N:"North", C:"Central", S:"South", E:"East"})[userZone];
+  if (plant.zones.includes(userZone)) {
+    return `<span class="badge zone-ok" title="${t(`此植物適合${zh}氣候區`, `Suited to ${en} Taiwan climate`)}">✓ <span data-zh="適合${zh}" data-en="Fits ${en}">適合${zh}</span></span>`;
+  }
+  return `<span class="badge zone-warn" title="${t(`此植物較不建議${zh}氣候區`, `Not ideal for ${en} Taiwan climate`)}">⚠ <span data-zh="不建議${zh}" data-en="Not for ${en}">不建議${zh}</span></span>`;
+}
+
+// R30 — compact zone advisory badge for recommendation cards. Only renders the
+// "not for this zone" warning to keep cards uncluttered (positive fit is
+// already implied by the % match score).
+function plantZoneAdvisoryHTML(plant) {
+  if (!plant || !Array.isArray(plant.zones) || plant.zones.length === 0) return "";
+  const userZone = state.detected?.zone;
+  if (!userZone || !ZONE_LABEL[userZone]) return "";
+  if (plant.zones.includes(userZone)) return "";
+  return `<span class="badge zone-warn" title="${t('此區較不適合 · 不會被剔除，但需要更多照顧', 'Less suited to this climate · still shown, may need extra care')}">⚠ <span data-zh="此區較不適合" data-en="Less suited here">此區較不適合</span></span>`;
 }
 
 // Auto-suggest sun for indoor (no choice — it's always part/shade)
@@ -9438,8 +9538,12 @@ function renderResult() {
          ${locText_zh}${area} m² 的<br/>原生植物復層景觀
       </h1>
       <div class="chip-row">
-        <span class="chip">📍 <span data-zh="${spaceLabel.zh} · ${area} m²" data-en="${spaceLabel.en} · ${area} m²">${spaceLabel.zh} · ${area} m²</span></span>
-        ${det?.county ? `<span class="chip">🗺 ${detCountySafe}<span data-zh="（${ZONE_LABEL[det.zone].zh}）" data-en=" (${ZONE_LABEL[det.zone].en})">（${ZONE_LABEL[det.zone].zh}）</span></span>` : (det ? `<span class="chip">🌏 <span data-zh="${ZONE_LABEL[det.zone].zh}" data-en="${ZONE_LABEL[det.zone].en}">${ZONE_LABEL[det.zone].zh}</span></span>` : "")}
+        <span class="chip">📐 <span data-zh="${spaceLabel.zh} · ${area} m²" data-en="${spaceLabel.en} · ${area} m²">${spaceLabel.zh} · ${area} m²</span></span>
+        ${det?.zone ? `<button type="button" class="chip zone-chip" id="zoneChip"
+              data-zone="${det.zone}"
+              aria-label="${t('查看氣候區資訊', 'View climate-zone info')}"
+              title="${t('點擊查看本區氣候摘要', 'Tap for climate summary')}">📍 <span data-zh="${ZONE_LABEL[det.zone].zh}" data-en="${ZONE_LABEL[det.zone].en}">${ZONE_LABEL[det.zone].zh}</span><span class="zone-chip-hint" aria-hidden="true">ⓘ</span></button>` : ""}
+        ${det?.county ? `<span class="chip">🗺 ${detCountySafe}</span>` : ""}
         ${det?.coastal ? `<span class="chip">🌊 <span data-zh="近海岸 · 耐鹽" data-en="Coastal · salt-tolerant">近海岸 · 耐鹽</span></span>` : ""}
         <span class="chip">🧭 <span data-zh="朝${state.orientation === "N" ? "北" : state.orientation === "E" ? "東" : state.orientation === "S" ? "南" : "西"}" data-en="Facing ${state.orientation}">朝${state.orientation === "N" ? "北" : state.orientation === "E" ? "東" : state.orientation === "S" ? "南" : "西"}</span></span>
         <span class="chip">☀ <span data-zh="${sunLabel.zh}" data-en="${sunLabel.en}">${sunLabel.zh}</span></span>
@@ -9567,7 +9671,47 @@ function renderResult() {
     applyLanguage();
   });
 
+  // R30 — zone chip tap opens climate summary popup.
+  document.getElementById("zoneChip")?.addEventListener("click", (e) => {
+    const z = e.currentTarget.dataset.zone;
+    openZoneClimatePopup(z);
+  });
+
   renderTabPanel(recs, layers);
+}
+
+// R30 — popup with short climate summary for the detected N/C/S/E zone.
+// Numbers come from ZONE_CLIMATE (30-yr CWB norms, baked in — no live API).
+function openZoneClimatePopup(zone) {
+  if (!zone || !ZONE_CLIMATE[zone]) return;
+  const existing = document.getElementById("zoneClimatePop");
+  if (existing) existing.remove();
+  const label = ZONE_LABEL[zone];
+  const climate = ZONE_CLIMATE[zone];
+  const wrap = document.createElement("div");
+  wrap.className = "zone-pop-overlay";
+  wrap.id = "zoneClimatePop";
+  wrap.innerHTML = `
+    <div class="zone-pop" role="dialog" aria-modal="true" aria-labelledby="zonePopTitle" onclick="event.stopPropagation()">
+      <button class="zone-pop-close" id="zonePopClose" aria-label="${t('關閉', 'Close')}">✕</button>
+      <div class="zone-pop-sub" data-zh="氣候區 · CLIMATE ZONE" data-en="Climate zone">氣候區 · CLIMATE ZONE</div>
+      <h3 class="zone-pop-title" id="zonePopTitle"
+          data-zh="📍 ${label.zh}" data-en="📍 ${label.en}">📍 ${label.zh}</h3>
+      <p class="zone-pop-body"
+         data-zh="${climate.zh}" data-en="${climate.en}">${climate.zh}</p>
+      <p class="zone-pop-foot"
+         data-zh="* 數據為中央氣象署 30 年平均氣候，非即時天氣"
+         data-en="* 30-year climate norms (CWB), not a live forecast">* 數據為中央氣象署 30 年平均氣候，非即時天氣</p>
+    </div>`;
+  wrap.addEventListener("click", () => wrap.remove());
+  document.body.appendChild(wrap);
+  document.getElementById("zonePopClose")?.addEventListener("click", () => wrap.remove());
+  // Close on Escape
+  const onKey = (ev) => {
+    if (ev.key === "Escape") { wrap.remove(); document.removeEventListener("keydown", onKey); }
+  };
+  document.addEventListener("keydown", onKey);
+  applyLanguage();
 }
 
 function renderTabPanel(recs, layers) {
@@ -11098,6 +11242,7 @@ function renderLayers(layers, recs) {
             ${p.fragrance >= 2 ? `<span class="badge frag">🌸 <span data-zh="芳香" data-en="Fragrant">芳香</span></span>` : ""}
             ${p.pet_safe === false ? `<span class="badge toxic" title="${t('寵物需注意 · 葉/果可能含毒','Caution: leaves/fruit may be toxic to pets')}">⚠ <span data-zh="寵物注意" data-en="Pet caution">寵物注意</span></span>` : ""}
             ${p.mature_yr ? `<span class="badge pet">⏱ ${p.mature_yr}<span data-zh="年" data-en="y">年</span></span>` : ""}
+            ${plantZoneAdvisoryHTML(p)}
           </div>
           <div class="pref-row" onclick="event.stopPropagation()">
             <span class="pref-btn pin ${isPinned ? "on" : ""}" role="button" tabindex="0"
@@ -12782,6 +12927,7 @@ function openDrawer(id) {
           ${plant.fragrance >= 2 ? `<span class="badge frag">🌸 ${fragranceBar(plant.fragrance)}</span>` : ""}
           ${plant.pet_safe === true ? `<span class="badge pet">🐾 <span data-zh="寵物安全" data-en="Pet-safe">寵物安全</span></span>` : ""}
           ${plant.pet_safe === false ? `<span class="badge toxic">⚠ <span data-zh="寵物注意" data-en="Pet caution">寵物注意</span></span>` : ""}
+          ${plantZoneBadgeHTML(plant)}
         </div>
 
         ${(() => {
