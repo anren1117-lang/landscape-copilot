@@ -770,6 +770,171 @@
     font-style: italic;
   }
 
+  /* "↔ Compare two plants" (R28) — drawer-header button, top-bar pick banner,
+     pickable rec-card overlay, side-by-side modal. Reuses .qr-overlay /
+     .compare-col / .compare-grid CSS where possible. */
+  .drawer-compare-btn {
+    position: absolute; top: 22px; right: 60px;
+    background: rgba(168,138,106,0.12);
+    border: 1px solid rgba(168,138,106,0.45);
+    color: var(--clay-deep);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11.5px; font-weight: 600; font-family: var(--serif);
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 3px;
+    transition: all 0.15s;
+  }
+  .drawer-compare-btn:hover { background: var(--clay); color: var(--paper); border-color: var(--clay); }
+  .drawer-compare-btn.armed { background: var(--clay-deep); color: var(--paper); border-color: var(--clay-deep); }
+  @media (max-width: 480px) {
+    .drawer-compare-btn { top: 16px; right: 44px; padding: 3px 8px; font-size: 11px; }
+  }
+  /* Top-bar pick-mode banner — sits between screen-bar and brand header
+     when the user is mid-pick for plant compare. */
+  .plant-pick-bar {
+    position: sticky; top: 0; z-index: 26;
+    background: linear-gradient(90deg, rgba(168,138,106,0.95), rgba(196,160,76,0.92));
+    color: var(--paper);
+    padding: 10px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+    font-family: var(--serif); font-size: 13px;
+    box-shadow: 0 4px 14px -8px rgba(0,0,0,0.3);
+  }
+  .plant-pick-bar .pp-msg { flex: 1; min-width: 200px; }
+  .plant-pick-bar .pp-msg strong { font-weight: 600; }
+  .plant-pick-bar .pp-exit {
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.42);
+    color: var(--paper);
+    border-radius: 999px;
+    padding: 5px 12px; font-size: 12px; cursor: pointer;
+    font-family: inherit;
+  }
+  .plant-pick-bar .pp-exit:hover { background: rgba(255,255,255,0.3); }
+  /* Pickable overlay on rec-cards while plant-pick mode is active */
+  .rec-card { position: relative; }
+  .rec-card.plant-compare-pickable {
+    border-color: var(--clay);
+    box-shadow: 0 0 0 2px rgba(196,160,76,0.32);
+  }
+  .rec-card.plant-compare-first {
+    border-color: var(--sage-deep);
+    box-shadow: 0 0 0 2px rgba(110,126,96,0.45);
+  }
+  .rec-card .plant-pick-overlay {
+    position: absolute; inset: 0;
+    background: rgba(168,138,106,0.78);
+    color: var(--paper);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 4px;
+    font-family: var(--serif); font-weight: 600;
+    text-align: center; padding: 10px;
+    cursor: pointer;
+    opacity: 0; transition: opacity 0.18s;
+    pointer-events: none;
+  }
+  .rec-card.plant-compare-pickable .plant-pick-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .rec-card.plant-compare-pickable .plant-pick-overlay .pp-big { font-size: 22px; }
+  .rec-card.plant-compare-pickable .plant-pick-overlay .pp-label { font-size: 13px; }
+  /* Plant compare modal — reuses .qr-overlay backdrop pattern */
+  .plant-compare-modal {
+    background: var(--paper-warm);
+    border-radius: 18px;
+    padding: 24px 24px 22px;
+    width: min(820px, 96vw);
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.35);
+    position: relative;
+  }
+  .plant-compare-modal .pcm-close {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none; font-size: 18px;
+    color: var(--ink-soft); cursor: pointer; padding: 4px 8px;
+  }
+  .plant-compare-modal .pcm-title {
+    font-family: var(--serif); font-size: 19px; font-weight: 600;
+    color: var(--forest); margin: 0 0 16px; text-align: center;
+  }
+  .plant-compare-modal .pcm-grid {
+    display: grid; grid-template-columns: 1fr; gap: 14px;
+  }
+  @media (min-width: 720px) {
+    .plant-compare-modal .pcm-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .plant-compare-modal .pcm-col {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .plant-compare-modal .pcm-head {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .plant-compare-modal .pcm-swatch {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  }
+  .plant-compare-modal .pcm-name {
+    font-family: var(--serif); font-size: 17px; font-weight: 600; color: var(--forest);
+    line-height: 1.2;
+  }
+  .plant-compare-modal .pcm-latin {
+    font-size: 11.5px; font-style: italic; color: var(--ink-soft); font-family: var(--serif);
+  }
+  .plant-compare-modal .pcm-badges {
+    display: flex; flex-wrap: wrap; gap: 4px;
+  }
+  .plant-compare-modal .pcm-badge {
+    font-size: 10.5px; padding: 2px 7px; border-radius: 999px;
+    background: rgba(138,154,123,0.15);
+    border: 1px solid rgba(138,154,123,0.35);
+    color: var(--sage-deep);
+  }
+  .plant-compare-modal .pcm-row {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    border-bottom: 1px dashed var(--line);
+    padding-bottom: 5px;
+  }
+  .plant-compare-modal .pcm-row .pcm-k {
+    font-family: var(--serif);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .plant-compare-modal .pcm-row .pcm-v {
+    color: var(--forest); font-weight: 600;
+    text-align: right; font-family: var(--serif);
+  }
+  .plant-compare-modal .pcm-row.win .pcm-v {
+    color: var(--clay-deep);
+  }
+  .plant-compare-modal .pcm-row .pcm-win {
+    color: #6E7E60; font-weight: 700; margin-right: 4px;
+  }
+  .plant-compare-modal .pcm-bloomfruit {
+    display: flex; gap: 2px; justify-content: flex-end;
+  }
+  .plant-compare-modal .pcm-bfcell {
+    width: 9px; height: 14px; border-radius: 2px;
+    background: rgba(110,126,96,0.10);
+  }
+  .plant-compare-modal .pcm-bfcell.bloom { background: #D88AB0; }
+  .plant-compare-modal .pcm-bfcell.fruit { background: #C4A04C; }
+  .plant-compare-modal .pcm-bfcell.both {
+    background: linear-gradient(135deg, #D88AB0 50%, #C4A04C 50%);
+  }
+  .plant-compare-modal .pcm-foot {
+    text-align: center; margin-top: 14px;
+    font-size: 11px; color: var(--clay); font-style: italic; font-family: var(--serif);
+  }
   /* "↔ Compare two designs" — small button on each card + select-mode overlay */
   .my-designs-aggregate {
     background: rgba(110,126,96,0.10);
@@ -5438,6 +5603,15 @@ const state = {
   //    When both set, renderMyDesignsSection() swaps the grid for the compare panel.
   compareFirstId: null,
   compareSecondId: null,
+  // ── Compare two individual plants (R28) — separate from design compare.
+  //    plantCompareFirstId: id of the plant the user clicked "↔ 比較植物" on
+  //      from inside the drawer. While set (and second unset), all rec-cards
+  //      in the dictionary / result page show a "Pick this as #2" overlay.
+  //    plantCompareSecondId: id of the second pick. When both set,
+  //      openPlantCompareModal() shows the side-by-side comparison.
+  //    Transient — never persisted, cleared on Start-fresh.
+  plantCompareFirstId: null,
+  plantCompareSecondId: null,
   lang: "zh",
 };
 
@@ -10824,6 +10998,7 @@ function renderLayers(layers, recs) {
             ${(state.lang === "zh" ? p.reasons_zh : p.reasons_en).slice(0, 3).map(r => `<span class="rec-tag">${r}</span>`).join("")}
           </div>
           <div class="rec-view" data-zh="養護指南 →" data-en="Care guide →">養護指南 →</div>
+          ${plantPickOverlayHTML()}
         </button>`;}).join("")}
     </div>`;
 }
@@ -10847,6 +11022,8 @@ function wireLayerCards() {
       if (e.key === "Enter" || e.key === " ") handler(e);
     });
   });
+  // Plant-compare pick mode — wires overlay clicks on every rec-card.
+  wirePlantComparePicking();
 }
 
 // ── TAB: CARE CALENDAR (month-by-month garden tasks) ────────
@@ -12395,6 +12572,7 @@ function renderDictionary() {
             </span>
           </div>
           <div class="rec-view" style="margin-top:auto; padding-top:14px;" data-zh="詳細 →" data-en="Details →">詳細 →</div>
+          ${plantPickOverlayHTML()}
         </button>`;}).join("")}
     </div>`;
 }
@@ -12440,6 +12618,8 @@ function wireDictionary() {
       if (e.key === "Enter" || e.key === " ") handler(e);
     });
   });
+  // Plant-compare pick mode — wires overlay clicks on every dict rec-card.
+  wirePlantComparePicking();
 }
 
 function rerenderDict() {
@@ -12461,6 +12641,11 @@ function openDrawer(id) {
   drawerHost.innerHTML = `
     <div class="drawer-overlay" id="drawerOverlay">
       <div class="drawer slide-in" onclick="event.stopPropagation()">
+        <button class="drawer-compare-btn ${state.plantCompareFirstId === plant.id ? "armed" : ""}" id="drawerCompareBtn"
+                aria-label="${t('比較植物','Compare plant')}"
+                title="${t('開始比較 · 從植物字典或結果頁選擇第二個植物','Start a side-by-side compare · then pick a second plant from the dictionary or result page')}">
+          ↔ <span data-zh="${state.plantCompareFirstId === plant.id ? "已選為 #1" : "比較植物"}" data-en="${state.plantCompareFirstId === plant.id ? "Selected #1" : "Compare"}">${state.plantCompareFirstId === plant.id ? "已選為 #1" : "比較植物"}</span>
+        </button>
         <button class="drawer-close" id="drawerClose">✕</button>
         <div class="drawer-swatch" style="background:${plant.color}"></div>
         <div class="drawer-type" data-zh="${plant.type_zh}" data-en="${plant.type_en}">${plant.type_zh}</div>
@@ -12717,6 +12902,15 @@ function openDrawer(id) {
     </div>`;
   document.getElementById("drawerOverlay").addEventListener("click", closeDrawer);
   document.getElementById("drawerClose").addEventListener("click", (e) => { e.stopPropagation(); closeDrawer(); });
+  // ↔ "Compare plant" button — captures this plant as #1 and closes drawer
+  // so the user can navigate to the dictionary / result page to pick #2.
+  const dcBtn = document.getElementById("drawerCompareBtn");
+  if (dcBtn) {
+    dcBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      startPlantCompare(plant.id);
+    });
+  }
   // ESC closes the drawer (parity with the QR + Tips modals). Listener is
   // attached document-wide and removed in closeDrawer() to avoid leaking
   // handlers when the user reopens drawers many times in a session.
@@ -12761,6 +12955,296 @@ function closeDrawer() {
 function drawerEscHandler(e) { if (e.key === "Escape") closeDrawer(); }
 
 // ─────────────────────────────────────────────────────────────
+// PLANT COMPARE (R28) — side-by-side comparison of two plants.
+// Separate from the saved-design compare (compareFirstId/SecondId).
+// Flow:
+//   1. User clicks "↔ 比較植物" inside an open plant drawer → startPlantCompare()
+//      stashes that plant's id as #1, closes the drawer, shows top-bar
+//      pick banner. State is transient — never persisted.
+//   2. User navigates to the dictionary or any rec-grid. Re-renders include
+//      a "選為第二個" overlay on every rec-card when pick mode is active.
+//   3. User clicks an overlay → pickPlantCompareSecond() opens the modal.
+//   4. Modal close / ESC / click-outside → closePlantCompareModal() also
+//      clears the pick state so the banner disappears.
+// ─────────────────────────────────────────────────────────────
+function startPlantCompare(plantId) {
+  state.plantCompareFirstId = plantId;
+  state.plantCompareSecondId = null;
+  closeDrawer();
+  updatePlantPickBar();
+  // Re-render whatever view is currently visible so rec-cards pick up
+  // the .plant-compare-pickable overlay class. Cheapest: just re-call
+  // render() which fan-outs to the active tab/step.
+  render();
+  // Smooth scroll so the user sees the new pick-mode banner.
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function exitPlantCompare() {
+  state.plantCompareFirstId = null;
+  state.plantCompareSecondId = null;
+  updatePlantPickBar();
+  closePlantCompareModal();
+  render();
+}
+
+function pickPlantCompareSecond(plantId) {
+  // Don't let users pick the same plant twice.
+  if (!state.plantCompareFirstId || plantId === state.plantCompareFirstId) return;
+  state.plantCompareSecondId = plantId;
+  updatePlantPickBar();
+  openPlantCompareModal();
+}
+
+// Renders / removes the sticky top-bar pick banner depending on state.
+// Banner is appended to <body> as a sibling of .screen-bar so it sits
+// above the brand header but below modals (z-index 26 < qr 25... let's
+// double-check: qr-overlay z-index is 25, drawer-overlay also high.
+// We keep this above the brand bar but BELOW modals — and the banner
+// gets hidden once second is picked since the modal goes on top anyway.
+function updatePlantPickBar() {
+  const existing = document.getElementById("plantPickBar");
+  const active = state.plantCompareFirstId && !state.plantCompareSecondId;
+  if (!active) {
+    if (existing) existing.remove();
+    return;
+  }
+  const plant = PLANT_BY_ID[state.plantCompareFirstId];
+  if (!plant) return;
+  const zhMsg = `📌 已選擇 <strong>${escapeHtml(plant.zh)}</strong> · 從植物字典或結果頁選擇第二個植物`;
+  const enMsg = `📌 <strong>${escapeHtml(plant.en)}</strong> selected · Pick a second plant from the dictionary or result page`;
+  const exitZh = "✕ 取消比較";
+  const exitEn = "✕ Cancel compare";
+  if (existing) {
+    existing.querySelector(".pp-msg").innerHTML = state.lang === "zh" ? zhMsg : enMsg;
+    existing.querySelector(".pp-msg").setAttribute("data-zh", zhMsg);
+    existing.querySelector(".pp-msg").setAttribute("data-en", enMsg);
+    return;
+  }
+  const bar = document.createElement("div");
+  bar.className = "plant-pick-bar";
+  bar.id = "plantPickBar";
+  bar.innerHTML = `
+    <div class="pp-msg" data-zh="${zhMsg}" data-en="${enMsg}">${state.lang === "zh" ? zhMsg : enMsg}</div>
+    <button class="pp-exit" id="plantPickExit" data-zh="${exitZh}" data-en="${exitEn}">${state.lang === "zh" ? exitZh : exitEn}</button>`;
+  // Insert right after .screen-bar so it sits at the top of the document flow.
+  const screenBar = document.querySelector(".screen-bar");
+  if (screenBar && screenBar.parentNode) {
+    screenBar.parentNode.insertBefore(bar, screenBar.nextSibling);
+  } else {
+    document.body.appendChild(bar);
+  }
+  document.getElementById("plantPickExit").addEventListener("click", exitPlantCompare);
+}
+
+// Returns the HTML for the "Pick this as #2" overlay shown on rec-cards
+// when pick mode is active. Empty string when inactive.
+function plantPickOverlayHTML() {
+  if (!state.plantCompareFirstId || state.plantCompareSecondId) return "";
+  return `<span class="plant-pick-overlay">
+    <span class="pp-big">↔</span>
+    <span class="pp-label" data-zh="選為第二個" data-en="Pick this">選為第二個</span>
+  </span>`;
+}
+
+// Wires every visible rec-card[data-id] for plant-pick mode. Called after
+// each render that has rec-cards (dictionary + result page + spotlight).
+function wirePlantComparePicking() {
+  if (!state.plantCompareFirstId || state.plantCompareSecondId) return;
+  document.querySelectorAll(".rec-card[data-id]").forEach(el => {
+    const pid = el.dataset.id;
+    if (pid === state.plantCompareFirstId) {
+      el.classList.add("plant-compare-first");
+      return;
+    }
+    el.classList.add("plant-compare-pickable");
+    // Find the overlay we injected and bind. Use capture-phase listener so
+    // we intercept the click BEFORE the rec-card's own openDrawer handler.
+    const ov = el.querySelector(".plant-pick-overlay");
+    if (ov && !ov.dataset.bound) {
+      ov.dataset.bound = "1";
+      ov.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        pickPlantCompareSecond(pid);
+      });
+    }
+  });
+}
+
+// Render the 2-column modal comparing first vs second plant.
+function openPlantCompareModal() {
+  const a = PLANT_BY_ID[state.plantCompareFirstId];
+  const b = PLANT_BY_ID[state.plantCompareSecondId];
+  if (!a || !b) return;
+  closePlantCompareModal(); // ensure single instance
+  // Also clear the pick banner — modal supersedes it.
+  const bar = document.getElementById("plantPickBar");
+  if (bar) bar.remove();
+
+  const ea = expert(a), eb = expert(b);
+  const sunZh = (s) => ({full:"全日照", part:"半日照", shade:"耐陰"})[s] || s;
+  const sunEn = (s) => ({full:"Full sun", part:"Part sun", shade:"Shade"})[s] || s;
+  const waterZh = { low:"低", med:"中", high:"高" };
+  const waterEn = { low:"Low", med:"Medium", high:"High" };
+  const growZh = { slow:"慢", med:"中", fast:"快" };
+  const growEn = { slow:"Slow", med:"Medium", fast:"Fast" };
+
+  // Maintenance score = mature_yr * grow_rate weight (lower = easier).
+  // Slow growers planted as small plants take longer to fill in but need
+  // less pruning; fast growers fill fast but need frequent trimming.
+  // Combine into a single 0-10ish heuristic, lower = lower-maintenance.
+  const growWt = { slow: 0.8, med: 1.0, fast: 1.6 };
+  const maint = (p, e) => {
+    const yr = p.mature_yr || 5;
+    const g = growWt[e.grow_rate] || 1.0;
+    return Math.round(yr * g * 10) / 10;
+  };
+  const maintLabelZh = (m) => m < 4 ? "低" : m < 8 ? "中" : "高";
+  const maintLabelEn = (m) => m < 4 ? "Low" : m < 8 ? "Medium" : "High";
+  const ma = maint(a, ea), mb = maint(b, eb);
+
+  // Bloom strip (12 month cells) — bloom pink, fruit gold, both = both.
+  const bloomStrip = (p) => {
+    const bs = new Set(p.bloom || []);
+    const fs = new Set(p.fruit || []);
+    const cells = [];
+    for (let m = 1; m <= 12; m++) {
+      const isB = bs.has(m), isF = fs.has(m);
+      const cls = isB && isF ? "both" : isB ? "bloom" : isF ? "fruit" : "";
+      cells.push(`<span class="pcm-bfcell ${cls}"></span>`);
+    }
+    return `<span class="pcm-bloomfruit">${cells.join("")}</span>`;
+  };
+
+  // Badge row — native / fragrance / pet-safe.
+  const badges = (p) => {
+    const out = [];
+    if (p.native) out.push(`<span class="pcm-badge">🌱 <span data-zh="原生" data-en="Native">原生</span></span>`);
+    else out.push(`<span class="pcm-badge">🌍 <span data-zh="外來" data-en="Intro">外來</span></span>`);
+    if (p.fragrance >= 2) out.push(`<span class="pcm-badge">🌸 <span data-zh="芳香" data-en="Fragrant">芳香</span></span>`);
+    if (p.pet_safe === true) out.push(`<span class="pcm-badge">🐾 <span data-zh="寵物安全" data-en="Pet-safe">寵物安全</span></span>`);
+    if (p.pet_safe === false) out.push(`<span class="pcm-badge">⚠ <span data-zh="寵物注意" data-en="Pet caution">寵物注意</span></span>`);
+    return out.join("");
+  };
+
+  // Determine "winners" per axis. ✓ goes to the side that's better on that
+  // axis (lower water = better, higher CO2 absorbed = better, lower
+  // maintenance = better). Other axes (sun, bloom, size) are descriptive
+  // only — no winner.
+  const winWater = (() => {
+    const aw = ea.water_l_wk, bw = eb.water_l_wk;
+    if (aw === bw) return null;
+    return aw < bw ? "a" : "b";
+  })();
+  const winCO2 = (() => {
+    if (ea.co2_kg_yr === eb.co2_kg_yr) return null;
+    return ea.co2_kg_yr > eb.co2_kg_yr ? "a" : "b";
+  })();
+  const winMaint = (() => {
+    if (ma === mb) return null;
+    return ma < mb ? "a" : "b";
+  })();
+
+  // Compose one column. `side` is "a" or "b".
+  const col = (p, e, m, side) => {
+    const tickWater = winWater === side ? `<span class="pcm-win">✓</span>` : "";
+    const tickCO2   = winCO2   === side ? `<span class="pcm-win">✓</span>` : "";
+    const tickMaint = winMaint === side ? `<span class="pcm-win">✓</span>` : "";
+    const waterCls = winWater && winWater !== side ? "pcm-row" : (winWater === side ? "pcm-row win" : "pcm-row");
+    const co2Cls   = winCO2   && winCO2   !== side ? "pcm-row" : (winCO2   === side ? "pcm-row win" : "pcm-row");
+    const maintCls = winMaint && winMaint !== side ? "pcm-row" : (winMaint === side ? "pcm-row win" : "pcm-row");
+    return `
+      <div class="pcm-col">
+        <div class="pcm-head">
+          <div class="pcm-swatch" style="background:${p.color}"></div>
+          <div>
+            <div class="pcm-name" data-zh="${escapeHtml(p.zh)}" data-en="${escapeHtml(p.en)}">${escapeHtml(p.zh)}</div>
+            <div class="pcm-latin">${escapeHtml(p.lt || "")}</div>
+          </div>
+        </div>
+        <div class="pcm-badges">${badges(p)}</div>
+        <div class="pcm-row">
+          <span class="pcm-k" data-zh="高度 × 冠幅" data-en="Height × Spread">高度 × 冠幅</span>
+          <span class="pcm-v">${p.height[0]}–${p.height[1]} × ${p.spread[0]}–${p.spread[1]} m</span>
+        </div>
+        <div class="pcm-row">
+          <span class="pcm-k" data-zh="光照需求" data-en="Sun">光照需求</span>
+          <span class="pcm-v" data-zh="${(p.sun || []).map(sunZh).join(" / ")}" data-en="${(p.sun || []).map(sunEn).join(" / ")}">${(p.sun || []).map(sunZh).join(" / ")}</span>
+        </div>
+        <div class="${waterCls}">
+          <span class="pcm-k" data-zh="水分需求" data-en="Water">水分需求</span>
+          <span class="pcm-v" data-zh="${tickWater}${waterZh[p.water] || p.water || "—"} · ${e.water_l_wk} L/週"
+                                data-en="${tickWater}${waterEn[p.water] || p.water || "—"} · ${e.water_l_wk} L/wk">${tickWater}${waterZh[p.water] || p.water || "—"} · ${e.water_l_wk} L/週</span>
+        </div>
+        <div class="pcm-row">
+          <span class="pcm-k" data-zh="花期 / 結果" data-en="Bloom / fruit">花期 / 結果</span>
+          ${bloomStrip(p)}
+        </div>
+        <div class="${maintCls}">
+          <span class="pcm-k" data-zh="維護難度" data-en="Maintenance">維護難度</span>
+          <span class="pcm-v" data-zh="${tickMaint}${maintLabelZh(m)} (${m})" data-en="${tickMaint}${maintLabelEn(m)} (${m})">${tickMaint}${maintLabelZh(m)} (${m})</span>
+        </div>
+        <div class="${co2Cls}">
+          <span class="pcm-k" data-zh="CO₂/年" data-en="CO₂/yr">CO₂/年</span>
+          <span class="pcm-v">${tickCO2}${e.co2_kg_yr} kg</span>
+        </div>
+        <div class="pcm-row">
+          <span class="pcm-k" data-zh="水/週" data-en="Water/wk">水/週</span>
+          <span class="pcm-v">${e.water_l_wk} L</span>
+        </div>
+      </div>`;
+  };
+
+  const overlay = document.createElement("div");
+  overlay.className = "qr-overlay";
+  overlay.id = "plantCompareOverlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", t("植物比較", "Plant comparison"));
+  overlay.innerHTML = `
+    <div class="plant-compare-modal" id="plantCompareModal">
+      <button class="pcm-close" id="plantCompareClose" aria-label="${t('關閉','Close')}">✕</button>
+      <h3 class="pcm-title" data-zh="↔ 植物比較" data-en="↔ Compare plants">↔ 植物比較</h3>
+      <div class="pcm-grid">
+        ${col(a, ea, ma, "a")}
+        ${col(b, eb, mb, "b")}
+      </div>
+      <div class="pcm-foot" data-zh="✓ = 該欄位較佳（水量少 / CO₂ 高 / 維護低）"
+                          data-en="✓ = better on this axis (less water / more CO₂ / lower maintenance)">
+        ✓ = 該欄位較佳（水量少 / CO₂ 高 / 維護低）
+      </div>
+    </div>`;
+  // Click-outside (overlay backdrop) closes.
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closePlantCompareModal(); });
+  document.body.appendChild(overlay);
+  document.getElementById("plantCompareClose").addEventListener("click", closePlantCompareModal);
+  document.addEventListener("keydown", plantCompareEscHandler);
+  applyLanguage();
+}
+
+function closePlantCompareModal() {
+  const o = document.getElementById("plantCompareOverlay");
+  if (o) o.remove();
+  document.removeEventListener("keydown", plantCompareEscHandler);
+  // Closing the modal also exits compare mode entirely — clear the picks
+  // so the pickable overlays and banner go away.
+  if (state.plantCompareFirstId || state.plantCompareSecondId) {
+    state.plantCompareFirstId = null;
+    state.plantCompareSecondId = null;
+    updatePlantPickBar();
+    // Strip overlay classes from rec-cards without a full re-render.
+    document.querySelectorAll(".rec-card.plant-compare-pickable, .rec-card.plant-compare-first").forEach(el => {
+      el.classList.remove("plant-compare-pickable", "plant-compare-first");
+      const ov = el.querySelector(".plant-pick-overlay");
+      if (ov) ov.remove();
+    });
+  }
+}
+
+function plantCompareEscHandler(e) { if (e.key === "Escape") closePlantCompareModal(); }
+
+// ─────────────────────────────────────────────────────────────
 // Language toggle (zh/en) — same data-zh/data-en pattern as farm-pitch.html
 // ─────────────────────────────────────────────────────────────
 function applyLanguage() {
@@ -12776,6 +13260,11 @@ function applyLanguage() {
     document.getElementById("navFooter"),
     document.getElementById("drawerHost"),
     document.getElementById("progressWrap"),
+    // R28 — plant-compare pick banner + modal are appended directly to <body>
+    // (mirroring the QR modal pattern), so they aren't inside #app and need
+    // their own root for the language walk.
+    document.getElementById("plantPickBar"),
+    document.getElementById("plantCompareOverlay"),
   ].filter(Boolean);
   for (const root of roots) {
     root.querySelectorAll("[data-zh][data-en]").forEach((el) => {
