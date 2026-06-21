@@ -6045,6 +6045,7 @@ const state = {
   dictEdibleOnly: false, // used by "可食植物" quick tool
   dictCoastalOnly: false,// used by "耐鹽風" quick tool
   dictThisMonth: false,  // used by "本月可種" — show plants blooming/fruiting this month
+  dictSeason: "all",     // all | spring (3-5) | summer (6-8) | autumn (9-11) | winter (12,1,2) — bloom/fruit-month overlap
   // ── Wizard photo-assist (per-question photo helper) ──
   // One photo is reused across all wizard steps. Each step asks a different
   // focused question of Pollinations.ai vision. Suggestions are highlighted
@@ -8916,6 +8917,7 @@ function applyQuickFilter(kind) {
   state.dictEdibleOnly = false;
   state.dictCoastalOnly = false;
   state.dictThisMonth = false;
+  state.dictSeason = "all";
 
   switch (kind) {
     case "thisMonth": state.dictThisMonth = true; break;
@@ -14192,6 +14194,14 @@ function renderDictionary() {
         if (!anyNearby) return false;
       }
     }
+    if (state.dictSeason !== "all") {
+      // Single-choice season filter: plant matches the season if either its bloom or fruit
+      // months overlap the season's months. Reuses existing bloom/fruit arrays — no new fields.
+      const SEASON_MONTHS = { spring: [3,4,5], summer: [6,7,8], autumn: [9,10,11], winter: [12,1,2] };
+      const months = SEASON_MONTHS[state.dictSeason] || [];
+      const overlaps = (arr) => (arr || []).some(m => months.includes(m));
+      if (!overlaps(p.bloom) && !overlaps(p.fruit)) return false;
+    }
     if (q) {
       const hay = [p.zh, p.en, p.lt, p.role_zh, p.role_en, p.origin_zh, p.origin_en, p.type_zh, p.type_en].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
@@ -14233,6 +14243,12 @@ function renderDictionary() {
       <span style="width:1px; background: var(--line); margin: 0 4px;"></span>
       <button class="dict-chip ${state.dictFragOnly ? "on" : ""}" data-flag="frag">🌸 <span data-zh="芳香" data-en="Fragrant">芳香</span></button>
       <button class="dict-chip ${state.dictPetSafeOnly ? "on" : ""}" data-flag="petsafe">🐾 <span data-zh="寵物安全" data-en="Pet-safe">寵物安全</span></button>
+      <span style="width:1px; background: var(--line); margin: 0 4px;"></span>
+      <button class="dict-chip ${state.dictSeason === "all"    ? "on" : ""}" data-season="all"><span data-zh="四季" data-en="All seasons">四季</span></button>
+      <button class="dict-chip ${state.dictSeason === "spring" ? "on" : ""}" data-season="spring">🌸 <span data-zh="春" data-en="Spring">春</span></button>
+      <button class="dict-chip ${state.dictSeason === "summer" ? "on" : ""}" data-season="summer">☀️ <span data-zh="夏" data-en="Summer">夏</span></button>
+      <button class="dict-chip ${state.dictSeason === "autumn" ? "on" : ""}" data-season="autumn">🍂 <span data-zh="秋" data-en="Autumn">秋</span></button>
+      <button class="dict-chip ${state.dictSeason === "winter" ? "on" : ""}" data-season="winter">❄️ <span data-zh="冬" data-en="Winter">冬</span></button>
     </div>
 
     <div class="rec-grid">
@@ -14316,6 +14332,10 @@ function wireDictionary() {
       rerenderDict();
     });
   });
+  // Seasonal filter chips — radio-like (single choice). dictThisMonth stays independent.
+  document.querySelectorAll(".dict-chip[data-season]").forEach(el => {
+    el.addEventListener("click", () => { state.dictSeason = el.dataset.season; rerenderDict(); });
+  });
   document.querySelectorAll(".rec-card[data-id]").forEach(el => {
     el.addEventListener("click", (e) => {
       if (e.target.closest(".pref-btn") || e.target.closest(".pref-row")) return;
@@ -14350,6 +14370,7 @@ function wireDictionary() {
     state.dictEdibleOnly = false;
     state.dictCoastalOnly = false;
     state.dictThisMonth = false;
+    state.dictSeason = "all";
     rerenderDict();
   });
 }
