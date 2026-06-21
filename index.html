@@ -5385,6 +5385,50 @@ function expert(p) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// maintenanceLevel(plant) — heuristic band ("low" / "med" / "high")
+// for how much weekly care a plant needs once planted.
+//
+// Inputs combine four signals (no exact-hours math — uncertainty
+// compounds quickly; a band is honest):
+//   - water tier   : high water = more watering / monitoring
+//   - grow_rate    : fast = more pruning / trimming
+//   - mature_yr    : longer maturity = less immediate fuss
+//                    (established trees ride out neglect; short-lived
+//                    perennials need replanting & feeding)
+//   - tier         : T canopy plants — once established they're hands-off
+//                    weekly; S+G+C+W are the active-care layer
+// ─────────────────────────────────────────────────────────────
+function maintenanceLevel(plant) {
+  const e = expert(plant);
+  let score = 0;
+  // Water tier — biggest weekly driver
+  if (plant.water === "high") score += 3;
+  else if (plant.water === "med") score += 1;
+  // grow_rate fast = pruning / shaping
+  if (e.grow_rate === "fast") score += 2;
+  else if (e.grow_rate === "slow") score -= 1;
+  // mature_yr — long-lived structural plants are easier week-to-week
+  const my = e.mature_yr || 3;
+  if (my >= 6) score -= 2;
+  else if (my <= 2) score += 1;
+  // Tier — T canopy = less weekly care once established
+  if (plant.tier === "T") score -= 2;
+  else if (plant.tier === "S" || plant.tier === "C") score += 1;
+  else if (plant.tier === "G" || plant.tier === "W") score += 1;
+  // Band the score
+  if (score <= 0) return "low";
+  if (score <= 3) return "med";
+  return "high";
+}
+function maintenanceLabel(level) {
+  return ({
+    low:  { zh: "低", en: "low" },
+    med:  { zh: "中", en: "medium" },
+    high: { zh: "高", en: "high" },
+  })[level] || { zh: "中", en: "medium" };
+}
+
+// ─────────────────────────────────────────────────────────────
 // WILDLIFE_META — what specific Taiwan wildlife each plant brings.
 // Helps users see the concrete ecological pay-off: "if I plant 茄苳,
 // 台灣藍鵲 will visit". Researched per plant; missing entries fall back
@@ -9823,9 +9867,37 @@ function renderSustainChips(recs) {
   // a tangible analogue without cluttering the chip face.
   const co2Title = `約 ${drivingRounded.toLocaleString()} km 汽油車排放 · roughly ${drivingRounded.toLocaleString()} km of gas car driving (≈ 0.12 kg CO₂/km)`;
 
+  // ── R29: Maintenance band roll-up — how many of the top-8 plants need
+  // active weekly care, plus the overall band for the whole design. We avoid
+  // exact hour numbers (false precision); the band is what the user can act on.
+  const mLevels = top.map(p => maintenanceLevel(p));
+  const mHigh = mLevels.filter(l => l === "high").length;
+  const mMed  = mLevels.filter(l => l === "med").length;
+  const activeCount = mHigh + mMed; // plants that need "active care" weekly
+  // Weighted average of band scores: low=0, med=1, high=2 → overall band
+  const mScore = mLevels.reduce((s, l) => s + (l === "high" ? 2 : l === "med" ? 1 : 0), 0) / Math.max(mLevels.length, 1);
+  const overallLevel = mScore >= 1.34 ? "high" : mScore >= 0.5 ? "med" : "low";
+  const overallLabel = maintenanceLabel(overallLevel);
+  // High-maintenance advisory — only when the overall band is "high".
+  // Actionable hint: switch toward drought-tolerant or slow-growing plants.
+  const maintenanceTipHTML = overallLevel === "high" ? `
+    <div style="margin: -4px 0 10px; padding: 8px 12px; border-radius: 10px;
+                background: rgba(196,160,76,0.10); border: 1px solid rgba(196,160,76,0.32);
+                font-size: 12px; color: #8C6F1E; line-height: 1.5;">
+      <span data-zh="💡 提示：選擇耐旱/慢生長植物可降低維護時間"
+            data-en="💡 Tip: pick drought/slow-growing plants to lower maintenance time">💡 提示：選擇耐旱/慢生長植物可降低維護時間</span>
+    </div>` : "";
+  const maintenanceChipHTML = `
+      <span class="sustain-chip bio" title="${`維護程度由澆水頻率、生長速度、植物層次估算 · Maintenance band estimated from water tier, grow rate, tier`}">
+        ⏱ <span data-zh="維護程度：${overallLabel.zh} · ~${activeCount} 種需勤照顧"
+                data-en="Maintenance level: ${overallLabel.en} · ~${activeCount} plants need active care">維護程度：${overallLabel.zh} · ~${activeCount} 種需勤照顧</span>
+      </span>`;
+
   return `
     ${prefNote}
+    ${maintenanceTipHTML}
     <div class="sustain-row">
+      ${maintenanceChipHTML}
       <span class="sustain-chip co2" title="${co2Title}">
         🌳 <span data-zh="約 ${totalCO2.toFixed(0)} kg CO₂ / 年 · 約 ${treeEq} 棵都市樹"
                 data-en="≈ ${totalCO2.toFixed(0)} kg CO₂ / yr · ~${treeEq} urban-tree equivalent">約 ${totalCO2.toFixed(0)} kg CO₂ / 年 · 約 ${treeEq} 棵都市樹</span>
@@ -10050,7 +10122,32 @@ function render3D(layers, recs, allRecs) {
     W: { skyTop: "#D9A876", skyMid: "#E8C9A0", sun: "#E89A5C", sunRing: "#A86A36", ambient: "rgba(232,154,92,0.14)",  labelZh: "午後",   labelEn: "Afternoon"     },
     N: { skyTop: "#B8C0C4", skyMid: "#D6D4C8", sun: "#E8E0C0", sunRing: "#9A9684", ambient: "rgba(180,200,210,0.10)", labelZh: "散射光", labelEn: "Cool diffuse"  },
   };
-  const tod = TOD[orient] || TOD.S;
+  // R29: live time of day. Computed once at render time — not animated. So a
+  // user revisiting the page later in the day sees the sun in a new place.
+  // Phases: morning (6-10) · midday (11-14) · afternoon (15-17)
+  //         evening (18-19, amber low sun) · night (20-5, moon).
+  const nowHr = new Date().getHours();
+  let todPhase;
+  if (nowHr >= 6  && nowHr <= 10) todPhase = "morning";
+  else if (nowHr >= 11 && nowHr <= 14) todPhase = "midday";
+  else if (nowHr >= 15 && nowHr <= 17) todPhase = "afternoon";
+  else if (nowHr >= 18 && nowHr <= 19) todPhase = "evening";
+  else todPhase = "night";
+  const tod = { ...(TOD[orient] || TOD.S) };
+  // Evening / night override the orientation palette so the sun feels honest
+  // about clock time. We keep the orientation base for day phases.
+  if (todPhase === "evening") {
+    tod.sun = "#E07A3A";  tod.sunRing = "#8C4520";
+    tod.skyTop = "#C97A55"; tod.skyMid = "#E6B27A";
+    tod.ambient = "rgba(224,122,58,0.18)";
+    tod.labelZh = "黃昏"; tod.labelEn = "Evening";
+  } else if (todPhase === "night") {
+    tod.sun = "#E0E6F0";  tod.sunRing = "#8A92A8";
+    tod.skyTop = "#1F2A3A"; tod.skyMid = "#3A4458";
+    tod.ambient = "rgba(120,140,170,0.10)";
+    tod.labelZh = "夜晚"; tod.labelEn = "Night";
+    tod.isMoon = true;
+  }
 
   // ── Sky backdrop (gradient band behind the iso plane) ──────
   const horizonY = Math.min(c0.iy, c1.iy, c2.iy, c3.iy) - 6;
@@ -10177,6 +10274,9 @@ function render3D(layers, recs, allRecs) {
   }
 
   // ── Sun position (used for directional shadows AND sun marker below) ─
+  // R29: Base position comes from orientation; we then micro-adjust along an
+  // east→overhead→west arc based on the current hour. Computed at render
+  // time (not animated) so the scene reflects when the user is looking at it.
   let sunX, sunY;
   switch (orient) {
     case "S": sunX = svgW - 80; sunY = 60; break;
@@ -10185,6 +10285,16 @@ function render3D(layers, recs, allRecs) {
     case "N": sunX = svgW / 2;  sunY = 40; break;
     default:  sunX = svgW - 80; sunY = 60;
   }
+  // Apply hour micro-adjustment. dx shifts east(-)↔west(+); dy lifts sun
+  // (smaller y) at midday and drops it (larger y) toward evening / night.
+  let dx = 0, dy = 0;
+  if (todPhase === "morning")     { dx = -60; dy =  8; }
+  else if (todPhase === "midday") { dx =   0; dy = -16; }
+  else if (todPhase === "afternoon") { dx = 60; dy = 8; }
+  else if (todPhase === "evening")   { dx = 90; dy = 40; }
+  else /* night */                   { dx = 0;  dy = 30; }
+  sunX = Math.max(40, Math.min(svgW - 40, sunX + dx));
+  sunY = Math.max(28, Math.min(svgH * 0.45, sunY + dy));
 
   // ── Distant horizon mountains — yard/rooftop only, behind the iso plane ──
   // Two-layer abstract silhouettes, low-saturation sage. No identifiable city.
@@ -10797,24 +10907,36 @@ function render3D(layers, recs, allRecs) {
   }).join("");
 
   // ── Sun marker + rays — sun position computed above for shadow direction ─
+  // R29: At night we draw a moon (crescent) instead of a sun disc.
   const rays = [];
-  for (let i = 0; i < 12; i++) {
-    const ang = (Math.PI * 2 / 12) * i;
-    const r1 = 30, r2 = 44;
-    rays.push(`<line x1="${(Math.cos(ang) * r1).toFixed(1)}" y1="${(Math.sin(ang) * r1).toFixed(1)}" x2="${(Math.cos(ang) * r2).toFixed(1)}" y2="${(Math.sin(ang) * r2).toFixed(1)}" stroke="${tod.sun}" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>`);
+  if (!tod.isMoon) {
+    for (let i = 0; i < 12; i++) {
+      const ang = (Math.PI * 2 / 12) * i;
+      const r1 = 30, r2 = 44;
+      rays.push(`<line x1="${(Math.cos(ang) * r1).toFixed(1)}" y1="${(Math.sin(ang) * r1).toFixed(1)}" x2="${(Math.cos(ang) * r2).toFixed(1)}" y2="${(Math.sin(ang) * r2).toFixed(1)}" stroke="${tod.sun}" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>`);
+    }
   }
   // Bloom halo — 4 concentric circles with decreasing opacity radiate from
   // the sun centre. Sells "warm light pouring into the garden" without filters.
-  const sun = `
-    <g transform="translate(${sunX}, ${sunY})">
+  const labelColor = tod.isMoon ? "#D0D6E0" : "#5A5C50";
+  const sunBody = tod.isMoon
+    ? `
+      <circle r="60" fill="${tod.sun}" opacity="0.10"/>
+      <circle r="40" fill="${tod.sun}" opacity="0.18"/>
+      <circle r="22" fill="${tod.sun}" stroke="${tod.sunRing}" stroke-width="1.4" opacity="0.95"/>
+      <circle r="20" cx="6" fill="${tod.skyTop}" opacity="0.95"/>`
+    : `
       <circle r="92" fill="${tod.sun}" opacity="0.08"/>
       <circle r="70" fill="${tod.sun}" opacity="0.12"/>
       <circle r="50" fill="${tod.sun}" opacity="0.20"/>
       <circle r="36" fill="${tod.sun}" opacity="0.30"/>
       ${rays.join("")}
       <circle r="24" fill="${tod.sun}" stroke="${tod.sunRing}" stroke-width="1.8" opacity="0.95"/>
-      <circle r="18" fill="${tod.sun}" opacity="0.6"/>
-      <text x="0" y="46" text-anchor="middle" font-size="9" font-family="Noto Serif TC" fill="#5A5C50" font-style="italic">${t(tod.labelZh, tod.labelEn)}</text>
+      <circle r="18" fill="${tod.sun}" opacity="0.6"/>`;
+  const sun = `
+    <g transform="translate(${sunX}, ${sunY})">
+      ${sunBody}
+      <text x="0" y="46" text-anchor="middle" font-size="9" font-family="Noto Serif TC" fill="${labelColor}" font-style="italic">${t(tod.labelZh, tod.labelEn)}</text>
     </g>`;
 
   // ── Scene caption — rich identity: "你的 {area} m² {space} · {top 3 plants} · {time-of-day}" ─
@@ -12782,6 +12904,17 @@ function openDrawer(id) {
                   <div style="font-size:11px; color:var(--ink-soft); letter-spacing:0.05em;" data-zh="估算用水" data-en="Est. water">估算用水</div>
                   <div style="font-size:14px; font-weight:600; color:#3D6086; margin-top:3px; font-family:var(--serif);">${e.water_l_wk} <span style="font-size:11px;opacity:0.7;">L/週</span></div>
                 </div>
+                ${(() => {
+                  // R29: Maintenance band per plant — band only, not exact hours.
+                  const mLvl = maintenanceLevel(plant);
+                  const mLbl = maintenanceLabel(mLvl);
+                  return `
+                <div>
+                  <div style="font-size:11px; color:var(--ink-soft); letter-spacing:0.05em;" data-zh="維護程度" data-en="Maintenance level">維護程度</div>
+                  <div style="font-size:14px; font-weight:600; color:#8C6F1E; margin-top:3px; font-family:var(--serif);"
+                       data-zh="${mLbl.zh}" data-en="${mLbl.en}">${mLbl.zh}</div>
+                </div>`;
+                })()}
               </div>
             </div>
 
