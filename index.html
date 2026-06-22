@@ -3598,6 +3598,179 @@
     .ddash-journal-wrap { display: none !important; }
   }
 
+  /* R64: Budget editor on per-design dashboard */
+  .ddash-budget-card {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 14px 16px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .ddash-budget-section-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    letter-spacing: 0.02em;
+    margin-top: 6px;
+  }
+  .ddash-budget-section-label:first-child { margin-top: 0; }
+  .ddash-budget-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .ddash-budget-table th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--clay);
+    font-weight: 500;
+    padding: 6px 8px;
+    border-bottom: 1px dashed rgba(110,126,96,0.20);
+  }
+  .ddash-budget-table th.ddash-budget-num,
+  .ddash-budget-table td.ddash-budget-num { text-align: right; }
+  .ddash-budget-table td {
+    padding: 6px 8px;
+    border-bottom: 1px dashed rgba(110,126,96,0.12);
+    vertical-align: middle;
+  }
+  .ddash-budget-table td:last-child { padding-right: 2px; }
+  .ddash-budget-table tr:last-child td { border-bottom: 0; }
+  .ddash-budget-name {
+    color: var(--forest);
+    font-family: var(--serif);
+  }
+  .ddash-budget-empty {
+    color: var(--clay);
+    font-style: italic;
+    font-size: 12.5px;
+    padding: 12px 8px !important;
+    text-align: center;
+  }
+  .ddash-budget-input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 6px;
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--forest);
+  }
+  .ddash-budget-input:focus {
+    outline: none;
+    border-color: var(--sage-deep);
+    box-shadow: 0 0 0 2px rgba(110,126,96,0.15);
+  }
+  .ddash-budget-input-num {
+    text-align: right;
+    width: 70px;
+  }
+  .ddash-budget-input-name { font-family: var(--serif); }
+  .ddash-budget-del {
+    background: none;
+    border: 0;
+    color: var(--clay);
+    cursor: pointer;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .ddash-budget-del:hover { background: rgba(178,80,52,0.12); color: #8C2A22; }
+  .ddash-budget-add-row {
+    display: grid;
+    grid-template-columns: 1fr 70px 70px auto;
+    gap: 6px;
+    padding-top: 4px;
+    align-items: center;
+  }
+  .ddash-budget-add-btn {
+    background: var(--sage-deep);
+    color: var(--paper);
+    border: 0;
+    padding: 8px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .ddash-budget-add-btn:hover { background: var(--forest); }
+  .ddash-budget-summary {
+    border-top: 1px dashed rgba(110,126,96,0.22);
+    padding-top: 12px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .ddash-budget-target-row {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .ddash-budget-target-label {
+    flex: 1;
+    font-size: 13px;
+    color: var(--forest);
+    font-family: var(--serif);
+  }
+  .ddash-budget-target-row input { width: 120px; max-width: 50%; }
+  .ddash-budget-bar {
+    height: 8px;
+    background: rgba(110,126,96,0.12);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .ddash-budget-bar-fill {
+    height: 100%;
+    background: var(--sage-deep);
+    transition: width 0.3s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ddash-budget-bar-fill { transition: none; }
+  }
+  .ddash-budget-bar-fill.over { background: #B25034; }
+  .ddash-budget-totals {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-top: 2px;
+  }
+  .ddash-budget-total-label {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .ddash-budget-total-value {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--forest);
+  }
+  .ddash-budget-total-value.over { color: #B25034; }
+  .ddash-budget-remaining {
+    font-size: 12px;
+    color: var(--clay);
+    font-style: italic;
+  }
+  .ddash-budget-remaining.over { color: #B25034; font-weight: 500; }
+  .ddash-budget-target-hint {
+    font-size: 12px;
+    color: var(--clay);
+    font-style: italic;
+  }
+
+  @media (max-width: 520px) {
+    .ddash-budget-table th, .ddash-budget-table td { padding: 5px 4px; font-size: 12px; }
+    .ddash-budget-input { padding: 5px 6px; font-size: 12px; }
+    .ddash-budget-input-num { width: 56px; }
+    .ddash-budget-add-row {
+      grid-template-columns: 1fr 60px 60px;
+    }
+    .ddash-budget-add-btn { grid-column: 1 / -1; padding: 9px 14px; }
+    .ddash-budget-total-value { font-size: 19px; }
+  }
+
+  @media print {
+    .ddash-budget-card { display: none !important; }
+  }
+
   /* R59: Design editor modal — inline form to tweak saved-design parameters
      without leaving the homepage / re-running the wizard. Reuses the
      .qr-overlay + .tips-modal shell, layers form fields on top. */
@@ -9860,6 +10033,305 @@ function toggleDailyTask(designId, key) {
   saveDesignList(list);
 }
 
+// ─────────────────────────────────────────────────────────────
+// R64 — Budget per design.
+// Auto plant cost: snap.qty × PLANTS[].cost (already used by the shopping
+// tab). User-added line items live in entry.budget.items = [{id, name, unit}].
+// Target budget is a single Number (NTD). All persists inside LIST_KEY.
+// ─────────────────────────────────────────────────────────────
+const BUDGET_MAX_ITEMS = 30;
+
+function autoPlantCostForEntry(entry) {
+  // Returns { lines: [{plant, qty, unit, subtotal}], total }.
+  // Mirrors the shopping tab's pricing path so the dashboard cost stays
+  // in lockstep with what the user sees on the result page.
+  if (!entry || !entry.snapshot) return { lines: [], total: 0 };
+  const qtyMap = entry.snapshot.qty || {};
+  const lines = [];
+  let total = 0;
+  Object.keys(qtyMap).forEach(id => {
+    const qty = Number(qtyMap[id]) || 0;
+    if (qty <= 0) return;
+    const plant = PLANT_BY_ID[id];
+    if (!plant || !plant.cost) return;
+    const subtotal = qty * Number(plant.cost);
+    total += subtotal;
+    lines.push({ plant, qty, unit: Number(plant.cost), subtotal });
+  });
+  lines.sort((a, b) => b.subtotal - a.subtotal);
+  return { lines, total };
+}
+
+function ensureBudget(entry) {
+  if (!entry.budget || typeof entry.budget !== "object") {
+    entry.budget = { target: 0, items: [] };
+  } else {
+    if (typeof entry.budget.target !== "number") entry.budget.target = 0;
+    if (!Array.isArray(entry.budget.items)) entry.budget.items = [];
+  }
+  return entry.budget;
+}
+
+function makeBudgetItemId() {
+  return "b_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+}
+
+function addBudgetItem(designId, name, qty, unit) {
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return false;
+  const b = ensureBudget(entry);
+  if (b.items.length >= BUDGET_MAX_ITEMS) return false;
+  const trimmedName = String(name || "").trim().slice(0, 40);
+  if (!trimmedName) return false;
+  b.items.push({
+    id: makeBudgetItemId(),
+    name: trimmedName,
+    qty: Math.max(0, Number(qty) || 0),
+    unit: Math.max(0, Number(unit) || 0),
+  });
+  saveDesignList(list);
+  return true;
+}
+
+function updateBudgetItem(designId, itemId, patch) {
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return;
+  const b = ensureBudget(entry);
+  const item = b.items.find(i => i.id === itemId);
+  if (!item) return;
+  if (patch.name != null)  item.name = String(patch.name).slice(0, 40);
+  if (patch.qty  != null)  item.qty  = Math.max(0, Number(patch.qty)  || 0);
+  if (patch.unit != null)  item.unit = Math.max(0, Number(patch.unit) || 0);
+  saveDesignList(list);
+}
+
+function deleteBudgetItem(designId, itemId) {
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return;
+  const b = ensureBudget(entry);
+  b.items = b.items.filter(i => i.id !== itemId);
+  saveDesignList(list);
+}
+
+function setBudgetTarget(designId, target) {
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return;
+  const b = ensureBudget(entry);
+  b.target = Math.max(0, Number(target) || 0);
+  saveDesignList(list);
+}
+
+function renderBudgetCard(entry) {
+  const auto = autoPlantCostForEntry(entry);
+  const b = ensureBudget(entry);
+  const userTotal = b.items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.unit) || 0), 0);
+  const grandTotal = auto.total + userTotal;
+  const target = Number(b.target) || 0;
+  const hasTarget = target > 0;
+  const overBudget = hasTarget && grandTotal > target;
+  const remaining = hasTarget ? target - grandTotal : 0;
+
+  const fmt = (n) => "NT$ " + Math.round(n).toLocaleString();
+  const pctOfTarget = hasTarget && target > 0 ? Math.round((grandTotal / target) * 100) : 0;
+  const barPct = hasTarget ? Math.min(100, pctOfTarget) : 0;
+
+  const autoRowsHtml = auto.lines.length === 0 ? `
+    <tr><td colspan="4" class="ddash-budget-empty"
+        data-zh="尚未配置植物" data-en="No plants placed yet">尚未配置植物</td></tr>
+  ` : auto.lines.map(l => `
+    <tr>
+      <td class="ddash-budget-name"
+          data-zh="${escapeHtml(l.plant.zh)}"
+          data-en="${escapeHtml(l.plant.en)}">${escapeHtml(l.plant.zh)}</td>
+      <td class="ddash-budget-num">${l.qty}</td>
+      <td class="ddash-budget-num">${fmt(l.unit)}</td>
+      <td class="ddash-budget-num">${fmt(l.subtotal)}</td>
+    </tr>`).join("");
+
+  const userRowsHtml = b.items.length === 0 ? `
+    <tr><td colspan="5" class="ddash-budget-empty"
+        data-zh="還沒新增其他項目 — 例如：培養土、盆器、滴灌、碎石…"
+        data-en="No items added yet — e.g. potting mix, pots, drip line, gravel…">還沒新增其他項目 — 例如：培養土、盆器、滴灌、碎石…</td></tr>
+  ` : b.items.map(i => {
+    const sub = (Number(i.qty) || 0) * (Number(i.unit) || 0);
+    return `
+      <tr data-budget-row="${escapeHtml(i.id)}">
+        <td>
+          <input class="ddash-budget-input ddash-budget-input-name"
+                 type="text" value="${escapeHtml(i.name)}" maxlength="40"
+                 data-budget-edit="name"
+                 aria-label="${escapeHtml(t('項目名稱', 'Item name'))}">
+        </td>
+        <td>
+          <input class="ddash-budget-input ddash-budget-input-num"
+                 type="number" min="0" step="1" value="${escapeHtml(i.qty)}"
+                 data-budget-edit="qty"
+                 aria-label="${escapeHtml(t('數量', 'Quantity'))}">
+        </td>
+        <td>
+          <input class="ddash-budget-input ddash-budget-input-num"
+                 type="number" min="0" step="1" value="${escapeHtml(i.unit)}"
+                 data-budget-edit="unit"
+                 aria-label="${escapeHtml(t('單價 NTD', 'Unit NTD'))}">
+        </td>
+        <td class="ddash-budget-num">${fmt(sub)}</td>
+        <td>
+          <button type="button" class="ddash-budget-del"
+                  data-budget-del="${escapeHtml(i.id)}"
+                  aria-label="${escapeHtml(t('刪除項目', 'Delete item'))}"
+                  data-zh-aria="刪除項目" data-en-aria="Delete item">✕</button>
+        </td>
+      </tr>`;
+  }).join("");
+
+  return `
+    <section class="dash-section" aria-labelledby="ddashBudgetHead">
+      <h2 id="ddashBudgetHead">
+        <span data-zh="💰 預算" data-en="💰 Budget">💰 預算</span>
+        <span class="dash-section-sub"
+              data-zh="植物自動計算 · 其他項目自行新增"
+              data-en="plants auto-calculated · add other line items">植物自動計算 · 其他項目自行新增</span>
+      </h2>
+      <div class="ddash-budget-card">
+        <div class="ddash-budget-section-label"
+             data-zh="🪴 植物 (依購物清單)"
+             data-en="🪴 Plants (from shopping list)">🪴 植物 (依購物清單)</div>
+        <table class="ddash-budget-table">
+          <thead>
+            <tr>
+              <th data-zh="項目" data-en="Item">項目</th>
+              <th class="ddash-budget-num" data-zh="數量" data-en="Qty">數量</th>
+              <th class="ddash-budget-num" data-zh="單價" data-en="Unit">單價</th>
+              <th class="ddash-budget-num" data-zh="小計" data-en="Subtotal">小計</th>
+            </tr>
+          </thead>
+          <tbody>${autoRowsHtml}</tbody>
+        </table>
+        <div class="ddash-budget-section-label"
+             data-zh="📦 其他項目 (土壤、容器、灌溉…)"
+             data-en="📦 Other items (soil, containers, irrigation…)">📦 其他項目 (土壤、容器、灌溉…)</div>
+        <table class="ddash-budget-table">
+          <thead>
+            <tr>
+              <th data-zh="項目" data-en="Item">項目</th>
+              <th class="ddash-budget-num" data-zh="數量" data-en="Qty">數量</th>
+              <th class="ddash-budget-num" data-zh="單價" data-en="Unit">單價</th>
+              <th class="ddash-budget-num" data-zh="小計" data-en="Subtotal">小計</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${userRowsHtml}</tbody>
+        </table>
+        <div class="ddash-budget-add-row">
+          <input type="text" id="ddashBudgetNewName" class="ddash-budget-input ddash-budget-input-name"
+                 placeholder="${state.lang === "en" ? "Item name…" : "項目名稱…"}"
+                 data-zh-placeholder="項目名稱…" data-en-placeholder="Item name…"
+                 maxlength="40">
+          <input type="number" id="ddashBudgetNewQty" class="ddash-budget-input ddash-budget-input-num"
+                 placeholder="${state.lang === "en" ? "Qty" : "數量"}" min="0" step="1"
+                 data-zh-placeholder="數量" data-en-placeholder="Qty">
+          <input type="number" id="ddashBudgetNewUnit" class="ddash-budget-input ddash-budget-input-num"
+                 placeholder="${state.lang === "en" ? "Unit NTD" : "單價"}" min="0" step="1"
+                 data-zh-placeholder="單價" data-en-placeholder="Unit NTD">
+          <button type="button" id="ddashBudgetAddBtn" class="ddash-budget-add-btn"
+                  data-zh="＋ 新增"
+                  data-en="＋ Add">＋ 新增</button>
+        </div>
+        <div class="ddash-budget-summary">
+          <div class="ddash-budget-target-row">
+            <label class="ddash-budget-target-label"
+                   data-zh="🎯 目標預算 (NTD)"
+                   data-en="🎯 Target budget (NTD)">🎯 目標預算 (NTD)</label>
+            <input type="number" id="ddashBudgetTargetInput"
+                   class="ddash-budget-input ddash-budget-input-num"
+                   min="0" step="100"
+                   value="${target || ""}"
+                   placeholder="0"
+                   aria-label="${escapeHtml(t('目標預算', 'Target budget'))}">
+          </div>
+          ${hasTarget ? `
+            <div class="ddash-budget-bar">
+              <div class="ddash-budget-bar-fill ${overBudget ? "over" : ""}"
+                   style="width: ${barPct}%"
+                   aria-hidden="true"></div>
+            </div>
+          ` : ""}
+          <div class="ddash-budget-totals">
+            <span class="ddash-budget-total-label"
+                  data-zh="總計"
+                  data-en="Total">總計</span>
+            <span class="ddash-budget-total-value ${overBudget ? "over" : ""}">${fmt(grandTotal)}</span>
+          </div>
+          ${hasTarget ? `
+            <div class="ddash-budget-remaining ${overBudget ? "over" : ""}"
+                 data-zh="${overBudget ? '超出預算 ' + fmt(-remaining) : '剩餘預算 ' + fmt(remaining) + ' · ' + pctOfTarget + '% 已用'}"
+                 data-en="${overBudget ? 'Over budget by ' + fmt(-remaining) : 'Remaining ' + fmt(remaining) + ' · ' + pctOfTarget + '% used'}">${overBudget ? (state.lang === "en" ? 'Over budget by ' + fmt(-remaining) : '超出預算 ' + fmt(-remaining)) : (state.lang === "en" ? 'Remaining ' + fmt(remaining) + ' · ' + pctOfTarget + '% used' : '剩餘預算 ' + fmt(remaining) + ' · ' + pctOfTarget + '% 已用')}</div>
+          ` : `
+            <div class="ddash-budget-target-hint"
+                 data-zh="設定目標預算就會顯示進度條與剩餘金額"
+                 data-en="Set a target above to see a progress bar and remaining amount">設定目標預算就會顯示進度條與剩餘金額</div>
+          `}
+        </div>
+      </div>
+    </section>`;
+}
+
+function wireBudgetCard(entry) {
+  // Add new item.
+  const addBtn = document.getElementById("ddashBudgetAddBtn");
+  if (addBtn) addBtn.addEventListener("click", () => {
+    const nameEl = document.getElementById("ddashBudgetNewName");
+    const qtyEl  = document.getElementById("ddashBudgetNewQty");
+    const unitEl = document.getElementById("ddashBudgetNewUnit");
+    if (!nameEl) return;
+    const ok = addBudgetItem(entry.id, nameEl.value, qtyEl.value, unitEl.value);
+    if (ok) {
+      nameEl.value = ""; qtyEl.value = ""; unitEl.value = "";
+      render();
+      applyLanguage();
+    }
+  });
+
+  // Inline edit on existing rows — debounce by listening to "change" so the
+  // re-render only fires when the user leaves the field.
+  document.querySelectorAll("[data-budget-row]").forEach(row => {
+    const id = row.getAttribute("data-budget-row");
+    row.querySelectorAll("[data-budget-edit]").forEach(input => {
+      const field = input.getAttribute("data-budget-edit");
+      input.addEventListener("change", () => {
+        updateBudgetItem(entry.id, id, { [field]: input.value });
+        render();
+        applyLanguage();
+      });
+    });
+  });
+
+  // Delete row.
+  document.querySelectorAll("[data-budget-del]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-budget-del");
+      if (!id) return;
+      deleteBudgetItem(entry.id, id);
+      render();
+      applyLanguage();
+    });
+  });
+
+  // Target budget input — save on change (blur or Enter).
+  const targetInput = document.getElementById("ddashBudgetTargetInput");
+  if (targetInput) {
+    targetInput.addEventListener("change", () => {
+      setBudgetTarget(entry.id, targetInput.value);
+      render();
+      applyLanguage();
+    });
+  }
+}
+
 // Top-level renderer mounted by render() when state.view === "designDashboard".
 function renderDesignDashboard() {
   const designId = state.designDashboardId;
@@ -10004,12 +10476,15 @@ function renderDesignDashboard() {
   // a question or diagnose a sick plant without leaving the workspace.
   const doctorCard = renderPlantDoctorSection();
   const qaCard = renderDashQACardForDesign();
+  // R64: Budget editor — plants auto + user line items + target.
+  const budgetCard = renderBudgetCard(entry);
 
   app.innerHTML = `
     <div class="fade-up personal-dashboard" id="personalDashboard">
       ${header}
       ${todayCard}
       ${layoutCard}
+      ${budgetCard}
       ${settingsCard}
       ${journalCard}
       ${doctorCard}
@@ -10017,6 +10492,7 @@ function renderDesignDashboard() {
     </div>`;
 
   wireDesignDashboard(entry);
+  wireBudgetCard(entry);
   // The doctor and Q&A widgets bind their own listeners through the same
   // wirePersonalDashboard() they use on the global dashboard. Reusing it
   // keeps both surfaces in sync as those features evolve.
