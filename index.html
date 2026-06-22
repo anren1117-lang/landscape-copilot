@@ -8918,14 +8918,19 @@ function aggregateThisMonthCare(list, monthIdx) {
       if (!map.has(key)) {
         map.set(key, { ...t, designs: [] });
       }
-      map.get(key).designs.push(entry.name);
+      // Defensive: drop empty / unnamed entries so the tag render at the
+      // call-site never sees `designs[0] === undefined`.
+      if (entry.name) map.get(key).designs.push(entry.name);
     });
   });
   // Sort: fertilize before prune (matches per-design order),
   // then alphabetically by plant for stability.
   const order = { "🌱": 0, "✂️": 1, "⚠": 2 };
-  return Array.from(map.values()).sort((a, b) =>
+  const items = Array.from(map.values()).sort((a, b) =>
     (order[a.icon] - order[b.icon]) || a.plantZh.localeCompare(b.plantZh, "zh-Hant"));
+  // Final-pass invariant: every surviving task has ≥1 design tag. Drop
+  // any that don't (would render as `undefined 個設計`).
+  return items.filter(it => Array.isArray(it.designs) && it.designs.length > 0);
 }
 
 function aggregateLifetimeStats(list) {
@@ -9177,7 +9182,7 @@ function renderPersonalDashboard() {
                     data-zh-placeholder="輸入你的問題…"
                     data-en-placeholder="Type your question…"
                     placeholder="${state.lang === "en" ? "Type your question…" : "輸入你的問題…"}"
-                    ${qaBusy ? "disabled" : ""}>${escapeHtml(qaPending)}</textarea>
+                    aria-busy="${qaBusy ? "true" : "false"}">${escapeHtml(qaPending)}</textarea>
           <button type="button" class="dash-qa-send" id="dashQASendBtn"
                   ${qaBusy ? "disabled" : ""}
                   aria-label="${escapeHtml(t('送出問題', 'Send question'))}"
@@ -9312,10 +9317,14 @@ async function submitDashQA() {
 function renderPersonalDashboardInPlace() {
   const dash = document.getElementById("personalDashboard");
   if (!dash) return;
-  // Preserve focus: if the user is typing in the Q&A input when busy flips,
-  // restore focus + caret after re-render.
+  // Preserve focus + ephemeral form picks across re-renders:
+  //   - Q&A input focus and caret position
+  //   - Plant Doctor "log to which design" select value (otherwise nuked
+  //     on every render-in-place, forcing the user to re-pick)
   const wasInput = document.activeElement && document.activeElement.id === "dashQAInput";
   const caret = wasInput ? document.activeElement.selectionStart : null;
+  const logSelEl = document.getElementById("dashDoctorLogDesign");
+  const logSelValue = logSelEl ? logSelEl.value : null;
   const newHtml = renderPersonalDashboard();
   // Replace from the parent so we don't strand the wrapper.
   const tmp = document.createElement("div");
@@ -9323,8 +9332,12 @@ function renderPersonalDashboardInPlace() {
   const fresh = tmp.firstElementChild;
   if (!fresh) return;
   dash.replaceWith(fresh);
-  applyLanguage(fresh);
+  applyLanguage();
   wirePersonalDashboard();
+  if (logSelValue) {
+    const newSel = document.getElementById("dashDoctorLogDesign");
+    if (newSel) newSel.value = logSelValue;
+  }
   if (wasInput) {
     const el = document.getElementById("dashQAInput");
     if (el) {
@@ -9381,7 +9394,8 @@ function renderPlantDoctorSection() {
         <input type="file" accept="image/*" capture="environment"
                id="dashDoctorFile" class="dash-doctor-file-input" />
         ${hasPhoto && !hasDiagnosis && !busy ? `
-          <button type="button" class="dash-doctor-analyze" id="dashDoctorAnalyzeBtn">
+          <button type="button" class="dash-doctor-analyze" id="dashDoctorAnalyzeBtn"
+                  aria-busy="false">
             <span data-zh="🔬 分析這張照片" data-en="🔬 Analyze this photo">🔬 分析這張照片</span>
           </button>
         ` : ""}
@@ -9488,11 +9502,20 @@ function renderDoctorDiagnosis(diag) {
 
 // Read photo file → downscale → store as data URL on state.dashDoctor.
 // Mirrors handlePhotoFile from the wizard photo flow.
+//
+// R61 race fix: if a prior analysis is still in flight, abort it before
+// swapping the photo. Without this, the old request's response can land
+// after the new upload and silently write a stale diagnosis onto the
+// new photo (busy=false, diagnosis=<previous>).
 function handleDoctorPhotoFile(file) {
   if (!file || !file.type || !file.type.startsWith("image/")) {
     state.dashDoctor.error = t("不支援的檔案格式 — 請選擇圖片", "Unsupported file — pick an image");
     renderPersonalDashboardInPlace();
     return;
+  }
+  if (state.dashDoctor.busy && typeof cancelVisionRequest === "function") {
+    cancelVisionRequest();
+    state.dashDoctor.busy = false;
   }
   const reader = new FileReader();
   reader.onload = (e) => {
@@ -16999,6 +17022,11 @@ function applyLanguage() {
     // R40 — About modal is appended to <body> (not inside #app), so its
     // bilingual nodes get frozen on lang toggle unless we walk it here.
     document.getElementById("aboutOverlay"),
+    // R61 — Design editor modal (R59) is body-mounted; lang toggle while
+    // the editor is open otherwise leaves every form label, hint, and button
+    // frozen in the prior language. Added here so the QR/Tips/About pattern
+    // is preserved for the editor too.
+    document.getElementById("designEditorOverlay"),
     // R54 — printResultBundle() appends #printBundle to <body> with bilingual
     // [data-zh][data-en] nodes inside render3D + renderCareCalendar. Without
     // walking this root, EN-language users get Chinese in the printed PDF for
