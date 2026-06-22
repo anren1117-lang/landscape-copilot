@@ -77,6 +77,15 @@
   .screen-bar .left { font-size: 13px; color: var(--ink-soft); }
   .screen-bar .left a { color: var(--sage-deep); text-decoration: none; font-weight: 600; }
   .screen-bar .right { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  /* Brand wordmark doubles as a Home button — clickable from any view */
+  .brand-home {
+    background: none; border: 0; padding: 0;
+    font: inherit; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--sage-deep); cursor: pointer;
+    border-radius: 4px;
+  }
+  .brand-home:hover { color: var(--forest); text-decoration: underline; text-underline-offset: 3px; }
+  .brand-home:focus-visible { outline: 2px solid var(--sage-deep); outline-offset: 3px; }
 
   /* Skip-to-main link — visible only when focused */
   .skip-link {
@@ -2777,6 +2786,219 @@
     }
     body.drawer-open .drawer-close { display: none !important; }
   }
+
+  /* ───────────────────────────────────────────────────────────
+     R56: Personal Dashboard view
+     A returning-user landing page that aggregates everything
+     across the user's saved designs into one glance: hero strip,
+     quick actions, this-month combined care, lifetime stats,
+     My Designs grid, and recent journal entries.
+     Mobile-first stack; 2-col stats on phone → 4-col on desktop.
+     ─────────────────────────────────────────────────────────── */
+  .dash-hero {
+    text-align: center;
+    padding: 26px 18px 22px;
+    margin-bottom: 18px;
+    background: linear-gradient(180deg, rgba(196,210,176,0.20) 0%, rgba(196,210,176,0) 100%);
+    border-radius: 14px;
+  }
+  .dash-hero h1 {
+    font-family: var(--serif);
+    font-size: 26px; line-height: 1.2;
+    margin: 0 0 8px; color: var(--forest);
+    font-weight: 500;
+  }
+  .dash-hero p.dash-sub {
+    margin: 0; color: var(--clay);
+    font-size: 13px; font-family: var(--serif); font-style: italic;
+  }
+  .dash-quick-row {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    justify-content: center;
+    margin-bottom: 22px;
+  }
+  .dash-quick-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 16px;
+    background: var(--paper); color: var(--forest);
+    border: 1.5px solid rgba(110,126,96,0.35);
+    border-radius: 999px;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .dash-quick-btn:hover {
+    background: var(--sage-deep); color: var(--paper);
+    border-color: var(--sage-deep);
+    transform: translateY(-1px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dash-quick-btn { transition: none; }
+    .dash-quick-btn:hover { transform: none; }
+  }
+
+  .dash-section {
+    margin: 0 0 26px;
+    padding: 0;
+  }
+  .dash-section h2 {
+    font-family: var(--serif); font-size: 17px; font-weight: 500;
+    color: var(--forest); margin: 0 0 10px;
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  .dash-section h2 .dash-section-sub {
+    font-size: 11px; color: var(--clay); font-style: italic;
+    font-weight: 400;
+  }
+
+  /* This-month combined care list */
+  .dash-care-card {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 14px 14px 6px;
+  }
+  .dash-care-empty {
+    color: var(--clay); font-style: italic; font-family: var(--serif);
+    font-size: 13px; padding: 10px 4px;
+  }
+  .dash-care-list { list-style: none; padding: 0; margin: 0; }
+  .dash-care-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 9px 4px;
+    border-bottom: 1px dashed rgba(110,126,96,0.18);
+  }
+  .dash-care-item:last-child { border-bottom: 0; }
+  .dash-care-icon { font-size: 16px; line-height: 1.4; flex-shrink: 0; }
+  .dash-care-text { flex: 1; min-width: 0; font-size: 13px; color: var(--forest); line-height: 1.45; }
+  .dash-care-kind { font-weight: 600; }
+  .dash-care-tag {
+    display: inline-block;
+    font-size: 10px; color: var(--clay);
+    background: rgba(168,138,106,0.10);
+    border-radius: 4px; padding: 1px 6px;
+    margin-left: 4px;
+    font-family: var(--serif); font-style: italic;
+  }
+  .dash-care-more-btn {
+    background: transparent; border: 0;
+    color: var(--sage-deep); font-size: 12px;
+    cursor: pointer; padding: 8px 4px;
+    width: 100%; text-align: center;
+    font-family: var(--serif);
+  }
+  .dash-care-more-btn:hover { color: var(--forest); text-decoration: underline; }
+
+  /* Lifetime stats grid — 2-col mobile, 4-col desktop */
+  .dash-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  @media (min-width: 720px) {
+    .dash-stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  }
+  .dash-stat {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 10px;
+    padding: 14px 12px;
+    text-align: center;
+  }
+  .dash-stat-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .dash-stat-value {
+    font-family: var(--serif); font-size: 22px; font-weight: 500;
+    color: var(--forest); line-height: 1.1; display: block;
+  }
+  .dash-stat-unit {
+    font-size: 11px; color: var(--clay);
+    font-family: var(--serif); font-style: italic;
+    margin-top: 2px; display: block;
+  }
+  .dash-stat-label {
+    font-size: 11px; color: var(--clay);
+    margin-top: 6px; display: block;
+    line-height: 1.3;
+  }
+
+  /* Recent journal feed */
+  .dash-journal-list {
+    list-style: none; padding: 0; margin: 0;
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .dash-journal-row {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(110,126,96,0.14);
+  }
+  .dash-journal-row:last-child { border-bottom: 0; }
+  .dash-journal-meta {
+    display: flex; justify-content: space-between; gap: 8px;
+    font-size: 11px; color: var(--clay);
+    font-family: var(--serif); font-style: italic;
+  }
+  .dash-journal-design {
+    color: var(--sage-deep); font-weight: 600;
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-family: var(--serif); font-style: italic;
+    font-size: 11px;
+  }
+  .dash-journal-design:hover { color: var(--forest); text-decoration: underline; }
+  .dash-journal-note {
+    color: var(--forest); font-size: 13px; line-height: 1.45;
+    word-wrap: break-word;
+  }
+  .dash-journal-jump {
+    background: none; border: 0; color: var(--sage-deep);
+    font-size: 11px; cursor: pointer; padding: 2px 0; align-self: flex-start;
+    text-decoration: underline; text-decoration-style: dotted;
+  }
+  .dash-journal-jump:hover { color: var(--forest); }
+  .dash-journal-empty {
+    padding: 18px; color: var(--clay); font-style: italic;
+    font-family: var(--serif); font-size: 13px; text-align: center;
+  }
+
+  /* Top-bar Home/Dashboard switch */
+  .top-view-switch {
+    display: inline-flex; gap: 2px;
+    border: 1px solid rgba(110,126,96,0.30);
+    border-radius: 999px;
+    padding: 2px;
+    background: rgba(255,255,255,0.55);
+  }
+  .top-view-switch button {
+    background: transparent; border: 0;
+    padding: 5px 12px; font-size: 12px;
+    border-radius: 999px; cursor: pointer;
+    color: var(--forest-soft);
+    font-weight: 500;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .top-view-switch button.active {
+    background: var(--sage-deep); color: var(--paper);
+  }
+  .top-view-switch button:not(.active):hover { color: var(--forest); background: rgba(110,126,96,0.10); }
+  @media (prefers-reduced-motion: reduce) {
+    .top-view-switch button { transition: none; }
+  }
+  @media (max-width: 480px) {
+    .top-view-switch button { padding: 4px 9px; font-size: 11px; }
+    .dash-hero { padding: 20px 12px 16px; }
+    .dash-hero h1 { font-size: 22px; }
+  }
+
+  /* Print: dashboard view never reaches print bundle (printResultBundle
+     uses its own #printBundle DOM), so no print rules needed here.
+     But just in case the user prints from dashboard, hide it. */
+  @media print {
+    body.printing-bundle .dash-hero,
+    body.printing-bundle .dash-quick-row,
+    body.printing-bundle .dash-section { display: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -2789,7 +3011,11 @@
 
 <div class="screen-bar">
   <div class="left" id="topBarLeft">
-    <span style="font-weight:600; color:var(--sage-deep); letter-spacing:0.02em;" data-zh="🌿 AI Landscape Copilot" data-en="🌿 AI Landscape Copilot">🌿 AI Landscape Copilot</span>
+    <button type="button" id="brandHomeBtn"
+            class="brand-home"
+            aria-label="Back to home / 回首頁"
+            data-zh-aria="回首頁" data-en-aria="Back to home"
+            data-zh="🌿 AI Landscape Copilot" data-en="🌿 AI Landscape Copilot">🌿 AI Landscape Copilot</button>
   </div>
   <div class="right">
     <button class="btn text tips-link" id="tipsBtn" onclick="openTipsModal()" aria-label="Tips / 想法"><span data-zh="🎯 想法" data-en="🎯 Tips">🎯 想法</span></button>
@@ -9058,6 +9284,15 @@ const DESIGN_PRESETS = [
     desc_en: "Full-sun rooftop — basil, perilla, rosemary, lavender, lemongrass edible herb mix",
     space: "rooftop", sun: "full", water: "med", goals: ["edible"],
     pinList: ["basil", "perilla", "rosemary", "lavender", "lemongrass"],
+  },
+  {
+    id: "edible-yard",
+    icon: "🥗",
+    zh: "可食庭院", en: "Edible yard",
+    desc_zh: "全日照可食庭院 — 芒果、番石榴、木瓜、釋迦、桑樹的家庭果園",
+    desc_en: "Full-sun edible yard — mango, guava, papaya, sugar apple, mulberry home orchard",
+    space: "yard", sun: "full", water: "med", goals: ["edible"],
+    pinList: ["mango", "guava", "papaya", "annona", "mulberry_sm"],
   },
 ];
 
@@ -15391,6 +15626,18 @@ function applyLanguage() {
 document.getElementById("langToggle").addEventListener("click", () => {
   state.lang = state.lang === "zh" ? "en" : "zh";
   render();
+});
+
+// Brand wordmark = "Back to home" button — works from any view (wizard / photo
+// / result). We DON'T clear wizard step or photo state: the welcome-back banner
+// on the homepage already offers to resume in-progress work, so a stray click
+// on the brand never costs the user their progress.
+document.getElementById("brandHomeBtn").addEventListener("click", () => {
+  if (state.view === "home") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+  state.view = "home";
+  if (typeof closeDrawer === "function") closeDrawer();
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
 // ─────────────────────────────────────────────────────────────
