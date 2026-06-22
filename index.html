@@ -2999,6 +2999,119 @@
     body.printing-bundle .dash-quick-row,
     body.printing-bundle .dash-section { display: none !important; }
   }
+
+  /* R58: Dashboard AI Q&A panel ───────────────────────────────
+     A small chat-style input where the user can ask gardening / plant /
+     design questions and get a Pollinations text-API answer with their
+     saved designs as context. Ephemeral history (in-memory). */
+  .dash-qa-card {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .dash-qa-suggested {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+  }
+  .dash-qa-chip {
+    background: rgba(196,210,176,0.20);
+    border: 1px dashed rgba(110,126,96,0.30);
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 12px;
+    color: var(--forest);
+    cursor: pointer;
+    font-family: var(--serif);
+    transition: background 0.15s ease;
+  }
+  .dash-qa-chip:hover { background: rgba(196,210,176,0.40); }
+  .dash-qa-input-row {
+    display: flex; gap: 8px;
+    flex-wrap: wrap;
+  }
+  .dash-qa-input {
+    flex: 1; min-width: 0;
+    padding: 10px 14px;
+    border: 1.5px solid rgba(110,126,96,0.30);
+    border-radius: 10px;
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--forest);
+    resize: vertical;
+    min-height: 44px; max-height: 140px;
+  }
+  .dash-qa-input:focus {
+    outline: none;
+    border-color: var(--sage-deep);
+    box-shadow: 0 0 0 3px rgba(110,126,96,0.18);
+  }
+  .dash-qa-send {
+    background: var(--sage-deep); color: var(--paper);
+    border: 0; padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer; min-height: 44px;
+    transition: background 0.15s ease;
+  }
+  .dash-qa-send:hover:not(:disabled) { background: var(--forest); }
+  .dash-qa-send:disabled { opacity: 0.5; cursor: wait; }
+  .dash-qa-error {
+    color: #b45339;
+    font-size: 12px;
+    padding: 8px 0 0;
+    font-style: italic;
+  }
+  .dash-qa-history { margin-top: 14px; }
+  .dash-qa-turn {
+    border-top: 1px dashed rgba(110,126,96,0.20);
+    padding-top: 12px;
+    margin-top: 12px;
+  }
+  .dash-qa-turn:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+  .dash-qa-q {
+    font-family: var(--serif); font-style: italic;
+    color: var(--clay);
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .dash-qa-q::before { content: "Q · "; opacity: 0.7; }
+  .dash-qa-a {
+    color: var(--forest);
+    font-size: 14px; line-height: 1.55;
+    white-space: pre-wrap;
+  }
+  .dash-qa-a-err {
+    color: #b45339; font-style: italic;
+  }
+  .dash-qa-spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(110,126,96,0.20);
+    border-top-color: var(--sage-deep);
+    border-radius: 50%;
+    animation: dash-qa-spin 0.9s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes dash-qa-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .dash-qa-spinner { animation: none; border-top-color: transparent; }
+  }
+  .dash-qa-clear {
+    background: none; border: 0;
+    color: var(--clay);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px 0;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    margin-top: 8px;
+  }
+  .dash-qa-clear:hover { color: var(--forest); }
+  @media print {
+    .dash-qa-card { display: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -6447,6 +6560,12 @@ const state = {
   //    Maps designId → boolean. Cleared implicitly when the design is deleted.
   journalComposerOpen: {},   // { [designId]: true } — note textarea is showing
   journalExpanded: {},       // { [designId]: true } — full list shown (else top 3)
+  // ── R58: Dashboard Q&A — ephemeral session-only chat with Pollinations
+  //    text API. NOT persisted (would balloon localStorage + raise privacy
+  //    concerns). `pending` is the controlled input value; `history` is the
+  //    Q+A pairs visible on the dashboard until the user clears or reloads.
+  //    `busy` gates the Send button + shows a spinner.
+  dashQA: { pending: "", history: [], busy: false, error: "" },
   lang: "zh",
 };
 
@@ -8662,14 +8781,195 @@ function renderPersonalDashboard() {
          data-en="${stats.totalDesigns} designs · ${stats.totalSlots} plant slots · ${stats.nativePct}% native">${stats.totalDesigns} 個設計 · ${stats.totalSlots} 個植物單位 · ${stats.nativePct}% 本土</p>
     </div>`;
 
+  // R58: Dashboard AI Q&A — text input + Pollinations text API answer.
+  // Ephemeral: history clears on reload. Three suggested prompts seed the
+  // first interaction so users know what they can ask.
+  const suggestedZh = [
+    "我的植物葉子發黃，可能是什麼原因？",
+    "適合北向陽台的耐陰植物有哪些？",
+    "如何讓蝴蝶來我的庭院？",
+  ];
+  const suggestedEn = [
+    "Why are my plant leaves turning yellow?",
+    "Best shade plants for a north-facing balcony?",
+    "How do I attract butterflies to my yard?",
+  ];
+  const qaHistory = (state.dashQA && state.dashQA.history) || [];
+  const qaBusy = !!(state.dashQA && state.dashQA.busy);
+  const qaError = (state.dashQA && state.dashQA.error) || "";
+  const qaPending = (state.dashQA && state.dashQA.pending) || "";
+  const qaCard = `
+    <section class="dash-section" aria-labelledby="dashQAHead">
+      <h2 id="dashQAHead">
+        <span data-zh="💬 問問題" data-en="💬 Ask the AI">💬 問問題</span>
+        <span class="dash-section-sub"
+              data-zh="關於植物、設計、養護的任何疑問"
+              data-en="anything about plants, design, or care">關於植物、設計、養護的任何疑問</span>
+      </h2>
+      <div class="dash-qa-card">
+        ${qaHistory.length === 0 ? `
+          <div class="dash-qa-suggested" id="dashQASuggested">
+            ${(state.lang === "en" ? suggestedEn : suggestedZh).map((q, i) => `
+              <button type="button" class="dash-qa-chip" data-qa-suggest="${i}"
+                      data-zh="${escapeHtml(suggestedZh[i])}"
+                      data-en="${escapeHtml(suggestedEn[i])}">${escapeHtml(state.lang === "en" ? suggestedEn[i] : suggestedZh[i])}</button>
+            `).join("")}
+          </div>
+        ` : ""}
+        <div class="dash-qa-input-row">
+          <textarea class="dash-qa-input" id="dashQAInput"
+                    rows="1"
+                    data-zh-placeholder="輸入你的問題…"
+                    data-en-placeholder="Type your question…"
+                    placeholder="${state.lang === "en" ? "Type your question…" : "輸入你的問題…"}"
+                    ${qaBusy ? "disabled" : ""}>${escapeHtml(qaPending)}</textarea>
+          <button type="button" class="dash-qa-send" id="dashQASendBtn"
+                  ${qaBusy ? "disabled" : ""}
+                  aria-label="${escapeHtml(t('送出問題', 'Send question'))}"
+                  data-zh-aria="送出問題" data-en-aria="Send question">
+            ${qaBusy ? `<span class="dash-qa-spinner" aria-hidden="true"></span>` : ""}
+            <span data-zh="${qaBusy ? '思考中…' : '送出'}"
+                  data-en="${qaBusy ? 'Thinking…' : 'Send'}">${qaBusy ? (state.lang === "en" ? "Thinking…" : "思考中…") : (state.lang === "en" ? "Send" : "送出")}</span>
+          </button>
+        </div>
+        ${qaError ? `
+          <div class="dash-qa-error"
+               data-zh="${escapeHtml(qaError)}"
+               data-en="${escapeHtml(qaError)}">${escapeHtml(qaError)}</div>
+        ` : ""}
+        ${qaHistory.length > 0 ? `
+          <div class="dash-qa-history">
+            ${qaHistory.map(turn => `
+              <div class="dash-qa-turn">
+                <div class="dash-qa-q">${escapeHtml(turn.q)}</div>
+                <div class="dash-qa-a ${turn.error ? "dash-qa-a-err" : ""}">${escapeHtml(turn.a || "")}</div>
+              </div>
+            `).join("")}
+            <button type="button" class="dash-qa-clear" id="dashQAClearBtn"
+                    data-zh="清除對話記錄"
+                    data-en="Clear conversation">清除對話記錄</button>
+          </div>
+        ` : ""}
+      </div>
+    </section>`;
+
   return `
     <div class="personal-dashboard" id="personalDashboard">
       ${hero}
       ${quickActions}
       ${careCard}
+      ${qaCard}
       ${statsCard}
       ${journalCard}
     </div>`;
+}
+
+// R58: Build a compact system-prompt context from the user's saved designs
+// so the AI's answers are grounded in *their* garden, not generic advice.
+// Stays under ~150 words so we don't blow the context budget.
+function buildDashQAContext() {
+  const list = loadDesignList();
+  if (!list.designs || list.designs.length === 0) return "";
+  const lines = [];
+  list.designs.slice(0, 5).forEach((entry, idx) => {
+    const sum = designSummary(entry.snapshot);
+    if (!sum) return;
+    const snap = entry.snapshot || {};
+    const topPlantNames = (sum.topPlants || []).slice(0, 4).map(p => `${p.zh} (${p.en})`).join(", ");
+    const spaceLabel = snap.space || "?";
+    const sunLabel = snap.sun || "?";
+    const area = (Number(snap.widthM) * Number(snap.depthM) || 0).toFixed(1);
+    lines.push(`${idx + 1}. "${entry.name}" — ${area}m² ${spaceLabel}, ${sunLabel}, top plants: ${topPlantNames || "n/a"}.`);
+  });
+  return lines.join("\n");
+}
+
+// R58: Submit the user's question to Pollinations text endpoint with their
+// dashboard context as a system message. Same lifecycle helpers as the
+// vision flow (startVisionRequest / endVisionRequest + 30s timeout).
+async function submitDashQA() {
+  const q = (state.dashQA.pending || "").trim();
+  if (!q || state.dashQA.busy) return;
+  state.dashQA.busy = true;
+  state.dashQA.error = "";
+  // Add a placeholder turn so the user sees their question echoed back
+  // immediately — answer fills in when the response arrives.
+  state.dashQA.history.unshift({ q, a: "", ts: Date.now() });
+  state.dashQA.pending = "";
+  renderPersonalDashboardInPlace();
+
+  const ctx = buildDashQAContext();
+  const langDirective = state.lang === "en"
+    ? "Respond in English."
+    : "Respond in Traditional Chinese (繁體中文).";
+  const systemPrompt = [
+    "You are a friendly landscape gardening assistant in Taiwan.",
+    "Answer concisely (under 150 words) with practical, climate-aware advice.",
+    "Mention specific plant names when relevant.",
+    "If the user has saved designs, ground your answer in them when applicable.",
+    langDirective,
+    ctx ? "User's saved designs:\n" + ctx : "User has no saved designs yet.",
+  ].join("\n");
+
+  const controller = startVisionRequest();
+  try {
+    const resp = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: "openai",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: q },
+        ],
+      }),
+    });
+    if (!resp.ok) throw new Error("API " + resp.status);
+    const data = await resp.json();
+    const text = (data?.choices?.[0]?.message?.content || "").trim();
+    if (!text) throw new Error("empty");
+    state.dashQA.history[0].a = text;
+  } catch (err) {
+    const isAbort = err && (err.name === "AbortError" || err.message === "timeout");
+    state.dashQA.history[0].a = isAbort
+      ? t("回應逾時，請稍後再試", "Response timed out. Try again.")
+      : t("AI 暫時無法回答，請稍後再試", "AI can't answer right now. Try again.");
+    state.dashQA.history[0].error = true;
+  } finally {
+    endVisionRequest(controller);
+    state.dashQA.busy = false;
+    renderPersonalDashboardInPlace();
+  }
+}
+
+// Re-render only the dashboard subtree — avoids tearing down the whole homepage
+// (and its tab cache) every time a Q&A turn lands.
+function renderPersonalDashboardInPlace() {
+  const dash = document.getElementById("personalDashboard");
+  if (!dash) return;
+  // Preserve focus: if the user is typing in the Q&A input when busy flips,
+  // restore focus + caret after re-render.
+  const wasInput = document.activeElement && document.activeElement.id === "dashQAInput";
+  const caret = wasInput ? document.activeElement.selectionStart : null;
+  const newHtml = renderPersonalDashboard();
+  // Replace from the parent so we don't strand the wrapper.
+  const tmp = document.createElement("div");
+  tmp.innerHTML = newHtml;
+  const fresh = tmp.firstElementChild;
+  if (!fresh) return;
+  dash.replaceWith(fresh);
+  applyLanguage(fresh);
+  wirePersonalDashboard();
+  if (wasInput) {
+    const el = document.getElementById("dashQAInput");
+    if (el) {
+      el.focus();
+      if (caret != null && el.setSelectionRange) {
+        try { el.setSelectionRange(caret, caret); } catch (_) {}
+      }
+    }
+  }
 }
 
 function wirePersonalDashboard() {
@@ -8722,6 +9022,39 @@ function wirePersonalDashboard() {
     btn.addEventListener("click", () => {
       const id = btn.getAttribute("data-design-id");
       if (id) resumeDesignById(id);
+    });
+  });
+
+  // R58: AI Q&A wiring — input, send button, suggested chips, clear button.
+  const qaInput = document.getElementById("dashQAInput");
+  const qaSend  = document.getElementById("dashQASendBtn");
+  const qaClear = document.getElementById("dashQAClearBtn");
+  if (qaInput) {
+    qaInput.addEventListener("input", (e) => {
+      state.dashQA.pending = e.target.value;
+    });
+    // Submit on Enter (but allow Shift-Enter for multi-line).
+    qaInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        submitDashQA();
+      }
+    });
+  }
+  if (qaSend) qaSend.addEventListener("click", submitDashQA);
+  if (qaClear) qaClear.addEventListener("click", () => {
+    state.dashQA.history = [];
+    state.dashQA.error = "";
+    renderPersonalDashboardInPlace();
+  });
+  // Suggested-question chips: pre-fill input and auto-submit.
+  dash.querySelectorAll("[data-qa-suggest]").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const text = state.lang === "en" ? chip.dataset.en : chip.dataset.zh;
+      state.dashQA.pending = text || chip.textContent.trim();
+      const input = document.getElementById("dashQAInput");
+      if (input) input.value = state.dashQA.pending;
+      submitDashQA();
     });
   });
 }
