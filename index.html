@@ -3613,6 +3613,17 @@
   }
   .layout-editor-add:hover { background: var(--forest); }
 
+  /* R69 a11y: visually hidden but still announced by screen readers.
+     Used for live regions on the layout editor (announce add/remove). */
+  .visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(1px, 1px, 1px, 1px);
+    white-space: nowrap;
+    border: 0; padding: 0; margin: -1px;
+  }
+
   /* R66: Plant picker panel — slides under the canvas when "+ Add" is tapped */
   .layout-picker {
     margin-top: 14px;
@@ -10597,6 +10608,18 @@ function resetEntryLayout(designId) {
   saveDesignList(list);
 }
 
+// R69 a11y: announce layout changes (add / remove / placement mode) via the
+// hidden #layoutEditorLive aria-live region so screen-reader users hear what
+// just happened. No-op when the region isn't on the page (e.g. global home).
+function announceLayoutChange(msg) {
+  if (!msg) return;
+  const live = document.getElementById("layoutEditorLive");
+  if (!live) return;
+  // Clear first so identical consecutive messages still announce.
+  live.textContent = "";
+  setTimeout(() => { live.textContent = msg; }, 30);
+}
+
 // R66 — Add a new token to the design's layout AND increment snap.qty.
 // snap.qty is the source-of-truth for "how many of plant X are in this
 // design" (scoring, shopping, gallery thumbnail all read it), so any
@@ -11008,13 +11031,17 @@ function wireLayoutEditor(entry) {
       if (isTap && state.layoutEditor.placingPlantId && insideRect) {
         const nx = (upPt.x - rectX) / rectW;
         const ny = (upPt.y - rectY) / rectH;
-        const newToken = addLayoutToken(entry.id, state.layoutEditor.placingPlantId, nx, ny);
+        const placedPlantId = state.layoutEditor.placingPlantId;
+        const newToken = addLayoutToken(entry.id, placedPlantId, nx, ny);
         // After one placement, exit placing mode — user can re-open the picker
         // for the next plant. This avoids confusing repeated-tap-adds.
         state.layoutEditor.placingPlantId = null;
         state.layoutEditor.selectedTokenId = newToken ? newToken.tokenId : null;
         render();
         applyLanguage();
+        // R69 a11y: announce the placement so SR users hear what happened.
+        const plant = PLANT_BY_ID[placedPlantId];
+        if (plant) announceLayoutChange(t(`已加入 ${plant.zh}`, `Added ${plant.en}`));
         return;
       } else if (isTap && state.layoutEditor.selectedTokenId) {
         // Tap-outside on a selected token clears the selection bar.
@@ -11085,6 +11112,12 @@ function wireLayoutEditor(entry) {
     state.layoutEditor.pickerOpen = false;
     render();
     applyLanguage();
+    // R69 a11y: focus returns to "+ Add plant" so keyboard users don't get
+    // stranded at the top of the page after closing the picker.
+    setTimeout(() => {
+      const b = document.getElementById("layoutEditorAddBtn");
+      if (b) b.focus();
+    }, 30);
   });
   const searchInput = document.getElementById("layoutPickerSearch");
   if (searchInput) {
@@ -11100,22 +11133,28 @@ function wireLayoutEditor(entry) {
       // Re-wire only the new card buttons; the search input itself keeps its listener.
       panel.querySelectorAll("[data-picker-plant]").forEach(btn => {
         btn.addEventListener("click", () => {
-          state.layoutEditor.placingPlantId = btn.getAttribute("data-picker-plant");
+          const plantId = btn.getAttribute("data-picker-plant");
+          state.layoutEditor.placingPlantId = plantId;
           state.layoutEditor.pickerOpen = false;
           state.layoutEditor.selectedTokenId = null;
           render();
           applyLanguage();
+          const plant = PLANT_BY_ID[plantId];
+          if (plant) announceLayoutChange(t(`點空間放置 ${plant.zh}`, `Tap to place ${plant.en}`));
         });
       });
     });
   }
   document.querySelectorAll("[data-picker-plant]").forEach(btn => {
     btn.addEventListener("click", () => {
-      state.layoutEditor.placingPlantId = btn.getAttribute("data-picker-plant");
+      const plantId = btn.getAttribute("data-picker-plant");
+      state.layoutEditor.placingPlantId = plantId;
       state.layoutEditor.pickerOpen = false;
       state.layoutEditor.selectedTokenId = null;
       render();
       applyLanguage();
+      const plant = PLANT_BY_ID[plantId];
+      if (plant) announceLayoutChange(t(`點空間放置 ${plant.zh}`, `Tap to place ${plant.en}`));
     });
   });
   const cancelPlacing = document.getElementById("layoutPlacingCancelBtn");
@@ -11123,15 +11162,21 @@ function wireLayoutEditor(entry) {
     state.layoutEditor.placingPlantId = null;
     render();
     applyLanguage();
+    announceLayoutChange(t("已取消放置", "Placement cancelled"));
   });
   const removeBtn = document.getElementById("layoutActionRemoveBtn");
   if (removeBtn) removeBtn.addEventListener("click", () => {
     const tokenId = state.layoutEditor.selectedTokenId;
     if (!tokenId) return;
+    // Capture the plant before removing so we can announce it after.
+    const currentLayout = ensureDesignLayout(entry);
+    const token = currentLayout.find(t => t.tokenId === tokenId);
+    const plant = token ? PLANT_BY_ID[token.plantId] : null;
     removeLayoutToken(entry.id, tokenId);
     state.layoutEditor.selectedTokenId = null;
     render();
     applyLanguage();
+    if (plant) announceLayoutChange(t(`已移除 ${plant.zh}`, `Removed ${plant.en}`));
   });
   const closeActionBtn = document.getElementById("layoutActionCloseBtn");
   if (closeActionBtn) closeActionBtn.addEventListener("click", () => {
@@ -11139,6 +11184,42 @@ function wireLayoutEditor(entry) {
     render();
     applyLanguage();
   });
+
+  // R69 a11y: global ESC handler — cancel placing mode, then close the picker,
+  // then deselect a token. Bound on this render's listeners ledger so the
+  // next render() removes it cleanly via DOM teardown.
+  const escListener = (e) => {
+    if (e.key !== "Escape") return;
+    if (state.layoutEditor.placingPlantId) {
+      state.layoutEditor.placingPlantId = null;
+      render();
+      applyLanguage();
+      announceLayoutChange(t("已取消放置", "Placement cancelled"));
+    } else if (state.layoutEditor.pickerOpen) {
+      state.layoutEditor.pickerOpen = false;
+      render();
+      applyLanguage();
+      // Restore focus to the trigger button.
+      setTimeout(() => {
+        const b = document.getElementById("layoutEditorAddBtn");
+        if (b) b.focus();
+      }, 30);
+    } else if (state.layoutEditor.selectedTokenId) {
+      state.layoutEditor.selectedTokenId = null;
+      render();
+      applyLanguage();
+    } else {
+      return; // not consumed
+    }
+    e.preventDefault();
+  };
+  document.addEventListener("keydown", escListener);
+  // Stash the handler on the SVG node so the next render-and-rewire knows to
+  // remove it — without this we'd accumulate ESC listeners every render.
+  if (svg) {
+    if (svg._escListener) document.removeEventListener("keydown", svg._escListener);
+    svg._escListener = escListener;
+  }
 
   // Keyboard nudge — arrow keys move a focused token by 2% per press.
   // Saves on every keystroke (cheap; up to ~50 writes per session).
@@ -11553,6 +11634,7 @@ function renderDesignDashboard() {
         ${renderLayoutEditorSVG(entry)}
         ${renderLayoutPlacingBanner()}
         ${renderLayoutSelectedActionBar(entry)}
+        <div id="layoutEditorLive" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
         <div class="layout-editor-toolbar">
           <button type="button" class="layout-editor-add" id="layoutEditorAddBtn"
                   data-zh="＋ 加入植物"
