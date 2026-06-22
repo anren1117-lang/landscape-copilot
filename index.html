@@ -3349,6 +3349,91 @@
     .dash-week-card { display: none !important; }
   }
 
+  /* R62: Design Gallery — top-of-dashboard grid of landscape thumbnails.
+     Each card = mini SVG plan view + name + meta chips + open arrow. */
+  .design-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .design-gallery-card {
+    display: flex; flex-direction: column;
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+  .design-gallery-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--sage);
+    box-shadow: 0 14px 28px -16px rgba(44,53,38,0.35);
+  }
+  .design-gallery-card:focus-visible {
+    outline: 2px solid var(--sage-deep);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .design-gallery-card { transition: none; }
+    .design-gallery-card:hover { transform: none; }
+  }
+  .design-gallery-thumb {
+    background: rgba(196,210,176,0.10);
+    border-bottom: 1px solid rgba(110,126,96,0.18);
+    line-height: 0;
+  }
+  .design-gallery-thumb svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .design-gallery-body {
+    padding: 12px 14px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .design-gallery-name {
+    font-family: var(--serif);
+    font-size: 15px; font-weight: 500;
+    color: var(--forest);
+    margin: 0;
+    line-height: 1.3;
+    /* Truncate long design names to single line + ellipsis */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .design-gallery-meta {
+    display: flex; flex-wrap: wrap; gap: 5px;
+  }
+  .design-gallery-chip {
+    background: rgba(196,210,176,0.20);
+    border: 1px solid rgba(110,126,96,0.18);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 11px;
+    color: var(--forest);
+    font-family: var(--serif);
+    line-height: 1.6;
+  }
+  .design-gallery-chip.native {
+    background: rgba(45,139,92,0.10);
+    border-color: rgba(45,139,92,0.30);
+    color: #1F5A3C;
+  }
+  .design-gallery-arrow {
+    color: var(--sage-deep);
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 2px;
+    transition: color 0.15s ease;
+  }
+  .design-gallery-card:hover .design-gallery-arrow { color: var(--forest); }
+
+  @media print {
+    .design-gallery-grid { display: none !important; }
+  }
+
   /* R59: Design editor modal — inline form to tweak saved-design parameters
      without leaving the homepage / re-running the wizard. Reuses the
      .qr-overlay + .tips-modal shell, layers form fields on top. */
@@ -9217,13 +9302,18 @@ function renderPersonalDashboard() {
   // upfront, and surface the Plant Doctor right after — those are the two
   // surfaces the user will actually USE day-to-day. Full month care drops
   // below (still available, but no longer the top item).
-  const weekCard   = renderThisWeekPanel(list);
-  const doctorCard = renderPlantDoctorSection();
+  // R62: design gallery sits at the very top (after hero+actions) — the
+  // landscape SVG thumbnails are the most valuable surface for a returning
+  // user. Seeing the garden > reading stats about the garden.
+  const galleryCard = renderDesignGallerySection(list);
+  const weekCard    = renderThisWeekPanel(list);
+  const doctorCard  = renderPlantDoctorSection();
 
   return `
     <div class="personal-dashboard" id="personalDashboard">
       ${hero}
       ${quickActions}
+      ${galleryCard}
       ${weekCard}
       ${doctorCard}
       ${qaCard}
@@ -9314,6 +9404,184 @@ async function submitDashQA() {
 
 // Re-render only the dashboard subtree — avoids tearing down the whole homepage
 // (and its tab cache) every time a Q&A turn lands.
+// ─────────────────────────────────────────────────────────────
+// R62: Design Gallery — visual landscape thumbnails on the dashboard.
+// User said "they should be able to have a design graph of the
+// landscape" — so each saved design now shows as a top-down mini SVG
+// (space outline + tier-stacked plant circles + compass + area label).
+// Pure SVG, no libraries, no canvas. Cheap enough to render N per page.
+// ─────────────────────────────────────────────────────────────
+
+// Cheap deterministic PRNG so jitter on plant positions stays stable
+// across re-renders (seed from area). Without this, each render would
+// reshuffle the layout and the thumbnail would visibly wiggle.
+function _miniSvgRand(seed) {
+  let s = seed;
+  return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+}
+
+function renderDesignMiniSVG(snap) {
+  const w = Number(snap.widthM || 0);
+  const d = Number(snap.depthM || 0);
+  const vbW = 320, vbH = 180;
+  const margin = 16;
+  const drawW = vbW - margin * 2;
+  const drawH = vbH - margin * 2;
+
+  if (!w || !d) {
+    return `
+      <svg viewBox="0 0 ${vbW} ${vbH}" class="design-mini-svg" aria-hidden="true">
+        <rect x="0" y="0" width="${vbW}" height="${vbH}" fill="rgba(196,210,176,0.12)" rx="8"/>
+        <text x="${vbW/2}" y="${vbH/2}" text-anchor="middle" font-size="11" font-family="serif" font-style="italic" fill="rgba(110,126,96,0.6)">no dimensions</text>
+      </svg>`;
+  }
+
+  // Scale the space rectangle to fit the viewbox while preserving aspect.
+  const aspect = w / d;
+  let rectW, rectH;
+  if (aspect > drawW / drawH) {
+    rectW = drawW;
+    rectH = drawW / aspect;
+  } else {
+    rectH = drawH;
+    rectW = drawH * aspect;
+  }
+  const rectX = (vbW - rectW) / 2;
+  const rectY = (vbH - rectH) / 2;
+
+  // Background tint by sun exposure — gold for full sun, muted teal for shade.
+  let bgTint = "rgba(196,210,176,0.16)";
+  if (snap.sun === "shade") bgTint = "rgba(70,90,80,0.14)";
+  if (snap.sun === "full")  bgTint = "rgba(245,210,140,0.18)";
+
+  // Collect plant entries with tier so we can stack canopy at the back.
+  const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
+  const entries = Object.keys(qtyMap)
+    .filter(id => Number(qtyMap[id]) > 0)
+    .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: PLANT_BY_ID[id] }))
+    .filter(e => e.plant)
+    .sort((a, b) => (b.plant.tier || 0) - (a.plant.tier || 0))
+    .slice(0, 10);
+
+  const rand = _miniSvgRand(Math.round(w * 1000 + d * 7 + entries.length * 13));
+  const plantsHtml = entries.map((e) => {
+    const tier = e.plant.tier || 1;             // 1 (ground) … 5 (canopy)
+    const yFraction = 1 - Math.min(4, tier - 1) / 4;
+    const yJ = (rand() - 0.5) * 0.20;
+    const y = rectY + rectH * Math.max(0.10, Math.min(0.92, yFraction + yJ));
+    const x = rectX + rectW * (0.08 + rand() * 0.84);
+    const r = 4.5 + Math.min(10, Math.sqrt(e.qty) * 2.5);
+    const color = e.plant.color || "#8A9A7B";
+    const isNative = !!e.plant.native;
+    return `
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 2).toFixed(1)}" fill="${color}" opacity="0.20"/>
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="0.78" stroke="${color}" stroke-width="0.6"/>
+      ${isNative ? `<circle cx="${(x + r * 0.55).toFixed(1)}" cy="${(y - r * 0.55).toFixed(1)}" r="1.7" fill="#2D8B5C"/>` : ""}`;
+  }).join("");
+
+  // Compass in top-right corner — north always up. Visual anchor so users
+  // can read orientation at a glance even without re-opening the design.
+  const cmpX = vbW - 22, cmpY = 22;
+
+  const areaText = (w * d).toFixed(1) + " m²";
+  const emptyStateHtml = entries.length === 0 ? `
+    <text x="${(rectX + rectW/2).toFixed(1)}" y="${(rectY + rectH/2).toFixed(1)}"
+          text-anchor="middle" font-size="10" font-family="serif" font-style="italic"
+          fill="rgba(110,126,96,0.55)">no plants yet</text>` : "";
+
+  return `
+    <svg viewBox="0 0 ${vbW} ${vbH}" class="design-mini-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <defs>
+        <pattern id="mini-grid-${Math.round(w * 1000 + d)}" width="18" height="18" patternUnits="userSpaceOnUse">
+          <path d="M 18 0 L 0 0 0 18" fill="none" stroke="rgba(110,126,96,0.10)" stroke-width="0.5"/>
+        </pattern>
+      </defs>
+      <rect x="0" y="0" width="${vbW}" height="${vbH}" fill="${bgTint}" rx="8"/>
+      <rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}" width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}"
+            fill="url(#mini-grid-${Math.round(w * 1000 + d)})"
+            stroke="rgba(110,126,96,0.50)" stroke-width="1" rx="4"/>
+      ${plantsHtml}
+      ${emptyStateHtml}
+      <g class="mini-compass" transform="translate(${cmpX}, ${cmpY})">
+        <circle r="11" fill="rgba(255,255,255,0.78)" stroke="rgba(110,126,96,0.40)" stroke-width="0.8"/>
+        <path d="M 0,-8 L 2.5,0 L 0,8 L -2.5,0 Z" fill="rgba(178,80,52,0.88)"/>
+        <text y="-2.5" text-anchor="middle" font-size="6.5" font-family="serif" fill="rgba(110,126,96,0.90)" font-weight="600">N</text>
+      </g>
+      <text x="${(rectX + 6).toFixed(1)}" y="${(rectY + rectH - 6).toFixed(1)}"
+            font-size="9.5" font-family="serif" font-style="italic"
+            fill="rgba(110,126,96,0.85)">${areaText}</text>
+    </svg>`;
+}
+
+// One Design Gallery card per saved design — thumbnail + name + meta + open btn.
+function renderDesignGalleryCard(entry) {
+  const sum = designSummary(entry.snapshot) || {};
+  const snap = entry.snapshot || {};
+  const plantCount = (sum.plantIds || []).length;
+  const totalSlots = Object.values(snap.qty || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+  const nativeCount = (sum.plantIds || []).filter(id => PLANT_BY_ID[id] && PLANT_BY_ID[id].native).length;
+  const nativePct = plantCount > 0 ? Math.round((nativeCount / plantCount) * 100) : 0;
+  const spaceLabel = snap.space || "?";
+  const spaceLabelMap = {
+    balcony: { zh: "陽台", en: "Balcony" },
+    yard:    { zh: "庭院", en: "Yard" },
+    rooftop: { zh: "頂樓", en: "Rooftop" },
+    indoor:  { zh: "室內", en: "Indoor" },
+  };
+  const spZh = (spaceLabelMap[spaceLabel] || {}).zh || spaceLabel;
+  const spEn = (spaceLabelMap[spaceLabel] || {}).en || spaceLabel;
+  const sunMap = {
+    full:  { zh: "全日照", en: "Full sun" },
+    part:  { zh: "半日照", en: "Part sun" },
+    shade: { zh: "遮陰",   en: "Shade" },
+  };
+  const sunZh = (sunMap[snap.sun] || {}).zh || "";
+  const sunEn = (sunMap[snap.sun] || {}).en || "";
+
+  return `
+    <article class="design-gallery-card" data-design-id="${escapeHtml(entry.id)}"
+             role="button" tabindex="0"
+             aria-label="${escapeHtml(t('開啟設計：' + entry.name, 'Open design: ' + entry.name))}">
+      <div class="design-gallery-thumb">
+        ${renderDesignMiniSVG(snap)}
+      </div>
+      <div class="design-gallery-body">
+        <h3 class="design-gallery-name">${escapeHtml(entry.name)}</h3>
+        <div class="design-gallery-meta">
+          <span class="design-gallery-chip"
+                data-zh="${escapeHtml(spZh)}" data-en="${escapeHtml(spEn)}">${escapeHtml(spZh)}</span>
+          ${sunZh ? `<span class="design-gallery-chip"
+                data-zh="${escapeHtml(sunZh)}" data-en="${escapeHtml(sunEn)}">${escapeHtml(sunZh)}</span>` : ""}
+          <span class="design-gallery-chip"
+                data-zh="${plantCount} 種 · ${totalSlots} 株"
+                data-en="${plantCount} species · ${totalSlots} plants">${plantCount} 種 · ${totalSlots} 株</span>
+          <span class="design-gallery-chip native"
+                data-zh="🟢 ${nativePct}% 本土"
+                data-en="🟢 ${nativePct}% native">🟢 ${nativePct}% 本土</span>
+        </div>
+        <div class="design-gallery-arrow"
+             data-zh="開啟設計 →"
+             data-en="Open →">開啟設計 →</div>
+      </div>
+    </article>`;
+}
+
+function renderDesignGallerySection(list) {
+  if (!list.designs || list.designs.length === 0) return "";
+  return `
+    <section class="dash-section" aria-labelledby="dashGalleryHead">
+      <h2 id="dashGalleryHead">
+        <span data-zh="🎨 你的景觀" data-en="🎨 Your landscapes">🎨 你的景觀</span>
+        <span class="dash-section-sub"
+              data-zh="點任一張縮圖開啟設計"
+              data-en="tap any thumbnail to open">點任一張縮圖開啟設計</span>
+      </h2>
+      <div class="design-gallery-grid">
+        ${list.designs.map(renderDesignGalleryCard).join("")}
+      </div>
+    </section>`;
+}
+
 function renderPersonalDashboardInPlace() {
   const dash = document.getElementById("personalDashboard");
   if (!dash) return;
@@ -9813,6 +10081,19 @@ function wirePersonalDashboard() {
     }
     logDoctorDiagnosisToJournal(id);
   });
+  // R62: Design Gallery — click any thumbnail card to open the design.
+  dash.querySelectorAll(".design-gallery-card[data-design-id]").forEach(card => {
+    const id = card.getAttribute("data-design-id");
+    if (!id) return;
+    card.addEventListener("click", () => resumeDesignById(id));
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        resumeDesignById(id);
+      }
+    });
+  });
+
   if (docAskBtn) docAskBtn.addEventListener("click", () => {
     // Seed the Q&A input with a follow-up template that references the
     // diagnosis. Doesn't auto-submit — the user can edit before sending.
