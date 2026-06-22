@@ -3434,6 +3434,170 @@
     .design-gallery-grid { display: none !important; }
   }
 
+  /* R63: Per-Design Personal Dashboard — workspace for a single saved design */
+  .design-dash-header {
+    background: linear-gradient(180deg, rgba(196,210,176,0.24) 0%, rgba(196,210,176,0) 100%);
+    border-radius: 14px;
+    padding: 20px 22px 22px;
+    margin-bottom: 18px;
+  }
+  .design-dash-back-row {
+    display: flex; justify-content: space-between; gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .design-dash-back,
+  .design-dash-result {
+    background: none; border: 0;
+    color: var(--sage-deep);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  .design-dash-back:hover,
+  .design-dash-result:hover {
+    color: var(--forest);
+    text-decoration: underline;
+  }
+  .design-dash-result {
+    background: var(--paper);
+    padding: 6px 14px;
+    border: 1px solid rgba(110,126,96,0.30);
+    border-radius: 999px;
+    font-size: 12px;
+  }
+  .design-dash-name {
+    font-family: var(--serif);
+    font-size: 26px; font-weight: 500;
+    color: var(--forest);
+    line-height: 1.25;
+    margin: 0 0 10px;
+  }
+  .design-dash-meta {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .design-dash-chip {
+    background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--forest);
+    font-family: var(--serif);
+  }
+  .design-dash-chip.native {
+    background: rgba(45,139,92,0.12);
+    border-color: rgba(45,139,92,0.32);
+    color: #1F5A3C;
+  }
+
+  /* Today's list */
+  .ddash-today-card {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 10px 16px;
+  }
+  .ddash-today-list { list-style: none; padding: 0; margin: 0; }
+  .ddash-today-item {
+    border-bottom: 1px dashed rgba(110,126,96,0.18);
+  }
+  .ddash-today-item:last-child { border-bottom: 0; }
+  .ddash-today-check {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 4px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .ddash-today-check input {
+    width: 20px; height: 20px;
+    accent-color: var(--sage-deep);
+    cursor: pointer;
+  }
+  .ddash-today-icon { font-size: 18px; }
+  .ddash-today-text {
+    flex: 1; min-width: 0;
+    font-size: 14px;
+    color: var(--forest);
+    line-height: 1.45;
+  }
+  .ddash-today-kind { font-weight: 600; }
+  .ddash-today-item.done .ddash-today-text {
+    color: var(--clay);
+    text-decoration: line-through;
+    text-decoration-color: rgba(168,138,106,0.45);
+  }
+
+  /* Layout snapshot */
+  .ddash-layout-wrap {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 14px;
+    line-height: 0;
+  }
+  .ddash-layout-wrap svg {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+  }
+
+  /* Settings */
+  .ddash-settings-card {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .ddash-settings-btn {
+    background: var(--paper);
+    color: var(--forest);
+    border: 1.5px solid rgba(110,126,96,0.30);
+    padding: 9px 16px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+  }
+  .ddash-settings-btn:hover {
+    background: var(--sage-deep);
+    color: var(--paper);
+    border-color: var(--sage-deep);
+  }
+  .ddash-settings-btn-rename:hover { background: var(--clay); border-color: var(--clay); }
+  .ddash-settings-btn-danger { color: #8C2A22; border-color: rgba(178,80,52,0.30); }
+  .ddash-settings-btn-danger:hover {
+    background: #8C2A22; color: var(--paper); border-color: #8C2A22;
+  }
+
+  /* Journal wrap — strip the My-Designs-card padding so it sits flush */
+  .ddash-journal-wrap {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 6px 16px;
+  }
+  .ddash-journal-wrap .journal-row { padding: 0; }
+
+  @media (max-width: 520px) {
+    .design-dash-header { padding: 16px 14px 18px; }
+    .design-dash-name { font-size: 22px; }
+    .ddash-settings-btn { flex: 1; min-width: 0; text-align: center; padding: 10px 12px; font-size: 12.5px; }
+  }
+
+  @media print {
+    .design-dash-header,
+    .ddash-today-card,
+    .ddash-layout-wrap,
+    .ddash-settings-card,
+    .ddash-journal-wrap { display: none !important; }
+  }
+
   /* R59: Design editor modal — inline form to tweak saved-design parameters
      without leaving the homepage / re-running the wizard. Reuses the
      .qr-overlay + .tips-modal shell, layers form fields on top. */
@@ -6994,6 +7158,12 @@ const state = {
   //    for. Photo is held in memory only (never persisted). The diagnosis
   //    object stays visible until the user uploads a new photo or clears it.
   dashDoctor: { photoDataUrl: null, busy: false, diagnosis: null, error: "" },
+  // ── R63: Per-design personal dashboard. When the user saves a new
+  //    design they're dropped into this view scoped to that design id.
+  //    Distinct from `state.activeDesignId` (which is the "current edit"
+  //    pointer) because the dashboard can be open on a design that isn't
+  //    the active edit target.
+  designDashboardId: null,
   lang: "zh",
 };
 
@@ -8837,6 +9007,20 @@ function render() {
     return;
   }
 
+  // R63 — Per-design dashboard: a workspace scoped to a single saved
+  // design. Distinct from the global homepage personal dashboard, which
+  // aggregates across all designs. Reached when the user clicks "Save
+  // as new design", clicks a gallery thumbnail, or jumps from a journal
+  // entry's design-name.
+  if (state.view === "designDashboard") {
+    progressWrap.innerHTML = "";
+    document.querySelector("header.brand").style.display = "none";
+    renderDesignDashboard();
+    navFooter.innerHTML = "";
+    applyLanguage();
+    return;
+  }
+
   // Hide the progress dots and brand header on the homepage so the landing feels clean.
   if (state.view === "home") {
     progressWrap.innerHTML = "";
@@ -9326,20 +9510,38 @@ function renderPersonalDashboard() {
 // R58: Build a compact system-prompt context from the user's saved designs
 // so the AI's answers are grounded in *their* garden, not generic advice.
 // Stays under ~150 words so we don't blow the context budget.
+//
+// R63: when state.designDashboardId is set, prefer that single design's
+// detail as the primary context (so per-design dashboard Q&A is laser-
+// focused). Other designs become a 1-line "also has" suffix.
 function buildDashQAContext() {
   const list = loadDesignList();
   if (!list.designs || list.designs.length === 0) return "";
+  const focusId = state.designDashboardId;
+  const focus = focusId ? list.designs.find(e => e.id === focusId) : null;
   const lines = [];
-  list.designs.slice(0, 5).forEach((entry, idx) => {
-    const sum = designSummary(entry.snapshot);
-    if (!sum) return;
-    const snap = entry.snapshot || {};
-    const topPlantNames = (sum.topPlants || []).slice(0, 4).map(p => `${p.zh} (${p.en})`).join(", ");
-    const spaceLabel = snap.space || "?";
-    const sunLabel = snap.sun || "?";
+  if (focus) {
+    const sum = designSummary(focus.snapshot);
+    const snap = focus.snapshot || {};
+    const topPlantNames = (sum?.topPlants || []).slice(0, 6).map(p => `${p.zh} (${p.en})`).join(", ");
     const area = (Number(snap.widthM) * Number(snap.depthM) || 0).toFixed(1);
-    lines.push(`${idx + 1}. "${entry.name}" — ${area}m² ${spaceLabel}, ${sunLabel}, top plants: ${topPlantNames || "n/a"}.`);
-  });
+    lines.push(`Primary design (focus): "${focus.name}" — ${area}m² ${snap.space || "?"}, sun=${snap.sun || "?"}, water=${snap.water || "?"}, plants: ${topPlantNames || "none yet"}.`);
+    const others = list.designs.filter(e => e.id !== focusId).slice(0, 3);
+    if (others.length) {
+      lines.push("Also has: " + others.map(o => `"${o.name}"`).join(", "));
+    }
+  } else {
+    list.designs.slice(0, 5).forEach((entry, idx) => {
+      const sum = designSummary(entry.snapshot);
+      if (!sum) return;
+      const snap = entry.snapshot || {};
+      const topPlantNames = (sum.topPlants || []).slice(0, 4).map(p => `${p.zh} (${p.en})`).join(", ");
+      const spaceLabel = snap.space || "?";
+      const sunLabel = snap.sun || "?";
+      const area = (Number(snap.widthM) * Number(snap.depthM) || 0).toFixed(1);
+      lines.push(`${idx + 1}. "${entry.name}" — ${area}m² ${spaceLabel}, ${sunLabel}, top plants: ${topPlantNames || "n/a"}.`);
+    });
+  }
   return lines.join("\n");
 }
 
@@ -9580,6 +9782,446 @@ function renderDesignGallerySection(list) {
         ${list.designs.map(renderDesignGalleryCard).join("")}
       </div>
     </section>`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// R63: Per-Design Personal Dashboard
+// A workspace dedicated to ONE saved design. Reached via:
+//   • "Save as new design" → openDesignDashboard(newId)
+//   • Gallery card click → openDesignDashboard(id)
+//   • Journal entry → openDesignDashboard(designId)
+//
+// Sections shipped in R63 (skeleton):
+//   1. Header strip (name, area, plants, native %, back / result view)
+//   2. 🗓 Today's list — auto-seeded from this design's care, with
+//      persistable check state (entry.dailyDone = {key: ts})
+//   3. 🎨 Layout snapshot — large mini SVG of the design (the drag
+//      editor lands in R66/R67)
+//   4. 📔 Journal (existing renderJournalRow scoped to this design)
+//   5. 🩺 Plant Doctor (reuses global widget — diagnosis is shared
+//      across designs by design; can be logged to this design's
+//      journal via the existing log button)
+//   6. 💬 Ask AI (reuses global widget — context will prefer this
+//      design's plants when designDashboardId is set)
+//   7. ⚙️ Edit design parameters (opens existing R59 modal)
+//
+// R65 will add the Budget editor. R66/R67 will add the drag layout
+// editor. Both replace placeholder sections that R63 doesn't ship.
+// ─────────────────────────────────────────────────────────────
+
+function openDesignDashboard(designId) {
+  if (!designId) return;
+  const entry = loadDesignById(designId);
+  if (!entry) return;
+  // We do NOT call applySnapshot here — the dashboard reads from the
+  // entry directly. State wizard fields stay untouched, so the user's
+  // most recent in-progress design (if any) isn't trampled by simply
+  // opening another design's workspace.
+  state.designDashboardId = designId;
+  state.view = "designDashboard";
+  setActiveDesignId(designId);
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Auto-seed today's list from this design's care calendar. Returns
+// array of { key, icon, kindZh, kindEn, plantZh, plantEn, source }.
+// `source` is "care" today; R64 can add "user" for freeform items.
+function todaysListForDesign(entry) {
+  if (!entry) return [];
+  const monthIdx = new Date().getMonth() + 1;
+  const tasks = thisMonthCareForSnapshot(entry.snapshot, monthIdx) || [];
+  // Plant-specific only — drop the generic monthly warning row, which
+  // is more of an ambient hint than a today's-to-do.
+  return tasks.filter(t => t.plantZh || t.plantEn).map(t => {
+    // Stable per-day key so checking off "fertilize 月橘" in August
+    // doesn't carry into September. dailyDone resets implicitly each
+    // month — old keys quietly become inert.
+    const key = "care|" + (t.kindEn || "") + "|" + (t.plantEn || "") + "|" + monthIdx;
+    return { ...t, key, source: "care" };
+  });
+}
+
+function isDailyTaskDone(entry, key) {
+  if (!entry || !entry.dailyDone) return false;
+  return !!entry.dailyDone[key];
+}
+
+function toggleDailyTask(designId, key) {
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return;
+  if (!entry.dailyDone || typeof entry.dailyDone !== "object") entry.dailyDone = {};
+  if (entry.dailyDone[key]) {
+    delete entry.dailyDone[key];
+  } else {
+    entry.dailyDone[key] = Date.now();
+  }
+  saveDesignList(list);
+}
+
+// Top-level renderer mounted by render() when state.view === "designDashboard".
+function renderDesignDashboard() {
+  const designId = state.designDashboardId;
+  const entry = designId ? loadDesignById(designId) : null;
+
+  // Defensive: if the design was deleted in another tab / session, bounce
+  // back to the global home rather than render a blank workspace.
+  if (!entry) {
+    state.view = "home";
+    state.designDashboardId = null;
+    renderHome();
+    return;
+  }
+
+  const sum = designSummary(entry.snapshot) || {};
+  const snap = entry.snapshot || {};
+  const plantCount = (sum.plantIds || []).length;
+  const totalSlots = Object.values(snap.qty || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+  const nativeCount = (sum.plantIds || []).filter(id => PLANT_BY_ID[id] && PLANT_BY_ID[id].native).length;
+  const nativePct = plantCount > 0 ? Math.round((nativeCount / plantCount) * 100) : 0;
+  const area = (Number(snap.widthM) * Number(snap.depthM) || 0).toFixed(1);
+  const todayList = todaysListForDesign(entry);
+
+  // Header strip — design name + meta + nav buttons.
+  const header = `
+    <div class="design-dash-header">
+      <div class="design-dash-back-row">
+        <button type="button" class="design-dash-back" id="ddashBackBtn"
+                data-zh="← 所有設計"
+                data-en="← All designs">← 所有設計</button>
+        <button type="button" class="design-dash-result" id="ddashResultBtn"
+                data-zh="📊 完整結果頁"
+                data-en="📊 Full result view">📊 完整結果頁</button>
+      </div>
+      <h1 class="design-dash-name">${escapeHtml(entry.name)}</h1>
+      <div class="design-dash-meta">
+        <span class="design-dash-chip"
+              data-zh="📐 ${area} m²" data-en="📐 ${area} m²">📐 ${area} m²</span>
+        <span class="design-dash-chip"
+              data-zh="🪴 ${plantCount} 種 · ${totalSlots} 株"
+              data-en="🪴 ${plantCount} species · ${totalSlots} plants">🪴 ${plantCount} 種 · ${totalSlots} 株</span>
+        <span class="design-dash-chip native"
+              data-zh="🟢 ${nativePct}% 本土"
+              data-en="🟢 ${nativePct}% native">🟢 ${nativePct}% 本土</span>
+      </div>
+    </div>`;
+
+  // Today's list section.
+  const todayCard = `
+    <section class="dash-section" aria-labelledby="ddashTodayHead">
+      <h2 id="ddashTodayHead">
+        <span data-zh="🗓 今天的清單" data-en="🗓 Today's list">🗓 今天的清單</span>
+        <span class="dash-section-sub"
+              data-zh="從本月照護自動帶入 · 勾選後會記住"
+              data-en="auto-seeded from this month's care · checks are remembered">從本月照護自動帶入 · 勾選後會記住</span>
+      </h2>
+      <div class="ddash-today-card">
+        ${todayList.length === 0 ? `
+          <div class="dash-care-empty"
+               data-zh="🌿 本月這個設計沒有特別需要做的事 — 安心讓植物長大吧"
+               data-en="🌿 Nothing scheduled for this design this month — let them grow">🌿 本月這個設計沒有特別需要做的事 — 安心讓植物長大吧</div>
+        ` : `
+          <ul class="ddash-today-list">
+            ${todayList.map(task => {
+              const done = isDailyTaskDone(entry, task.key);
+              return `
+                <li class="ddash-today-item ${done ? "done" : ""}">
+                  <label class="ddash-today-check">
+                    <input type="checkbox"
+                           data-daily-key="${escapeHtml(task.key)}"
+                           ${done ? "checked" : ""}
+                           aria-label="${escapeHtml(t((done ? '取消完成 ' : '完成 ') + task.kindZh + ' ' + task.plantZh, (done ? 'Undo ' : 'Done ') + task.kindEn + ' ' + task.plantEn))}">
+                    <span class="ddash-today-icon" aria-hidden="true">${task.icon}</span>
+                    <span class="ddash-today-text">
+                      <span class="ddash-today-kind"
+                            data-zh="${escapeHtml(task.kindZh)}"
+                            data-en="${escapeHtml(task.kindEn)}">${escapeHtml(task.kindZh)}</span>
+                      <span data-zh=" ${escapeHtml(task.plantZh)}"
+                            data-en=" ${escapeHtml(task.plantEn)}"> ${escapeHtml(task.plantZh)}</span>
+                    </span>
+                  </label>
+                </li>`;
+            }).join("")}
+          </ul>
+        `}
+      </div>
+    </section>`;
+
+  // Layout snapshot — bigger version of the gallery thumbnail for in-context
+  // "this is what I designed" reference. The drag editor lands in R66/R67;
+  // for now we surface the same SVG renderer at a roomier viewport.
+  const layoutCard = `
+    <section class="dash-section" aria-labelledby="ddashLayoutHead">
+      <h2 id="ddashLayoutHead">
+        <span data-zh="🎨 你的景觀" data-en="🎨 Your landscape">🎨 你的景觀</span>
+        <span class="dash-section-sub"
+              data-zh="自動依層次排版 · 可拖移編輯即將推出"
+              data-en="auto-laid out by tier · drag-to-edit coming soon">自動依層次排版 · 可拖移編輯即將推出</span>
+      </h2>
+      <div class="ddash-layout-wrap">
+        ${renderDesignMiniSVG(snap)}
+      </div>
+    </section>`;
+
+  // Settings / edit params — opens existing R59 modal scoped to this design.
+  const settingsCard = `
+    <section class="dash-section" aria-labelledby="ddashSettingsHead">
+      <h2 id="ddashSettingsHead">
+        <span data-zh="⚙️ 設定" data-en="⚙️ Settings">⚙️ 設定</span>
+        <span class="dash-section-sub"
+              data-zh="空間 · 日照 · 水分 · 尺寸"
+              data-en="space · sun · water · dimensions">空間 · 日照 · 水分 · 尺寸</span>
+      </h2>
+      <div class="ddash-settings-card">
+        <button type="button" class="ddash-settings-btn" id="ddashEditBtn"
+                data-design-edit="${escapeHtml(entry.id)}"
+                data-zh="✏ 編輯設計參數"
+                data-en="✏ Edit design parameters">✏ 編輯設計參數</button>
+        <button type="button" class="ddash-settings-btn ddash-settings-btn-rename" id="ddashRenameBtn"
+                data-zh="✎ 重新命名"
+                data-en="✎ Rename">✎ 重新命名</button>
+        <button type="button" class="ddash-settings-btn ddash-settings-btn-danger" id="ddashDeleteBtn"
+                data-zh="🗑 刪除這個設計"
+                data-en="🗑 Delete this design">🗑 刪除這個設計</button>
+      </div>
+    </section>`;
+
+  // Journal — reuse the existing per-design journal row component, just
+  // wrapped in a section header so it reads as a peer of the other sections.
+  const journalCard = `
+    <section class="dash-section" aria-labelledby="ddashJournalHead">
+      <h2 id="ddashJournalHead">
+        <span data-zh="📔 這個設計的筆記" data-en="📔 Journal for this design">📔 這個設計的筆記</span>
+      </h2>
+      <div class="ddash-journal-wrap">
+        ${renderJournalRow(entry)}
+      </div>
+    </section>`;
+
+  // Plant Doctor + Q&A — reuse the global widgets (they already exist on
+  // the global personal dashboard). Both surface here so the user can ask
+  // a question or diagnose a sick plant without leaving the workspace.
+  const doctorCard = renderPlantDoctorSection();
+  const qaCard = renderDashQACardForDesign();
+
+  app.innerHTML = `
+    <div class="fade-up personal-dashboard" id="personalDashboard">
+      ${header}
+      ${todayCard}
+      ${layoutCard}
+      ${settingsCard}
+      ${journalCard}
+      ${doctorCard}
+      ${qaCard}
+    </div>`;
+
+  wireDesignDashboard(entry);
+  // The doctor and Q&A widgets bind their own listeners through the same
+  // wirePersonalDashboard() they use on the global dashboard. Reusing it
+  // keeps both surfaces in sync as those features evolve.
+  wirePersonalDashboard();
+}
+
+// Q&A card sliced out from renderPersonalDashboard so we can also render
+// it on the per-design dashboard with the same UI but a design-scoped
+// system-prompt context (handled in buildDashQAContext when designDashboardId
+// is set).
+function renderDashQACardForDesign() {
+  // Reuse the JSX-style block from renderPersonalDashboard. We can't call
+  // renderPersonalDashboard() directly (it builds the whole dashboard), so
+  // we factor out just the Q&A section as a helper. Keep the same DOM ids
+  // so wirePersonalDashboard's existing handlers attach correctly.
+  const suggestedZh = [
+    "這個設計適合什麼時候澆水？",
+    "可以再加什麼植物來吸引蝴蝶？",
+    "如果搬到新家想保留這個設計，怎麼做？",
+  ];
+  const suggestedEn = [
+    "When should I water this design?",
+    "What plants could I add to attract butterflies?",
+    "How do I move this design to a new home?",
+  ];
+  const qaHistory = (state.dashQA && state.dashQA.history) || [];
+  const qaBusy = !!(state.dashQA && state.dashQA.busy);
+  const qaError = (state.dashQA && state.dashQA.error) || "";
+  const qaPending = (state.dashQA && state.dashQA.pending) || "";
+
+  return `
+    <section class="dash-section" aria-labelledby="ddashQAHead">
+      <h2 id="ddashQAHead">
+        <span data-zh="💬 針對這個設計問問題" data-en="💬 Ask about this design">💬 針對這個設計問問題</span>
+        <span class="dash-section-sub"
+              data-zh="AI 會以這個設計為背景回答"
+              data-en="AI grounds its answer in this design">AI 會以這個設計為背景回答</span>
+      </h2>
+      <div class="dash-qa-card">
+        ${qaHistory.length === 0 ? `
+          <div class="dash-qa-suggested" id="dashQASuggested">
+            ${(state.lang === "en" ? suggestedEn : suggestedZh).map((q, i) => `
+              <button type="button" class="dash-qa-chip" data-qa-suggest="${i}"
+                      data-zh="${escapeHtml(suggestedZh[i])}"
+                      data-en="${escapeHtml(suggestedEn[i])}">${escapeHtml(state.lang === "en" ? suggestedEn[i] : suggestedZh[i])}</button>
+            `).join("")}
+          </div>
+        ` : ""}
+        <div class="dash-qa-input-row">
+          <textarea class="dash-qa-input" id="dashQAInput"
+                    rows="1"
+                    data-zh-placeholder="輸入你的問題…"
+                    data-en-placeholder="Type your question…"
+                    placeholder="${state.lang === "en" ? "Type your question…" : "輸入你的問題…"}"
+                    aria-busy="${qaBusy ? "true" : "false"}">${escapeHtml(qaPending)}</textarea>
+          <button type="button" class="dash-qa-send" id="dashQASendBtn"
+                  ${qaBusy ? "disabled" : ""}
+                  aria-label="${escapeHtml(t('送出問題', 'Send question'))}"
+                  data-zh-aria="送出問題" data-en-aria="Send question">
+            ${qaBusy ? `<span class="dash-qa-spinner" aria-hidden="true"></span>` : ""}
+            <span data-zh="${qaBusy ? '思考中…' : '送出'}"
+                  data-en="${qaBusy ? 'Thinking…' : 'Send'}">${qaBusy ? (state.lang === "en" ? "Thinking…" : "思考中…") : (state.lang === "en" ? "Send" : "送出")}</span>
+          </button>
+        </div>
+        ${qaError ? `
+          <div class="dash-qa-error"
+               data-zh="${escapeHtml(qaError)}"
+               data-en="${escapeHtml(qaError)}">${escapeHtml(qaError)}</div>
+        ` : ""}
+        ${qaHistory.length > 0 ? `
+          <div class="dash-qa-history">
+            ${qaHistory.map(turn => `
+              <div class="dash-qa-turn">
+                <div class="dash-qa-q">${escapeHtml(turn.q)}</div>
+                <div class="dash-qa-a ${turn.error ? "dash-qa-a-err" : ""}">${escapeHtml(turn.a || "")}</div>
+              </div>
+            `).join("")}
+            <button type="button" class="dash-qa-clear" id="dashQAClearBtn"
+                    data-zh="清除對話記錄"
+                    data-en="Clear conversation">清除對話記錄</button>
+          </div>
+        ` : ""}
+      </div>
+    </section>`;
+}
+
+function wireDesignDashboard(entry) {
+  // Back / result-view buttons.
+  const back = document.getElementById("ddashBackBtn");
+  if (back) back.addEventListener("click", () => {
+    state.view = "home";
+    state.designDashboardId = null;
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  const resultBtn = document.getElementById("ddashResultBtn");
+  if (resultBtn) resultBtn.addEventListener("click", () => {
+    // Hand off to existing resume flow — drops into wizard step 5 with the
+    // full result tabs. resumeDesignById handles state.activeDesignId +
+    // applySnapshot. We clear designDashboardId so back-from-result lands
+    // on the personal home (not bounces back to the per-design view).
+    state.designDashboardId = null;
+    resumeDesignById(entry.id);
+  });
+
+  // Today's list — toggle the checkbox state on click. We persist by
+  // re-rendering the section in place rather than full renderDesignDashboard()
+  // to preserve scroll position and not tear down Q&A / doctor state.
+  document.querySelectorAll("[data-daily-key]").forEach(cb => {
+    cb.addEventListener("change", () => {
+      const key = cb.getAttribute("data-daily-key");
+      toggleDailyTask(entry.id, key);
+      const li = cb.closest(".ddash-today-item");
+      if (li) li.classList.toggle("done", cb.checked);
+    });
+  });
+
+  // Settings buttons reuse the existing R59 modal / rename prompt / delete
+  // confirm so behavior matches the My Designs card actions exactly.
+  const editBtn = document.getElementById("ddashEditBtn");
+  if (editBtn) editBtn.addEventListener("click", () => openDesignEditor(entry.id));
+
+  const renameBtn = document.getElementById("ddashRenameBtn");
+  if (renameBtn) renameBtn.addEventListener("click", () => {
+    const newName = prompt(t("重新命名這個設計：", "Rename this design:"), entry.name);
+    if (newName !== null) {
+      renameDesign(entry.id, newName);
+      render();
+      applyLanguage();
+    }
+  });
+
+  const delBtn = document.getElementById("ddashDeleteBtn");
+  if (delBtn) delBtn.addEventListener("click", () => {
+    if (!confirm(t(`確定刪除「${entry.name}」？此操作無法復原。`, `Delete "${entry.name}"? This can't be undone.`))) return;
+    deleteDesignById(entry.id);
+    delete state.journalComposerOpen[entry.id];
+    delete state.journalExpanded[entry.id];
+    state.view = "home";
+    state.designDashboardId = null;
+    render();
+    applyLanguage();
+  });
+
+  // Journal CRUD is identical to the My Designs card flow — reuse those
+  // listeners via the existing wiring helper. We scoped the inline render
+  // to one design, so handler selectors target exactly that entry's IDs.
+  wireJournalForEntry(entry.id);
+}
+
+// Slimmer wire helper for the journal CRUD on the per-design dashboard.
+// Mirrors what wireMyDesignsSection does for ALL cards, but only for the
+// one entry we're viewing — keeps the dashboard's mental model simple.
+function wireJournalForEntry(designId) {
+  // Open / close composer.
+  document.querySelectorAll(`[data-journal-toggle="${designId}"]`).forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.journalComposerOpen[designId] = !state.journalComposerOpen[designId];
+      render();
+      applyLanguage();
+    });
+  });
+  document.querySelectorAll(`[data-journal-save="${designId}"]`).forEach(btn => {
+    btn.addEventListener("click", () => {
+      const ta = document.querySelector(`[data-journal-textarea="${designId}"]`);
+      if (!ta) return;
+      const ok = addJournalEntry(designId, ta.value);
+      if (ok) state.journalComposerOpen[designId] = false;
+      render();
+      applyLanguage();
+    });
+  });
+  document.querySelectorAll(`[data-journal-cancel="${designId}"]`).forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.journalComposerOpen[designId] = false;
+      render();
+      applyLanguage();
+    });
+  });
+  document.querySelectorAll(`[data-journal-expand="${designId}"]`).forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.journalExpanded[designId] = !state.journalExpanded[designId];
+      render();
+      applyLanguage();
+    });
+  });
+  document.querySelectorAll(`[data-journal-delete="${designId}"]`).forEach(btn => {
+    btn.addEventListener("click", () => {
+      const jid = btn.getAttribute("data-journal-id");
+      if (!jid) return;
+      if (!confirm(t("刪除這則筆記？", "Delete this note?"))) return;
+      deleteJournalEntry(designId, jid);
+      render();
+      applyLanguage();
+    });
+  });
+  // The journal textarea has its own input listener in the My Designs flow
+  // that toggles the Save button's disabled state based on length. Mirror it
+  // here so the per-design dashboard composer feels identical.
+  document.querySelectorAll(`[data-journal-textarea="${designId}"]`).forEach((ta) => {
+    const saveBtn = document.querySelector(`[data-journal-save="${designId}"]`);
+    const tick = () => { if (saveBtn) saveBtn.disabled = !ta.value.trim(); };
+    ta.addEventListener("input", tick);
+    tick();
+  });
 }
 
 function renderPersonalDashboardInPlace() {
@@ -10082,14 +10724,17 @@ function wirePersonalDashboard() {
     logDoctorDiagnosisToJournal(id);
   });
   // R62: Design Gallery — click any thumbnail card to open the design.
+  // R63: gallery cards now open the per-design dashboard (workspace) rather
+  // than dropping straight onto the result tabs. The result tabs are one
+  // click away from the workspace header for power users.
   dash.querySelectorAll(".design-gallery-card[data-design-id]").forEach(card => {
     const id = card.getAttribute("data-design-id");
     if (!id) return;
-    card.addEventListener("click", () => resumeDesignById(id));
+    card.addEventListener("click", () => openDesignDashboard(id));
     card.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        resumeDesignById(id);
+        openDesignDashboard(id);
       }
     });
   });
@@ -12537,8 +13182,12 @@ function renderNav() {
       const defaultName = defaultDesignName(snapshotState());
       const name = prompt(t("為這個設計命名：", "Name this design:"), defaultName);
       if (name === null) return;
-      saveCurrentAsNewDesign(name);
+      const newId = saveCurrentAsNewDesign(name);
       showSaveToast(t("✓ 已儲存到「我的設計」", "✓ Saved to My Designs"), t("✓ Saved to My Designs", "✓ Saved to My Designs"));
+      // R63: drop the user into the per-design workspace right after save.
+      // The classic result tabs are 1 click away via the "📊 Full result
+      // view" button on the workspace header.
+      if (newId) openDesignDashboard(newId);
     });
     document.getElementById("navReset")?.addEventListener("click", () => {
       Object.assign(state, {
