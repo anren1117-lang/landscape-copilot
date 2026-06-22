@@ -1996,6 +1996,38 @@
   }
   @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.45; } }
   .ai-suggest-row { text-align: center; }
+  .ai-suggest-help-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; margin-left: 4px;
+    background: rgba(255,255,255,0.5);
+    border: 1px solid var(--sage);
+    border-radius: 50%;
+    color: var(--forest);
+    font-size: 11.5px; line-height: 1;
+    cursor: pointer; font-family: var(--sans);
+    transition: background .15s, transform .15s;
+  }
+  .ai-suggest-help-btn:hover { background: rgba(255,255,255,0.85); transform: scale(1.06); }
+  .ai-suggest-help-btn:focus-visible { outline: 2px solid var(--sage-deep); outline-offset: 2px; }
+  .ai-suggest-help {
+    display: inline-block;
+    max-width: 460px;
+    margin: 8px auto 14px;
+    padding: 8px 14px;
+    background: rgba(255,255,255,0.55);
+    border: 1px dashed var(--sage);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-family: var(--serif);
+    line-height: 1.55;
+    text-align: left;
+  }
+  .ai-suggest-help[hidden] { display: none; }
+  @media print {
+    .ai-suggest-help-btn, .ai-suggest-help { display: none !important; }
+    .compass-help { display: none !important; }
+  }
   /* Highlight the suggested card */
   .card-opt.ai-suggested {
     border-color: var(--sage-deep);
@@ -9563,6 +9595,16 @@ function renderCompass() {
          data-en="* The red N marks magnetic north. The fixed top triangle points to whatever direction your device is facing.">
          * 「正北」是地圖上的北方。指針指向裝置上方代表你面對的方向。
       </p>
+      <p class="compass-help"
+         data-zh="為什麼要記方位？朝北面背光（適合耐陰植物），朝南面整天日曬（適合喜陽植物）；朝向決定能種什麼。"
+         data-en="Why orientation matters: north-facing spots stay shaded (good for shade plants), south-facing spots get full sun all day (sun lovers thrive). Orientation decides what survives.">
+         為什麼要記方位？朝北面背光（適合耐陰植物），朝南面整天日曬（適合喜陽植物）；朝向決定能種什麼。
+      </p>
+      <p class="compass-help"
+         data-zh="怎麼用：手機平放（螢幕朝上），走到花園前，讓手機上緣指向花園主要方向。讀出指針所指的英文字母（N／E／S／W）就是朝向。"
+         data-en="How to use: hold the phone flat (screen up), walk to your garden, and point the top edge toward the main garden direction. The letter (N/E/S/W) the needle lands on is your orientation.">
+         怎麼用：手機平放（螢幕朝上），走到花園前，讓手機上緣指向花園主要方向。讀出指針所指的英文字母（N／E／S／W）就是朝向。
+      </p>
     </div>`;
 }
 
@@ -10151,6 +10193,14 @@ function suggestBanner(stepKey, suggested) {
       <div class="ai-suggest-banner">
         <span class="dot"></span>
         <span data-zh="AI 看照片建議：${zh}" data-en="AI suggests from your photo: ${en}">AI 看照片建議：${zh}</span>
+        <button type="button" class="ai-suggest-help-btn" data-ai-suggest-help
+                aria-label="說明 / Explain"
+                title="這是什麼？ / What is this?">ⓘ</button>
+      </div>
+      <div class="ai-suggest-help" data-ai-suggest-help-text hidden
+           data-zh="拍張照片，AI 會幫你判斷這一題的答案。建議只是起點，你仍可自己選不同的選項。"
+           data-en="Snap a photo and AI helps suggest the answer for this question. It's just a starting point — pick a different option anytime.">
+        拍張照片，AI 會幫你判斷這一題的答案。建議只是起點，你仍可自己選不同的選項。
       </div>
     </div>`;
 }
@@ -10297,6 +10347,16 @@ function wireQPhoto(stepKey) {
     el.addEventListener("click", () => {
       state.wizardPhotoOpen[stepKey] = !state.wizardPhotoOpen[stepKey];
       rerenderCurrentStep();
+    });
+  });
+  // Inline "ⓘ" help toggle next to the AI suggestion banner — purely visual,
+  // no state persisted so it stays simple and doesn't need a new storage key.
+  document.querySelectorAll("[data-ai-suggest-help]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const txt = btn.parentElement?.parentElement?.querySelector("[data-ai-suggest-help-text]");
+      if (!txt) return;
+      const open = !txt.hasAttribute("hidden");
+      if (open) txt.setAttribute("hidden", ""); else txt.removeAttribute("hidden");
     });
   });
   // File input
