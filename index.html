@@ -3112,6 +3112,106 @@
   @media print {
     .dash-qa-card { display: none !important; }
   }
+
+  /* R59: Design editor modal — inline form to tweak saved-design parameters
+     without leaving the homepage / re-running the wizard. Reuses the
+     .qr-overlay + .tips-modal shell, layers form fields on top. */
+  .design-editor-modal { max-width: 520px; }
+  .design-edit-hint {
+    color: var(--clay);
+    font-size: 12.5px;
+    font-style: italic;
+    margin: -2px 0 14px;
+    line-height: 1.5;
+  }
+  .design-edit-form { display: flex; flex-direction: column; gap: 14px; }
+  .design-edit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  @media (max-width: 480px) {
+    .design-edit-grid { grid-template-columns: 1fr; }
+  }
+  .design-edit-field {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 12px; color: var(--forest);
+    font-weight: 500;
+  }
+  .design-edit-field > span:first-child {
+    color: var(--ink-soft);
+    font-weight: 500;
+    font-size: 11.5px;
+  }
+  .design-edit-field select,
+  .design-edit-field input[type="number"] {
+    padding: 8px 10px;
+    border: 1px solid rgba(110,126,96,0.30);
+    border-radius: 8px;
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--forest);
+  }
+  .design-edit-field select:focus,
+  .design-edit-field input:focus {
+    outline: none;
+    border-color: var(--sage-deep);
+    box-shadow: 0 0 0 3px rgba(110,126,96,0.18);
+  }
+  .design-edit-toggle {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px !important;
+    padding: 8px 10px;
+    border: 1px solid rgba(110,126,96,0.30);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .design-edit-toggle input { width: 18px; height: 18px; cursor: pointer; }
+  .design-edit-section {
+    border-top: 1px dashed rgba(110,126,96,0.20);
+    padding-top: 12px;
+  }
+  .design-edit-section-label {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .design-edit-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .design-edit-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(110,126,96,0.30);
+    border-radius: 999px;
+    font-size: 12.5px;
+    cursor: pointer;
+    color: var(--forest);
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  .design-edit-chip:hover { border-color: var(--sage-deep); }
+  .design-edit-chip input {
+    /* Visually hide the native checkbox — the chip's "on" class is the indicator */
+    position: absolute;
+    width: 1px; height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .design-edit-chip.on {
+    background: var(--sage-deep);
+    color: var(--paper);
+    border-color: var(--sage-deep);
+  }
+  .design-edit-actions {
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+    padding-top: 6px;
+  }
+  @media (max-width: 480px) {
+    .design-edit-actions { flex-direction: column; }
+    .design-edit-actions .btn { width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -7947,6 +8047,10 @@ function renderMyDesignsSection() {
                             aria-label="${t('比較此設計 / Compare this design','Compare this design / 比較此設計')}"
                             title="${t('比較此設計','Compare this design')}">↔</button>
                   ` : ""}
+                  <button data-design-edit="${escapeHtml(entry.id)}"
+                          aria-label="${t('編輯設計參數 / Edit design parameters','Edit design parameters / 編輯設計參數')}"
+                          data-zh-aria="編輯設計參數" data-en-aria="Edit design parameters"
+                          title="${t('編輯設計','Edit design')}">✏</button>
                   <button data-design-rename="${escapeHtml(entry.id)}"
                           aria-label="${t('重新命名 / Rename','Rename / 重新命名')}"
                           title="${t('重新命名','Rename')}">✎</button>
@@ -8173,6 +8277,14 @@ function wireMyDesignsSection() {
         renderHome();
         applyLanguage();
       }
+    });
+  });
+  // R59: edit design parameters in place without re-running the wizard.
+  document.querySelectorAll("[data-design-edit]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.designEdit;
+      openDesignEditor(id);
     });
   });
   document.querySelectorAll("[data-design-delete]").forEach((btn) => {
@@ -16549,6 +16661,149 @@ window.closeAboutModal = function () {
   if (o) o.remove();
   document.removeEventListener("keydown", aboutEscHandler);
 };
+
+// ─────────────────────────────────────────────────────────────
+// R59 — Design editor modal. Lets the user tweak a saved design's
+// parameters (space, sun, water, dimensions, coastal) without re-running
+// the 5-step wizard. Saves back to LIST_KEY in place. Plant-level
+// editing (qty / add / remove) is out of scope here — for that the user
+// can still "Resume" the design and edit on the result page.
+// ─────────────────────────────────────────────────────────────
+function openDesignEditor(designId) {
+  const entry = loadDesignById(designId);
+  if (!entry) return;
+  closeDesignEditor();
+  const snap = entry.snapshot || {};
+  const isZh = state.lang !== "en";
+  const titleText = isZh ? `✏ 編輯：${entry.name}` : `✏ Edit: ${entry.name}`;
+  const closeText = isZh ? "關閉" : "Close";
+
+  // Build the form. Reuse SPACE_OPTIONS / SUN_OPTIONS / WATER_OPTIONS /
+  // GOAL_OPTIONS so labels stay consistent with the wizard.
+  const opt = (list, current, valueKey) => list.map(o => {
+    const v = o[valueKey] || o.key;
+    const sel = String(v) === String(current) ? " selected" : "";
+    return `<option value="${escapeHtml(v)}"${sel}>${escapeHtml(state.lang === "en" ? (o.en || o.label || v) : (o.zh || o.label || v))}</option>`;
+  }).join("");
+
+  const goalChips = GOAL_OPTIONS.map(g => {
+    const on = Array.isArray(snap.goals) && snap.goals.includes(g.key);
+    return `
+      <label class="design-edit-chip ${on ? "on" : ""}">
+        <input type="checkbox" data-edit-goal="${escapeHtml(g.key)}" ${on ? "checked" : ""}>
+        <span data-zh="${escapeHtml(g.zh || g.label)}" data-en="${escapeHtml(g.en || g.label)}">${escapeHtml(state.lang === "en" ? (g.en || g.label) : (g.zh || g.label))}</span>
+      </label>`;
+  }).join("");
+
+  const overlay = document.createElement("div");
+  overlay.className = "qr-overlay";
+  overlay.id = "designEditorOverlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", titleText);
+  overlay.innerHTML = `
+    <div class="tips-modal design-editor-modal" id="designEditorModal">
+      <button class="tips-close" id="designEditorCloseBtn" aria-label="${closeText}">✕</button>
+      <h3 class="tips-title">${escapeHtml(titleText)}</h3>
+      <p class="design-edit-hint"
+         data-zh="調整參數後按「儲存變更」。植物的數量與品種，請點「儲存後開啟」進入設計頁面編輯。"
+         data-en="Tweak parameters and tap Save. To edit plant quantities or species, tap Save & open to enter the design page.">調整參數後按「儲存變更」。植物的數量與品種，請點「儲存後開啟」進入設計頁面編輯。</p>
+      <form class="design-edit-form" id="designEditForm" data-design-id="${escapeHtml(designId)}">
+        <div class="design-edit-grid">
+          <label class="design-edit-field">
+            <span data-zh="空間" data-en="Space">空間</span>
+            <select data-edit-field="space">${opt(SPACE_OPTIONS, snap.space, "key")}</select>
+          </label>
+          <label class="design-edit-field">
+            <span data-zh="日照" data-en="Sun">日照</span>
+            <select data-edit-field="sun">${opt(SUN_OPTIONS, snap.sun, "key")}</select>
+          </label>
+          <label class="design-edit-field">
+            <span data-zh="水分" data-en="Water">水分</span>
+            <select data-edit-field="water">${opt(WATER_OPTIONS, snap.water, "key")}</select>
+          </label>
+          <label class="design-edit-field">
+            <span data-zh="寬度 (m)" data-en="Width (m)">寬度 (m)</span>
+            <input type="number" min="0.5" max="200" step="0.1" data-edit-field="widthM" value="${escapeHtml(snap.widthM || 0)}">
+          </label>
+          <label class="design-edit-field">
+            <span data-zh="深度 (m)" data-en="Depth (m)">深度 (m)</span>
+            <input type="number" min="0.5" max="200" step="0.1" data-edit-field="depthM" value="${escapeHtml(snap.depthM || 0)}">
+          </label>
+          <label class="design-edit-field design-edit-toggle">
+            <input type="checkbox" data-edit-field="coastal" ${snap.coastal ? "checked" : ""}>
+            <span data-zh="🌊 海岸環境" data-en="🌊 Coastal site">🌊 海岸環境</span>
+          </label>
+        </div>
+        <div class="design-edit-section">
+          <div class="design-edit-section-label"
+               data-zh="目標（可複選）" data-en="Goals (multiple)">目標（可複選）</div>
+          <div class="design-edit-chips">${goalChips}</div>
+        </div>
+        <div class="design-edit-actions">
+          <button type="button" class="btn ghost" id="designEditCancelBtn"
+                  data-zh="取消" data-en="Cancel">取消</button>
+          <button type="button" class="btn ghost" id="designEditSaveBtn"
+                  data-zh="💾 儲存變更" data-en="💾 Save changes">💾 儲存變更</button>
+          <button type="button" class="btn" id="designEditSaveOpenBtn"
+                  data-zh="✨ 儲存後開啟" data-en="✨ Save & open">✨ 儲存後開啟</button>
+        </div>
+      </form>
+    </div>`;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeDesignEditor(); });
+  document.body.appendChild(overlay);
+  document.getElementById("designEditorCloseBtn").addEventListener("click", closeDesignEditor);
+  document.getElementById("designEditCancelBtn").addEventListener("click", closeDesignEditor);
+  document.getElementById("designEditSaveBtn").addEventListener("click", () => { saveDesignEditorChanges(designId, false); });
+  document.getElementById("designEditSaveOpenBtn").addEventListener("click", () => { saveDesignEditorChanges(designId, true); });
+  // Goal chip click toggles "on" class for instant visual feedback.
+  overlay.querySelectorAll("[data-edit-goal]").forEach(cb => {
+    cb.addEventListener("change", (e) => {
+      e.target.closest(".design-edit-chip").classList.toggle("on", e.target.checked);
+    });
+  });
+  document.addEventListener("keydown", designEditorEscHandler);
+}
+
+function designEditorEscHandler(e) { if (e.key === "Escape") closeDesignEditor(); }
+
+function closeDesignEditor() {
+  const o = document.getElementById("designEditorOverlay");
+  if (o) o.remove();
+  document.removeEventListener("keydown", designEditorEscHandler);
+}
+
+function saveDesignEditorChanges(designId, alsoOpen) {
+  const form = document.getElementById("designEditForm");
+  if (!form) return;
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry || !entry.snapshot) { closeDesignEditor(); return; }
+  // Pull values from the form. We mutate a copy of the snapshot in place.
+  const snap = entry.snapshot;
+  const readSel  = (k) => form.querySelector(`[data-edit-field="${k}"]`).value;
+  const readNum  = (k) => Number(form.querySelector(`[data-edit-field="${k}"]`).value) || 0;
+  const readBool = (k) => !!form.querySelector(`[data-edit-field="${k}"]`).checked;
+  snap.space   = readSel("space");
+  snap.sun     = readSel("sun");
+  snap.water   = readSel("water");
+  snap.widthM  = Math.max(0.5, Math.min(200, readNum("widthM")));
+  snap.depthM  = Math.max(0.5, Math.min(200, readNum("depthM")));
+  snap.coastal = readBool("coastal");
+  snap.goals   = Array.from(form.querySelectorAll("[data-edit-goal]:checked")).map(cb => cb.dataset.editGoal);
+  // Persist. Don't change savedAt — preserves the original "first saved" date
+  // so the dashboard's "Saved N ago" stays meaningful for the original creation.
+  saveDesignList(list);
+  closeDesignEditor();
+  if (alsoOpen) {
+    resumeDesignById(designId);
+  } else {
+    // Stay on home, but re-render so the dashboard + My Designs reflect the
+    // new params (area changes, sun changes, etc.).
+    renderHome();
+    applyLanguage();
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Print result bundle (A2): when on the results page, instead of printing only
