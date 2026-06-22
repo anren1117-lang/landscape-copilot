@@ -3113,6 +3113,242 @@
     .dash-qa-card { display: none !important; }
   }
 
+  /* R60: Plant Doctor — photo-based diagnostic surface on the dashboard.
+     Big upload pad on first paint, photo preview + analyze button after,
+     structured diagnosis card with severity badge + action steps after that. */
+  .dash-doctor-card {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .dash-doctor-upload {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+    padding: 28px 14px;
+    border: 2px dashed rgba(110,126,96,0.35);
+    border-radius: 12px;
+    cursor: pointer;
+    background: rgba(196,210,176,0.10);
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .dash-doctor-upload:hover {
+    background: rgba(196,210,176,0.20);
+    border-color: var(--sage-deep);
+  }
+  .dash-doctor-upload-icon { font-size: 32px; line-height: 1; margin-bottom: 6px; }
+  .dash-doctor-upload-title {
+    font-family: var(--serif); font-size: 15px;
+    color: var(--forest); margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .dash-doctor-upload-sub {
+    color: var(--clay); font-size: 12.5px;
+    font-style: italic;
+    max-width: 320px;
+    line-height: 1.5;
+  }
+  .dash-doctor-file-input { display: none; }
+  .dash-doctor-photo-wrap {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(0,0,0,0.04);
+  }
+  .dash-doctor-photo {
+    display: block;
+    width: 100%;
+    max-height: 280px;
+    object-fit: cover;
+    border-radius: 10px;
+  }
+  .dash-doctor-clear {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(44,53,38,0.75);
+    color: var(--paper);
+    border: 0;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dash-doctor-clear:hover { background: var(--forest); }
+  .dash-doctor-analyze {
+    background: var(--sage-deep);
+    color: var(--paper);
+    border: 0;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 14.5px; font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .dash-doctor-analyze:hover { background: var(--forest); }
+  .dash-doctor-busy {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: rgba(196,210,176,0.20);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--forest);
+  }
+  .dash-doctor-cancel {
+    margin-left: auto;
+    background: none; border: 0;
+    color: var(--clay); cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    font-size: 12px;
+  }
+  .dash-doctor-error {
+    color: #b45339;
+    font-size: 13px;
+    font-style: italic;
+    padding: 8px 0;
+  }
+  .dash-doctor-privacy {
+    font-size: 11px;
+    color: var(--clay);
+    font-style: italic;
+    line-height: 1.5;
+  }
+  .dash-doctor-diagnosis {
+    border-top: 1px dashed rgba(110,126,96,0.22);
+    padding-top: 12px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .dash-doctor-sev-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .dash-doctor-sev {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .dash-doctor-sev.sev-low {
+    background: rgba(110,126,96,0.18);
+    color: var(--forest);
+  }
+  .dash-doctor-sev.sev-med {
+    background: rgba(196,160,76,0.22);
+    color: #7a5a18;
+  }
+  .dash-doctor-sev.sev-high {
+    background: rgba(178,80,52,0.20);
+    color: #8C2A22;
+  }
+  .dash-doctor-summary {
+    flex: 1; min-width: 200px;
+    color: var(--forest);
+    font-size: 14px; line-height: 1.5;
+    font-family: var(--serif);
+  }
+  .dash-doctor-block {
+    background: rgba(196,210,176,0.10);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .dash-doctor-block-label {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .dash-doctor-list {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--forest);
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+  .dash-doctor-list li { margin-bottom: 3px; }
+  .dash-doctor-list li:last-child { margin-bottom: 0; }
+  .dash-doctor-steps li { font-weight: 500; }
+  .dash-doctor-watch {
+    color: var(--forest);
+    font-size: 13.5px;
+    line-height: 1.55;
+    font-style: italic;
+  }
+  .dash-doctor-followup {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(110,126,96,0.20);
+  }
+  .dash-doctor-log-select {
+    flex: 1; min-width: 180px;
+    padding: 9px 12px;
+    border: 1px solid rgba(110,126,96,0.30);
+    border-radius: 8px;
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--forest);
+  }
+  .dash-doctor-log-btn,
+  .dash-doctor-followup-btn {
+    background: var(--paper);
+    color: var(--forest);
+    border: 1.5px solid rgba(110,126,96,0.35);
+    padding: 9px 14px;
+    border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+  }
+  .dash-doctor-log-btn:hover,
+  .dash-doctor-followup-btn:hover {
+    background: var(--sage-deep);
+    color: var(--paper);
+    border-color: var(--sage-deep);
+  }
+
+  /* R60: "This Week" panel — distilled action list above the full month care */
+  .dash-week-card {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 4px 14px;
+  }
+  .dash-week-list {
+    list-style: none; padding: 0; margin: 0;
+  }
+  .dash-week-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 0;
+    border-bottom: 1px dashed rgba(110,126,96,0.18);
+  }
+  .dash-week-item:last-child { border-bottom: 0; }
+  .dash-week-icon { font-size: 18px; flex-shrink: 0; }
+  .dash-week-text {
+    flex: 1; min-width: 0;
+    font-size: 14px;
+    color: var(--forest);
+    line-height: 1.45;
+  }
+  .dash-week-kind { font-weight: 600; }
+  .dash-week-tag {
+    flex-shrink: 0;
+    font-size: 10.5px;
+    color: var(--clay);
+    background: rgba(168,138,106,0.10);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-family: var(--serif);
+    font-style: italic;
+  }
+
+  @media print {
+    .dash-doctor-card,
+    .dash-week-card { display: none !important; }
+  }
+
   /* R59: Design editor modal — inline form to tweak saved-design parameters
      without leaving the homepage / re-running the wizard. Reuses the
      .qr-overlay + .tips-modal shell, layers form fields on top. */
@@ -6666,6 +6902,13 @@ const state = {
   //    Q+A pairs visible on the dashboard until the user clears or reloads.
   //    `busy` gates the Send button + shows a spinner.
   dashQA: { pending: "", history: [], busy: false, error: "" },
+  // ── R60: Plant Doctor — photo-based diagnostic flow on the dashboard.
+  //    Same Pollinations vision endpoint as the wizard photo flow, but with
+  //    a "diagnose what's wrong with this plant" system prompt that returns
+  //    JSON with severity / probable causes / action steps / what to watch
+  //    for. Photo is held in memory only (never persisted). The diagnosis
+  //    object stays visible until the user uploads a new photo or clears it.
+  dashDoctor: { photoDataUrl: null, busy: false, diagnosis: null, error: "" },
   lang: "zh",
 };
 
@@ -8965,12 +9208,21 @@ function renderPersonalDashboard() {
       </div>
     </section>`;
 
+  // R60: replace the static month-care card with a tighter "This Week" panel
+  // upfront, and surface the Plant Doctor right after — those are the two
+  // surfaces the user will actually USE day-to-day. Full month care drops
+  // below (still available, but no longer the top item).
+  const weekCard   = renderThisWeekPanel(list);
+  const doctorCard = renderPlantDoctorSection();
+
   return `
     <div class="personal-dashboard" id="personalDashboard">
       ${hero}
       ${quickActions}
-      ${careCard}
+      ${weekCard}
+      ${doctorCard}
       ${qaCard}
+      ${careCard}
       ${statsCard}
       ${journalCard}
     </div>`;
@@ -9084,6 +9336,332 @@ function renderPersonalDashboardInPlace() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// R60: Plant Doctor — photo-based diagnostic surface on the dashboard.
+// User uploads a photo of a struggling plant; Pollinations vision
+// returns a structured JSON diagnosis (severity, causes, action steps,
+// what to watch for). Result can be logged to any saved design's journal.
+// ─────────────────────────────────────────────────────────────
+function renderPlantDoctorSection() {
+  const d = state.dashDoctor || {};
+  const hasPhoto = !!d.photoDataUrl;
+  const hasDiagnosis = !!d.diagnosis;
+  const busy = !!d.busy;
+  const err = d.error || "";
+
+  const diagnosisHtml = hasDiagnosis ? renderDoctorDiagnosis(d.diagnosis) : "";
+
+  return `
+    <section class="dash-section" aria-labelledby="dashDoctorHead">
+      <h2 id="dashDoctorHead">
+        <span data-zh="🩺 植物醫生" data-en="🩺 Plant Doctor">🩺 植物醫生</span>
+        <span class="dash-section-sub"
+              data-zh="拍下不對勁的植物 · AI 找出原因"
+              data-en="snap an ailing plant · AI finds the cause">拍下不對勁的植物 · AI 找出原因</span>
+      </h2>
+      <div class="dash-doctor-card">
+        ${hasPhoto ? `
+          <div class="dash-doctor-photo-wrap">
+            <img class="dash-doctor-photo" src="${d.photoDataUrl}" alt="${escapeHtml(t('植物照片', 'Plant photo'))}" />
+            <button type="button" class="dash-doctor-clear" id="dashDoctorClearBtn"
+                    aria-label="${escapeHtml(t('移除照片', 'Remove photo'))}"
+                    data-zh-aria="移除照片" data-en-aria="Remove photo">✕</button>
+          </div>
+        ` : `
+          <label class="dash-doctor-upload" for="dashDoctorFile">
+            <span class="dash-doctor-upload-icon" aria-hidden="true">📷</span>
+            <span class="dash-doctor-upload-title"
+                  data-zh="拍照 / 選照片"
+                  data-en="Take or pick a photo">拍照 / 選照片</span>
+            <span class="dash-doctor-upload-sub"
+                  data-zh="葉子發黃？長蟲？凋萎？拍清楚會更準。"
+                  data-en="Yellow leaves? Pests? Wilting? Clear photos help.">葉子發黃？長蟲？凋萎？拍清楚會更準。</span>
+          </label>
+        `}
+        <input type="file" accept="image/*" capture="environment"
+               id="dashDoctorFile" class="dash-doctor-file-input" />
+        ${hasPhoto && !hasDiagnosis && !busy ? `
+          <button type="button" class="dash-doctor-analyze" id="dashDoctorAnalyzeBtn">
+            <span data-zh="🔬 分析這張照片" data-en="🔬 Analyze this photo">🔬 分析這張照片</span>
+          </button>
+        ` : ""}
+        ${busy ? `
+          <div class="dash-doctor-busy">
+            <span class="dash-qa-spinner" aria-hidden="true"></span>
+            <span data-zh="AI 正在診斷中…"
+                  data-en="AI is diagnosing…">AI 正在診斷中…</span>
+            <button type="button" class="dash-doctor-cancel" id="dashDoctorCancelBtn"
+                    data-zh="取消" data-en="Cancel">取消</button>
+          </div>
+        ` : ""}
+        ${err && !busy ? `
+          <div class="dash-doctor-error"
+               data-zh="${escapeHtml(err)}"
+               data-en="${escapeHtml(err)}">${escapeHtml(err)}</div>
+        ` : ""}
+        ${diagnosisHtml}
+        <div class="dash-doctor-privacy"
+             data-zh="* 照片只在你按「分析」時送往 pollinations.ai，本機與遠端皆不儲存。"
+             data-en="* The image is sent to pollinations.ai only when you tap Analyze; nothing is stored on either end.">* 照片只在你按「分析」時送往 pollinations.ai，本機與遠端皆不儲存。</div>
+      </div>
+    </section>`;
+}
+
+function renderDoctorDiagnosis(diag) {
+  if (!diag) return "";
+  const sev = (diag.severity || "low").toLowerCase();
+  const sevColorClass = sev === "high" ? "sev-high" : (sev === "med" ? "sev-med" : "sev-low");
+  const sevZh = sev === "high" ? "嚴重" : (sev === "med" ? "中度" : "輕微");
+  const sevEn = sev === "high" ? "High" : (sev === "med" ? "Moderate" : "Mild");
+  const isZh = state.lang !== "en";
+  const summary = isZh ? (diag.summary_zh || diag.summary_en || "") : (diag.summary_en || diag.summary_zh || "");
+  const causes = Array.isArray(diag.probable_causes) ? diag.probable_causes : [];
+  const stepsZh = Array.isArray(diag.action_steps_zh) ? diag.action_steps_zh : [];
+  const stepsEn = Array.isArray(diag.action_steps_en) ? diag.action_steps_en : [];
+  const watchZh = diag.watch_for_zh || "";
+  const watchEn = diag.watch_for_en || "";
+
+  const list = loadDesignList();
+  const designOptions = (list.designs || []).map(e =>
+    `<option value="${escapeHtml(e.id)}">${escapeHtml(e.name)}</option>`).join("");
+
+  return `
+    <div class="dash-doctor-diagnosis">
+      <div class="dash-doctor-sev-row">
+        <span class="dash-doctor-sev ${sevColorClass}"
+              data-zh="${sevZh}" data-en="${sevEn}">${sevZh}</span>
+        <span class="dash-doctor-summary"
+              data-zh="${escapeHtml(diag.summary_zh || diag.summary_en || "")}"
+              data-en="${escapeHtml(diag.summary_en || diag.summary_zh || "")}">${escapeHtml(summary)}</span>
+      </div>
+      ${causes.length ? `
+        <div class="dash-doctor-block">
+          <div class="dash-doctor-block-label"
+               data-zh="可能原因"
+               data-en="Probable causes">可能原因</div>
+          <ul class="dash-doctor-list">
+            ${causes.map(c => `<li>${escapeHtml(c)}</li>`).join("")}
+          </ul>
+        </div>
+      ` : ""}
+      ${(stepsZh.length || stepsEn.length) ? `
+        <div class="dash-doctor-block">
+          <div class="dash-doctor-block-label"
+               data-zh="該做的事 (依優先順序)"
+               data-en="Action steps (in priority order)">該做的事 (依優先順序)</div>
+          <ol class="dash-doctor-list dash-doctor-steps">
+            ${(isZh ? stepsZh : stepsEn).map((s, i) => `
+              <li>
+                <span data-zh="${escapeHtml(stepsZh[i] || s)}"
+                      data-en="${escapeHtml(stepsEn[i] || s)}">${escapeHtml(s)}</span>
+              </li>
+            `).join("")}
+          </ol>
+        </div>
+      ` : ""}
+      ${watchZh || watchEn ? `
+        <div class="dash-doctor-block">
+          <div class="dash-doctor-block-label"
+               data-zh="接下來要觀察"
+               data-en="Watch for next">接下來要觀察</div>
+          <div class="dash-doctor-watch"
+               data-zh="${escapeHtml(watchZh)}"
+               data-en="${escapeHtml(watchEn)}">${escapeHtml(isZh ? watchZh : watchEn)}</div>
+        </div>
+      ` : ""}
+      ${list.designs && list.designs.length > 0 ? `
+        <div class="dash-doctor-followup">
+          <select id="dashDoctorLogDesign" class="dash-doctor-log-select">
+            <option value="" data-zh="記入哪個設計的筆記？" data-en="Log to which design?">${escapeHtml(t('記入哪個設計的筆記？', 'Log to which design?'))}</option>
+            ${designOptions}
+          </select>
+          <button type="button" class="dash-doctor-log-btn" id="dashDoctorLogBtn"
+                  data-zh="📔 記入筆記"
+                  data-en="📔 Log to journal">📔 記入筆記</button>
+          <button type="button" class="dash-doctor-followup-btn" id="dashDoctorAskBtn"
+                  data-zh="💬 接著問問題"
+                  data-en="💬 Ask a follow-up">💬 接著問問題</button>
+        </div>
+      ` : ""}
+    </div>`;
+}
+
+// Read photo file → downscale → store as data URL on state.dashDoctor.
+// Mirrors handlePhotoFile from the wizard photo flow.
+function handleDoctorPhotoFile(file) {
+  if (!file || !file.type || !file.type.startsWith("image/")) {
+    state.dashDoctor.error = t("不支援的檔案格式 — 請選擇圖片", "Unsupported file — pick an image");
+    renderPersonalDashboardInPlace();
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 1024;
+      const scale = img.width > maxW ? maxW / img.width : 1;
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      state.dashDoctor.photoDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      state.dashDoctor.diagnosis = null;
+      state.dashDoctor.error = "";
+      renderPersonalDashboardInPlace();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzeDoctorPhoto() {
+  if (!state.dashDoctor.photoDataUrl || state.dashDoctor.busy) return;
+  state.dashDoctor.busy = true;
+  state.dashDoctor.error = "";
+  state.dashDoctor.diagnosis = null;
+  renderPersonalDashboardInPlace();
+
+  const systemPrompt = `You are a plant-health diagnostic assistant for gardeners in Taiwan. Look at the photo of a struggling or unhealthy plant and respond with ONLY a valid JSON object — no markdown, no commentary. Use this schema exactly:
+{
+  "summary_zh": "1 sentence Traditional Chinese summary of what you see",
+  "summary_en": "1 sentence English summary of what you see",
+  "severity": "low" | "med" | "high",
+  "probable_causes": ["short cause 1", "short cause 2", "short cause 3"],
+  "action_steps_zh": ["1 short imperative step in 繁體中文", "step 2", "step 3"],
+  "action_steps_en": ["1 short imperative step in English", "step 2", "step 3"],
+  "watch_for_zh": "1 sentence on what to watch for over the next 1-2 weeks",
+  "watch_for_en": "1 sentence on what to watch for over the next 1-2 weeks"
+}
+Keep all strings short and practical. Provide 2-4 probable causes and 2-5 action steps. If the photo is unclear or doesn't appear to be a plant, set severity to "low" and explain the limitation in the summary.`;
+
+  const controller = startVisionRequest();
+  try {
+    const resp = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: "openai",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: [
+            { type: "text", text: "Diagnose what's wrong with this plant. Respond with ONLY the JSON object." },
+            { type: "image_url", image_url: { url: state.dashDoctor.photoDataUrl } },
+          ]},
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!resp.ok) throw new Error("API " + resp.status);
+    const data = await resp.json();
+    const text = data?.choices?.[0]?.message?.content || "";
+    const jsonText = (text.match(/\{[\s\S]*\}/) || [text])[0];
+    const parsed = JSON.parse(jsonText);
+    state.dashDoctor.diagnosis = parsed;
+  } catch (err) {
+    const isAbort = err && (err.name === "AbortError" || err.message === "timeout" || err.message === "user_cancel");
+    state.dashDoctor.error = isAbort
+      ? t("已取消", "Cancelled")
+      : t("AI 無法判讀，請換張清楚的照片再試", "AI couldn't read this photo. Try a clearer shot.");
+  } finally {
+    endVisionRequest(controller);
+    state.dashDoctor.busy = false;
+    renderPersonalDashboardInPlace();
+  }
+}
+
+function logDoctorDiagnosisToJournal(designId) {
+  if (!designId || !state.dashDoctor.diagnosis) return;
+  const d = state.dashDoctor.diagnosis;
+  const summary = state.lang === "en"
+    ? (d.summary_en || d.summary_zh || "")
+    : (d.summary_zh || d.summary_en || "");
+  const sevTag = state.lang === "en"
+    ? `[${(d.severity || "low").toUpperCase()}]`
+    : `[${d.severity === "high" ? "嚴重" : d.severity === "med" ? "中度" : "輕微"}]`;
+  const note = `🩺 ${sevTag} ${summary}`.slice(0, JOURNAL_NOTE_MAX);
+  const ok = addJournalEntry(designId, note);
+  if (ok) {
+    // Confirmation: short toast-like state change. Re-render the dashboard so
+    // the recent-notes feed picks up the new entry immediately.
+    state.dashDoctor.error = "";
+    renderPersonalDashboardInPlace();
+    // Use existing toast if available, else inline.
+    if (typeof showSaveToast === "function") {
+      showSaveToast("📔 已記入筆記", "📔 Logged to journal");
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// R60: "This Week" panel — distills the combined month care into
+// a tighter, more actionable 3-5 item view scoped to the current
+// calendar week. Falls back to "first half / second half of month"
+// using thisMonthCareForSnapshot since plant data is monthly, not
+// weekly.
+// ─────────────────────────────────────────────────────────────
+function renderThisWeekPanel(list) {
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const firstHalf = dayOfMonth <= 15;
+  const monthIdx = now.getMonth() + 1;
+  const dayLabelsZh = ["週日","週一","週二","週三","週四","週五","週六"];
+  const dayLabelsEn = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const dayZh = dayLabelsZh[now.getDay()];
+  const dayEn = dayLabelsEn[now.getDay()];
+
+  // Pull combined care but tag each task with severity. fertilize is
+  // medium priority (slip a few days), prune is high (window-bound),
+  // typhoon/warning is high.
+  const allCare = aggregateThisMonthCare(list, monthIdx);
+  // Prioritize first-half-of-month: prune > fertilize. Cap at 5.
+  const priorityOf = (t) => {
+    if (t.icon === "✂️") return 0;
+    if (t.icon === "🌱") return 1;
+    return 2;
+  };
+  const items = allCare.slice().sort((a, b) => priorityOf(a) - priorityOf(b)).slice(0, 5);
+
+  return `
+    <section class="dash-section" aria-labelledby="dashWeekHead">
+      <h2 id="dashWeekHead">
+        <span data-zh="📅 本週重點" data-en="📅 This week's focus">📅 本週重點</span>
+        <span class="dash-section-sub"
+              data-zh="今天是${dayZh} · ${firstHalf ? "上半月" : "下半月"}"
+              data-en="today is ${dayEn} · ${firstHalf ? "first half" : "second half"} of month">今天是${dayZh} · ${firstHalf ? "上半月" : "下半月"}</span>
+      </h2>
+      <div class="dash-week-card">
+        ${items.length === 0 ? `
+          <div class="dash-care-empty"
+               data-zh="🌿 本週沒有特別需要做的事 — 看看你的植物開心地長大吧"
+               data-en="🌿 Nothing pressing this week — go enjoy watching things grow">🌿 本週沒有特別需要做的事 — 看看你的植物開心地長大吧</div>
+        ` : `
+          <ul class="dash-week-list">
+            ${items.map(t => {
+              const tagZh = t.designs.length > 1 ? `${t.designs.length} 個設計` : t.designs[0];
+              const tagEn = t.designs.length > 1 ? `${t.designs.length} designs` : t.designs[0];
+              return `
+                <li class="dash-week-item">
+                  <span class="dash-week-icon" aria-hidden="true">${t.icon}</span>
+                  <span class="dash-week-text">
+                    <span class="dash-week-kind"
+                          data-zh="${escapeHtml(t.kindZh)}"
+                          data-en="${escapeHtml(t.kindEn)}">${escapeHtml(t.kindZh)}</span>
+                    <span data-zh=" ${escapeHtml(t.plantZh)}" data-en=" ${escapeHtml(t.plantEn)}"> ${escapeHtml(t.plantZh)}</span>
+                  </span>
+                  <span class="dash-week-tag"
+                        data-zh="${escapeHtml(tagZh)}"
+                        data-en="${escapeHtml(tagEn)}">${escapeHtml(tagZh)}</span>
+                </li>`;
+            }).join("")}
+          </ul>
+        `}
+      </div>
+    </section>`;
+}
+
 function wirePersonalDashboard() {
   const dash = document.getElementById("personalDashboard");
   if (!dash) return;
@@ -9168,6 +9746,68 @@ function wirePersonalDashboard() {
       if (input) input.value = state.dashQA.pending;
       submitDashQA();
     });
+  });
+
+  // R60: Plant Doctor wiring.
+  const docFile    = document.getElementById("dashDoctorFile");
+  const docAnalyze = document.getElementById("dashDoctorAnalyzeBtn");
+  const docClear   = document.getElementById("dashDoctorClearBtn");
+  const docCancel  = document.getElementById("dashDoctorCancelBtn");
+  const docLogBtn  = document.getElementById("dashDoctorLogBtn");
+  const docAskBtn  = document.getElementById("dashDoctorAskBtn");
+
+  // File input: clicking the upload pad delegates to it; clicking the
+  // hidden input directly also works. We bind change instead of click so
+  // the iOS camera capture flow + desktop file picker both land here.
+  if (docFile) {
+    docFile.addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) handleDoctorPhotoFile(f);
+      // Reset so picking the same file twice in a row still triggers change.
+      e.target.value = "";
+    });
+  }
+  if (docAnalyze) docAnalyze.addEventListener("click", analyzeDoctorPhoto);
+  if (docClear) docClear.addEventListener("click", () => {
+    state.dashDoctor.photoDataUrl = null;
+    state.dashDoctor.diagnosis = null;
+    state.dashDoctor.error = "";
+    renderPersonalDashboardInPlace();
+  });
+  if (docCancel) docCancel.addEventListener("click", () => {
+    if (typeof cancelVisionRequest === "function") cancelVisionRequest();
+  });
+  if (docLogBtn) docLogBtn.addEventListener("click", () => {
+    const sel = document.getElementById("dashDoctorLogDesign");
+    const id = sel && sel.value;
+    if (!id) {
+      // Gentle nudge — color the select for one frame so the user notices.
+      if (sel) {
+        sel.style.borderColor = "#b45339";
+        setTimeout(() => { sel.style.borderColor = ""; }, 1200);
+      }
+      return;
+    }
+    logDoctorDiagnosisToJournal(id);
+  });
+  if (docAskBtn) docAskBtn.addEventListener("click", () => {
+    // Seed the Q&A input with a follow-up template that references the
+    // diagnosis. Doesn't auto-submit — the user can edit before sending.
+    const d = state.dashDoctor.diagnosis;
+    if (!d) return;
+    const sum = state.lang === "en"
+      ? (d.summary_en || d.summary_zh || "")
+      : (d.summary_zh || d.summary_en || "");
+    const seed = state.lang === "en"
+      ? `Follow-up on diagnosis: ${sum} — what should I do if the action steps don't help in 2 weeks?`
+      : `延伸問題：剛剛診斷是「${sum}」— 如果兩週內沒改善，下一步該怎麼做？`;
+    state.dashQA.pending = seed;
+    const input = document.getElementById("dashQAInput");
+    if (input) {
+      input.value = seed;
+      input.focus();
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   });
 }
 
