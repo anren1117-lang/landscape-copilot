@@ -9448,6 +9448,9 @@ function render() {
     document.getElementById("backHomeLink").addEventListener("click", (e) => {
       e.preventDefault();
       state.view = "home";
+      // R67: same scrub as brand-home so the next dashboard entry starts fresh.
+      state.designDashboardId = null;
+      state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -10078,7 +10081,7 @@ function _miniSvgRand(seed) {
   return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
 }
 
-function renderDesignMiniSVG(snap) {
+function renderDesignMiniSVG(snap, layoutOverride) {
   const w = Number(snap.widthM || 0);
   const d = Number(snap.depthM || 0);
   const vbW = 320, vbH = 180;
@@ -10112,37 +10115,62 @@ function renderDesignMiniSVG(snap) {
   if (snap.sun === "shade") bgTint = "rgba(70,90,80,0.14)";
   if (snap.sun === "full")  bgTint = "rgba(245,210,140,0.18)";
 
-  // Collect plant entries with tier so we can stack canopy at the back.
-  const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
-  const entries = Object.keys(qtyMap)
-    .filter(id => Number(qtyMap[id]) > 0)
-    .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: PLANT_BY_ID[id] }))
-    .filter(e => e.plant)
-    .sort((a, b) => (b.plant.tier || 0) - (a.plant.tier || 0))
-    .slice(0, 10);
-
-  const rand = _miniSvgRand(Math.round(w * 1000 + d * 7 + entries.length * 13));
-  const plantsHtml = entries.map((e) => {
-    const tier = e.plant.tier || 1;             // 1 (ground) … 5 (canopy)
-    const yFraction = 1 - Math.min(4, tier - 1) / 4;
-    const yJ = (rand() - 0.5) * 0.20;
-    const y = rectY + rectH * Math.max(0.10, Math.min(0.92, yFraction + yJ));
-    const x = rectX + rectW * (0.08 + rand() * 0.84);
-    const r = 4.5 + Math.min(10, Math.sqrt(e.qty) * 2.5);
-    const color = e.plant.color || "#8A9A7B";
-    const isNative = !!e.plant.native;
-    return `
-      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 2).toFixed(1)}" fill="${color}" opacity="0.20"/>
-      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="0.78" stroke="${color}" stroke-width="0.6"/>
-      ${isNative ? `<circle cx="${(x + r * 0.55).toFixed(1)}" cy="${(y - r * 0.55).toFixed(1)}" r="1.7" fill="#2D8B5C"/>` : ""}`;
-  }).join("");
+  // R67 gallery sync: if the caller passed an explicit `layoutOverride`
+  // (the design entry's saved layout), use those token positions so the
+  // global dashboard thumbnail reflects whatever the user dragged. Without
+  // an override, fall back to the deterministic tier-stacked PRNG so the
+  // gallery still works for ad-hoc snapshots (shared link snapshots, etc).
+  let plantsHtml;
+  let totalCount = 0;
+  if (Array.isArray(layoutOverride) && layoutOverride.length > 0) {
+    plantsHtml = layoutOverride.slice(0, 30).map(token => {
+      const plant = PLANT_BY_ID[token.plantId];
+      if (!plant) return "";
+      const cx = rectX + Number(token.x) * rectW;
+      const cy = rectY + Number(token.y) * rectH;
+      const r = 5.5; // uniform small for the thumbnail
+      const color = plant.color || "#8A9A7B";
+      const isNative = !!plant.native;
+      return `
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r + 2).toFixed(1)}" fill="${color}" opacity="0.20"/>
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="0.82" stroke="${color}" stroke-width="0.6"/>
+        ${isNative ? `<circle cx="${(cx + r * 0.55).toFixed(1)}" cy="${(cy - r * 0.55).toFixed(1)}" r="1.7" fill="#2D8B5C"/>` : ""}`;
+    }).join("");
+    totalCount = layoutOverride.length;
+  } else {
+    // Fallback: tier-stacked PRNG (original gallery path).
+    const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
+    const entries = Object.keys(qtyMap)
+      .filter(id => Number(qtyMap[id]) > 0)
+      .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: PLANT_BY_ID[id] }))
+      .filter(e => e.plant)
+      .sort((a, b) => (b.plant.tier || 0) - (a.plant.tier || 0))
+      .slice(0, 10);
+    totalCount = entries.length;
+    const rand = _miniSvgRand(Math.round(w * 1000 + d * 7 + entries.length * 13));
+    plantsHtml = entries.map((e) => {
+      const tier = e.plant.tier || 1;
+      const yFraction = 1 - Math.min(4, tier - 1) / 4;
+      const yJ = (rand() - 0.5) * 0.20;
+      const y = rectY + rectH * Math.max(0.10, Math.min(0.92, yFraction + yJ));
+      const x = rectX + rectW * (0.08 + rand() * 0.84);
+      const r = 4.5 + Math.min(10, Math.sqrt(e.qty) * 2.5);
+      const color = e.plant.color || "#8A9A7B";
+      const isNative = !!e.plant.native;
+      return `
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 2).toFixed(1)}" fill="${color}" opacity="0.20"/>
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="0.78" stroke="${color}" stroke-width="0.6"/>
+        ${isNative ? `<circle cx="${(x + r * 0.55).toFixed(1)}" cy="${(y - r * 0.55).toFixed(1)}" r="1.7" fill="#2D8B5C"/>` : ""}`;
+    }).join("");
+  }
+  const entriesLen = totalCount;
 
   // Compass in top-right corner — north always up. Visual anchor so users
   // can read orientation at a glance even without re-opening the design.
   const cmpX = vbW - 22, cmpY = 22;
 
   const areaText = (w * d).toFixed(1) + " m²";
-  const emptyStateHtml = entries.length === 0 ? `
+  const emptyStateHtml = entriesLen === 0 ? `
     <text x="${(rectX + rectW/2).toFixed(1)}" y="${(rectY + rectH/2).toFixed(1)}"
           text-anchor="middle" font-size="10" font-family="serif" font-style="italic"
           fill="rgba(110,126,96,0.55)">no plants yet</text>` : "";
@@ -10201,7 +10229,7 @@ function renderDesignGalleryCard(entry) {
              role="button" tabindex="0"
              aria-label="${escapeHtml(t('開啟設計：' + entry.name, 'Open design: ' + entry.name))}">
       <div class="design-gallery-thumb">
-        ${renderDesignMiniSVG(snap)}
+        ${renderDesignMiniSVG(snap, Array.isArray(entry.layout) && entry.layout.length > 0 ? entry.layout : null)}
       </div>
       <div class="design-gallery-body">
         <h3 class="design-gallery-name">${escapeHtml(entry.name)}</h3>
@@ -10274,6 +10302,9 @@ function openDesignDashboard(designId) {
   // most recent in-progress design (if any) isn't trampled by simply
   // opening another design's workspace.
   state.designDashboardId = designId;
+  // R67 critic #1: reset layout editor transient state on every entry so
+  // design A's placing banner / selected token doesn't bleed into design B.
+  state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
   state.view = "designDashboard";
   setActiveDesignId(designId);
   render();
@@ -10429,9 +10460,12 @@ function makeTokenId() {
 
 function ensureDesignLayout(entry) {
   if (Array.isArray(entry.layout) && entry.layout.length > 0) return entry.layout;
-  // Auto-init from snap.qty using the gallery thumbnail's deterministic
-  // tier-stacked PRNG so the first paint of the editor matches what the
-  // user has been looking at on the global dashboard.
+  // R67 critic #3: auto-init AND PERSIST. Previous version returned a fresh
+  // PRNG'd array per call — render() and wireLayoutEditor() got two different
+  // arrays with mismatched tokenIds, so the first drag silently failed
+  // (`workingLayout.find(t => t.tokenId === X)` returned undefined).
+  // Now we generate once, write back to the entry, and saveDesignList so
+  // every subsequent caller sees the same identifiers.
   const snap = entry.snapshot || {};
   const qtyMap = snap.qty || {};
   const w = Number(snap.widthM || 1), d = Number(snap.depthM || 1);
@@ -10454,6 +10488,22 @@ function ensureDesignLayout(entry) {
       layout.push({ tokenId: makeTokenId(), plantId: e.id, x, y });
     }
     if (layout.length >= LAYOUT_MAX_TOKENS) break;
+  }
+  // Persist so subsequent reads (renderLayoutEditorSVG + wireLayoutEditor)
+  // see the same tokenIds. If entry is detached (no id on the list), skip
+  // the save — read-only callers like the gallery thumbnail go this path.
+  if (entry.id && layout.length > 0) {
+    try {
+      entry.layout = layout;
+      const list = loadDesignList();
+      const persisted = list.designs.find(e => e.id === entry.id);
+      if (persisted) {
+        persisted.layout = layout;
+        saveDesignList(list);
+      }
+    } catch (_) { /* non-fatal — in-memory copy still works for this render */ }
+  } else {
+    entry.layout = layout;
   }
   return layout;
 }
@@ -10478,11 +10528,14 @@ function resetEntryLayout(designId) {
 // snap.qty is the source-of-truth for "how many of plant X are in this
 // design" (scoring, shopping, gallery thumbnail all read it), so any
 // canvas-side add MUST mirror into qty for consistency.
+// R67: guard entry.snapshot — older designs without a saved snapshot
+// would otherwise throw on the qty mirror line.
 function addLayoutToken(designId, plantId, x, y) {
   if (!plantId) return null;
   const list = loadDesignList();
   const entry = list.designs.find(e => e.id === designId);
   if (!entry) return null;
+  if (!entry.snapshot || typeof entry.snapshot !== "object") entry.snapshot = {};
   if (!Array.isArray(entry.layout)) entry.layout = ensureDesignLayout(entry).slice();
   if (entry.layout.length >= LAYOUT_MAX_TOKENS) return null;
   const newToken = {
@@ -10506,6 +10559,7 @@ function removeLayoutToken(designId, tokenId) {
   const list = loadDesignList();
   const entry = list.designs.find(e => e.id === designId);
   if (!entry) return;
+  if (!entry.snapshot || typeof entry.snapshot !== "object") entry.snapshot = {};
   if (!Array.isArray(entry.layout)) entry.layout = ensureDesignLayout(entry).slice();
   const idx = entry.layout.findIndex(t => t.tokenId === tokenId);
   if (idx < 0) return;
@@ -10801,6 +10855,9 @@ function wireLayoutEditor(entry) {
       // Empty-canvas press — defer the decision to pointerup. If the user is in
       // placing mode, we'll create a token at the up-point. Otherwise we'll
       // clear any selectedTokenId UI on tap-outside.
+      // R67 fix #6: capture the pointer on the SVG so pointerup fires here
+      // even if the cursor drifts off-canvas, preventing downAtPoint leaks.
+      try { svg.setPointerCapture(e.pointerId); } catch (_) {}
       return;
     }
     e.preventDefault();
@@ -10904,6 +10961,13 @@ function wireLayoutEditor(entry) {
   svg.addEventListener("pointermove", onPointerMove);
   svg.addEventListener("pointerup", onPointerUp);
   svg.addEventListener("pointercancel", onPointerCancel);
+  // R67: belt-and-braces — if pointer leaves the SVG without an up event
+  // (rare since we capture, but possible on some touch devices), reset the
+  // pending tap state so the next tap doesn't compute jitter against stale
+  // coordinates.
+  svg.addEventListener("pointerleave", () => {
+    if (!activeToken) downAtPoint = null;
+  });
 
   // R66 toolbar + picker + placing/action bar wiring.
   const addBtn = document.getElementById("layoutEditorAddBtn");
@@ -11486,6 +11550,8 @@ function wireDesignDashboard(entry) {
   if (back) back.addEventListener("click", () => {
     state.view = "home";
     state.designDashboardId = null;
+    // R67: scrub transient editor state so a re-entry shows no stale picker / banner.
+    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
@@ -11496,6 +11562,7 @@ function wireDesignDashboard(entry) {
     // applySnapshot. We clear designDashboardId so back-from-result lands
     // on the personal home (not bounces back to the per-design view).
     state.designDashboardId = null;
+    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
     resumeDesignById(entry.id);
   });
 
@@ -11534,6 +11601,7 @@ function wireDesignDashboard(entry) {
     delete state.journalExpanded[entry.id];
     state.view = "home";
     state.designDashboardId = null;
+    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
     render();
     applyLanguage();
   });
@@ -19371,6 +19439,10 @@ document.getElementById("langToggle").addEventListener("click", () => {
 document.getElementById("brandHomeBtn").addEventListener("click", () => {
   if (state.view === "home") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   state.view = "home";
+  // R67 critic #2: clear per-design dashboard transient state on brand-home so
+  // a re-entry next session doesn't open into a stale focused design.
+  state.designDashboardId = null;
+  state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
   if (typeof closeDrawer === "function") closeDrawer();
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
