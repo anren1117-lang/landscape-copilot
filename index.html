@@ -3821,6 +3821,73 @@
     .layout-editor-add { display: none !important; }
   }
 
+  /* R68 mobile audit @360px: picker grid + banners + action bar */
+  @media (max-width: 480px) {
+    .layout-picker { padding: 10px; margin-top: 10px; }
+    .layout-picker-grid {
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+    .layout-picker-card {
+      padding: 6px 7px;
+      font-size: 11.5px;
+      min-height: 44px;
+    }
+    .layout-picker-swatch { width: 18px; height: 18px; }
+    .layout-picker-qty { font-size: 9.5px; padding: 1px 6px; min-width: 16px; }
+    .layout-picker-search { padding: 7px 10px; font-size: 13px; }
+
+    /* Placing banner — let the long plant name wrap; keep Cancel button tappable */
+    .layout-placing-banner {
+      flex-wrap: wrap;
+      padding: 9px 12px;
+    }
+    .layout-placing-text {
+      flex-basis: 100%;
+      font-size: 12.5px;
+      line-height: 1.4;
+    }
+    .layout-placing-cancel {
+      margin-left: auto;
+      min-height: 36px;
+    }
+    .layout-placing-icon { font-size: 16px; }
+
+    /* Action bar — name + qty wrap together; remove/close stay on the right */
+    .layout-action-bar {
+      flex-wrap: wrap;
+      padding: 9px 12px;
+      gap: 8px;
+    }
+    .layout-action-name {
+      flex: 0 0 calc(100% - 26px);
+      order: -1;
+      font-size: 13px;
+    }
+    .layout-action-swatch { width: 14px; height: 14px; }
+    .layout-action-qty {
+      flex: 1 1 auto;
+      margin-right: 0;
+    }
+    .layout-action-remove,
+    .layout-action-close {
+      min-height: 36px;
+      font-size: 12px;
+    }
+
+    /* Editor toolbar wraps cleanly */
+    .layout-editor-toolbar {
+      gap: 8px;
+      padding: 10px 0 0;
+    }
+    .layout-editor-add,
+    .layout-editor-reset {
+      flex: 1;
+      padding: 10px 12px;
+      font-size: 12.5px;
+    }
+  }
+
   /* Settings */
   .ddash-settings-card {
     background: var(--paper);
@@ -8165,7 +8232,13 @@ function applySnapshot(snap) {
   state.widthM = snap.widthM ?? SPACE_DEFAULTS[snap.space].w;
   state.depthM = snap.depthM ?? SPACE_DEFAULTS[snap.space].d;
   state.orientation = snap.orientation || "S";
-  state.qty = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
+  // R68 critic-fix #1: deep-clone snap.qty so shopping qty controls on the
+  // result page don't silently mutate entry.snapshot in localStorage. Before
+  // this, bumping a plant qty in the shopping tab while the design had been
+  // resumed from the per-design dashboard would write straight through to
+  // LIST_KEY without going through saveDesignList — desync between
+  // entry.layout (token count) and entry.snapshot.qty (mirror).
+  state.qty = (snap.qty && typeof snap.qty === "object") ? { ...snap.qty } : {};
   state.nativeOnly = !!snap.nativeOnly;
   // Restore per-design 👍/👎/📌. Older snapshots without `prefs.pinned` load empty.
   state.prefs = {
@@ -10579,6 +10652,37 @@ function removeLayoutToken(designId, tokenId) {
 // 2. Plants suitable for the design's space + sun, so the picker leads
 //    with relevant species instead of dumping all 184.
 // 3. Everything else (filtered by search query when present).
+// R68 critic-fix #3: memoize the sun-ranked + alphabetized "others" list per
+// (designId, qtyMap signature) so search keystrokes only re-filter against
+// a cached array instead of re-sorting all 184 plants on every input.
+const _pickerOthersCache = new Map();
+function _pickerCacheKey(designId, snap, qtyMap) {
+  const ids = Object.keys(qtyMap || {}).sort().join(",");
+  return designId + "|" + (snap.sun || "") + "|" + ids;
+}
+function _getPickerOthers(designId, snap, qtyMap) {
+  const key = _pickerCacheKey(designId, snap, qtyMap);
+  if (_pickerOthersCache.has(key)) return _pickerOthersCache.get(key);
+  const inDesignIds = new Set(
+    Object.keys(qtyMap).filter(id => Number(qtyMap[id]) > 0)
+  );
+  const sunRank = (p) => {
+    if (!snap.sun) return 1;
+    return (p.sun || []).indexOf(snap.sun) >= 0 ? 0 : 1;
+  };
+  const sorted = PLANTS
+    .filter(p => !inDesignIds.has(p.id))
+    .sort((a, b) => sunRank(a) - sunRank(b) || (a.zh || "").localeCompare(b.zh || "", "zh-Hant"));
+  // Cap cache size — workspace can swap between designs but should never
+  // hold more than a few sorted arrays at a time.
+  if (_pickerOthersCache.size > 8) {
+    const oldestKey = _pickerOthersCache.keys().next().value;
+    _pickerOthersCache.delete(oldestKey);
+  }
+  _pickerOthersCache.set(key, sorted);
+  return sorted;
+}
+
 function renderLayoutPickerGrid(entry) {
   const snap = entry.snapshot || {};
   const qtyMap = snap.qty || {};
@@ -10591,23 +10695,16 @@ function renderLayoutPickerGrid(entry) {
         || (p.lt || "").toLowerCase().includes(q);
   };
 
-  // Bucket A: already in design.
+  // Bucket A: already in design (always filtered — small list, sub-millisecond).
   const inDesign = Object.keys(qtyMap)
     .filter(id => Number(qtyMap[id]) > 0 && PLANT_BY_ID[id])
     .map(id => PLANT_BY_ID[id])
     .filter(matches);
 
-  // Bucket B: not in design — prioritize matching sun, then alphabetical.
-  const inDesignIds = new Set(inDesign.map(p => p.id));
-  const sunRank = (p) => {
-    if (!snap.sun) return 1;
-    const ok = (p.sun || []).indexOf(snap.sun) >= 0;
-    return ok ? 0 : 1;
-  };
-  const others = PLANTS
-    .filter(p => !inDesignIds.has(p.id))
-    .filter(matches)
-    .sort((a, b) => sunRank(a) - sunRank(b) || (a.zh || "").localeCompare(b.zh || "", "zh-Hant"));
+  // Bucket B: not in design — use the memoized sun-ranked sorted list, then
+  // just filter against the query. Per-keystroke cost drops from O(n log n) to
+  // O(n).
+  const others = _getPickerOthers(entry.id, snap, qtyMap).filter(matches);
 
   // Cap the visible list so we don't ship 200 cards into the DOM on first paint.
   // Search narrows it; without a query we show top 40 others.
@@ -11250,16 +11347,18 @@ function wireBudgetCard(entry) {
     }
   });
 
-  // Inline edit on existing rows — debounce by listening to "change" so the
-  // re-render only fires when the user leaves the field.
+  // Inline edit on existing rows — listen to "change" (blur / Enter) so we
+  // only act when the user leaves the field, and update the subtotal cell +
+  // grand total in place instead of full render() to avoid tearing down the
+  // layout editor's drag state (R68 critic #10 fix).
   document.querySelectorAll("[data-budget-row]").forEach(row => {
     const id = row.getAttribute("data-budget-row");
     row.querySelectorAll("[data-budget-edit]").forEach(input => {
       const field = input.getAttribute("data-budget-edit");
       input.addEventListener("change", () => {
         updateBudgetItem(entry.id, id, { [field]: input.value });
-        render();
-        applyLanguage();
+        // In-place subtotal patch for this row + grand total + bar.
+        rerenderBudgetTotals(entry);
       });
     });
   });
@@ -11275,14 +11374,80 @@ function wireBudgetCard(entry) {
     });
   });
 
-  // Target budget input — save on change (blur or Enter).
+  // Target budget input — save on change (blur or Enter). When the target
+  // appears for the first time (was 0, now >0) we need a full render so the
+  // bar/remaining text block appears; otherwise an in-place totals refresh
+  // keeps the layout editor drag state alive.
   const targetInput = document.getElementById("ddashBudgetTargetInput");
   if (targetInput) {
     targetInput.addEventListener("change", () => {
+      const prevHadTarget = ((entry.budget || {}).target || 0) > 0;
       setBudgetTarget(entry.id, targetInput.value);
-      render();
-      applyLanguage();
+      const newHasTarget = Number(targetInput.value) > 0;
+      if (prevHadTarget !== newHasTarget) {
+        // The summary's "bar + remaining" branch changes shape — full render.
+        render();
+        applyLanguage();
+      } else {
+        rerenderBudgetTotals(entry);
+      }
     });
+  }
+}
+
+// R68: in-place patcher for budget subtotals + grand total + bar + remaining.
+// Avoids the full-render thrash that was killing the layout editor's
+// drag state on every blur of a budget input.
+function rerenderBudgetTotals(entry) {
+  // Re-load from disk (the edit handler has already persisted) so the values
+  // we display match what was saved.
+  const fresh = loadDesignById(entry.id);
+  if (!fresh) return;
+  const auto = autoPlantCostForEntry(fresh);
+  const b = ensureBudget(fresh);
+  const userTotal = b.items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.unit) || 0), 0);
+  const grandTotal = auto.total + userTotal;
+  const target = Number(b.target) || 0;
+  const hasTarget = target > 0;
+  const overBudget = hasTarget && grandTotal > target;
+  const fmt = (n) => "NT$ " + Math.round(n).toLocaleString();
+
+  // Patch each user row's subtotal cell.
+  b.items.forEach(item => {
+    const row = document.querySelector(`[data-budget-row="${CSS.escape(item.id)}"]`);
+    if (!row) return;
+    const sub = (Number(item.qty) || 0) * (Number(item.unit) || 0);
+    // Subtotal is the 4th td (after name / qty / unit). Use last-of-type fall-back.
+    const cells = row.querySelectorAll("td");
+    if (cells.length >= 4) cells[3].textContent = fmt(sub);
+  });
+
+  // Grand total + over class.
+  const totalEl = document.querySelector(".ddash-budget-total-value");
+  if (totalEl) {
+    totalEl.textContent = fmt(grandTotal);
+    totalEl.classList.toggle("over", overBudget);
+  }
+
+  // Progress bar (only present when target > 0).
+  if (hasTarget) {
+    const barFill = document.querySelector(".ddash-budget-bar-fill");
+    if (barFill) {
+      const pct = Math.min(100, Math.round((grandTotal / target) * 100));
+      barFill.style.width = pct + "%";
+      barFill.classList.toggle("over", overBudget);
+    }
+    const remEl = document.querySelector(".ddash-budget-remaining");
+    if (remEl) {
+      const remaining = target - grandTotal;
+      const pct = Math.round((grandTotal / target) * 100);
+      const txtZh = overBudget ? `超出預算 ${fmt(-remaining)}` : `剩餘預算 ${fmt(remaining)} · ${pct}% 已用`;
+      const txtEn = overBudget ? `Over budget by ${fmt(-remaining)}` : `Remaining ${fmt(remaining)} · ${pct}% used`;
+      remEl.setAttribute("data-zh", txtZh);
+      remEl.setAttribute("data-en", txtEn);
+      remEl.textContent = state.lang === "en" ? txtEn : txtZh;
+      remEl.classList.toggle("over", overBudget);
+    }
   }
 }
 
@@ -19845,9 +20010,11 @@ function saveDesignEditorChanges(designId, alsoOpen) {
   if (alsoOpen) {
     resumeDesignById(designId);
   } else {
-    // Stay on home, but re-render so the dashboard + My Designs reflect the
-    // new params (area changes, sun changes, etc.).
-    renderHome();
+    // R68: route the re-render through render() rather than renderHome() so
+    // edits made from inside the per-design workspace (state.view ===
+    // "designDashboard") repaint THAT view with the new params instead of
+    // bouncing the user to the global home.
+    render();
     applyLanguage();
   }
 }
