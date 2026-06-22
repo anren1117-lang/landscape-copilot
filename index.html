@@ -8415,6 +8415,317 @@ function renderSpotlightPlantWidget() {
     </button>`;
 }
 
+// ── R57: Personal Dashboard ───────────────────────────────────
+// A returning-user landing that appears ABOVE the hero on the homepage
+// whenever the user has ≥1 saved design ("documented" their work). It
+// aggregates everything across designs into one glance: combined this-
+// month care, lifetime stats, recent journal entries. The classic
+// homepage hero + paths stay underneath so the user always has the
+// "start something new" affordances. No new storage key — every input
+// comes from LIST_KEY via designSummary / thisMonthCareForSnapshot.
+//
+// Critic+defender consensus from R56: do NOT ship as a separate
+// `state.view = "dashboard"` route — that fragments data across two
+// surfaces and breaks welcome-back dedup. The dashboard is rendered
+// inline on the homepage; the brand-Home button always returns here.
+function aggregateThisMonthCare(list, monthIdx) {
+  // Walk every saved design, collect this-month tasks, then dedup by
+  // (kindZh + plantZh) so a plant in 2 designs doesn't show twice. We
+  // track which designs contributed each task as a tag list (so the UI
+  // can show "Balcony · Yard" beside "🌱 Fertilize 月橘").
+  const map = new Map();
+  (list.designs || []).forEach(entry => {
+    const tasks = thisMonthCareForSnapshot(entry.snapshot, monthIdx);
+    tasks.forEach(t => {
+      // Skip generic warnings — they're not plant-specific and would
+      // dominate the combined list (every design shares the same warning).
+      if (!t.plantZh && !t.plantEn) return;
+      const key = (t.kindZh || "") + "|" + (t.plantZh || "");
+      if (!map.has(key)) {
+        map.set(key, { ...t, designs: [] });
+      }
+      map.get(key).designs.push(entry.name);
+    });
+  });
+  // Sort: fertilize before prune (matches per-design order),
+  // then alphabetically by plant for stability.
+  const order = { "🌱": 0, "✂️": 1, "⚠": 2 };
+  return Array.from(map.values()).sort((a, b) =>
+    (order[a.icon] - order[b.icon]) || a.plantZh.localeCompare(b.plantZh, "zh-Hant"));
+}
+
+function aggregateLifetimeStats(list) {
+  // Cross-design aggregates — every input via designSummary, no rescore.
+  // Native % is computed as plant-slot-weighted, not design-weighted, so
+  // a 2-design user with 1 all-native + 1 all-introduced gets 50%
+  // weighted by qty, not a blunt "1 of 2 designs natives".
+  let totalDesigns = (list.designs || []).length;
+  let totalSlots = 0, nativeSlots = 0;
+  let totalCO2 = 0, totalWater = 0;
+  (list.designs || []).forEach(entry => {
+    const sum = designSummary(entry.snapshot);
+    if (!sum) return;
+    totalCO2 += sum.co2 || 0;
+    totalWater += sum.water_l_wk || 0;
+    // Plant-slot count + native fraction. Walk snap.qty directly so we
+    // weight by qty, not just species count.
+    const snap = entry.snapshot || {};
+    const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
+    Object.keys(qtyMap).forEach(id => {
+      const qty = Number(qtyMap[id]) || 0;
+      if (qty <= 0) return;
+      totalSlots += qty;
+      const plant = PLANT_BY_ID[id];
+      if (plant && plant.native) nativeSlots += qty;
+    });
+  });
+  const nativePct = totalSlots > 0 ? Math.round((nativeSlots / totalSlots) * 100) : 0;
+  return {
+    totalDesigns,
+    totalSlots,
+    nativePct,
+    co2Yr: Math.round(totalCO2),
+    waterLwk: Math.round(totalWater),
+  };
+}
+
+function aggregateRecentJournal(list, limit) {
+  // Flatten journal entries across all designs, sort by ts desc, take top N.
+  // Each item carries designId + designName so the UI can jump back.
+  const flat = [];
+  (list.designs || []).forEach(entry => {
+    if (!Array.isArray(entry.journal)) return;
+    entry.journal.forEach(j => {
+      flat.push({
+        id: j.id, ts: j.ts, note: j.note,
+        designId: entry.id, designName: entry.name,
+      });
+    });
+  });
+  flat.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  return flat.slice(0, limit || 5);
+}
+
+function renderPersonalDashboard() {
+  const list = loadDesignList();
+  // Only render the dashboard for users who have actually documented a design.
+  if (!list.designs || list.designs.length === 0) return "";
+
+  const monthIdx = new Date().getMonth() + 1;
+  const monthLabelsZh = ["", "1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+  const monthLabelsEn = ["", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthZh = monthLabelsZh[monthIdx], monthEn = monthLabelsEn[monthIdx];
+
+  const care = aggregateThisMonthCare(list, monthIdx);
+  const stats = aggregateLifetimeStats(list);
+  const recentJournal = aggregateRecentJournal(list, 5);
+
+  const careTop = care.slice(0, 8);
+  const careMoreCount = Math.max(0, care.length - careTop.length);
+
+  // Quick action row pulls from existing flows — no new state needed.
+  const quickActions = `
+    <div class="dash-quick-row">
+      <button class="dash-quick-btn" id="dashQuickPhotoBtn"
+              data-zh="📸 拍照規劃新空間" data-en="📸 Photo a new space">📸 拍照規劃新空間</button>
+      <button class="dash-quick-btn" id="dashQuickWizardBtn"
+              data-zh="✨ 5 個問題開新設計" data-en="✨ 5-question new design">✨ 5 個問題開新設計</button>
+      <button class="dash-quick-btn" id="dashQuickDictBtn"
+              data-zh="📖 瀏覽植物字典" data-en="📖 Browse the plant dictionary">📖 瀏覽植物字典</button>
+    </div>`;
+
+  // This-month care card — combined across all designs.
+  const careCard = `
+    <section class="dash-section" aria-labelledby="dashCareHead">
+      <h2 id="dashCareHead">
+        <span data-zh="📅 本月照護" data-en="📅 This month's care">📅 本月照護</span>
+        <span class="dash-section-sub"
+              data-zh="跨所有設計 · ${monthZh}"
+              data-en="across all designs · ${monthEn}">跨所有設計 · ${monthZh}</span>
+      </h2>
+      <div class="dash-care-card">
+        ${careTop.length === 0 ? `
+          <div class="dash-care-empty"
+               data-zh="🌿 本月沒有特別需要做的事 — 享受花園吧"
+               data-en="🌿 Nothing scheduled this month — enjoy the garden">🌿 本月沒有特別需要做的事 — 享受花園吧</div>
+        ` : `
+          <ul class="dash-care-list">
+            ${careTop.map(t => {
+              const designTagZh = t.designs.length > 1
+                ? `${t.designs.length} 個設計`
+                : t.designs[0];
+              const designTagEn = t.designs.length > 1
+                ? `${t.designs.length} designs`
+                : t.designs[0];
+              return `
+                <li class="dash-care-item">
+                  <span class="dash-care-icon" aria-hidden="true">${t.icon}</span>
+                  <span class="dash-care-text">
+                    <span class="dash-care-kind"
+                          data-zh="${escapeHtml(t.kindZh)}" data-en="${escapeHtml(t.kindEn)}">${escapeHtml(t.kindZh)}</span>
+                    <span data-zh=" ${escapeHtml(t.plantZh)}" data-en=" ${escapeHtml(t.plantEn)}"> ${escapeHtml(t.plantZh)}</span>
+                    <span class="dash-care-tag"
+                          data-zh="${escapeHtml(designTagZh)}"
+                          data-en="${escapeHtml(designTagEn)}">${escapeHtml(designTagZh)}</span>
+                  </span>
+                </li>`;
+            }).join("")}
+          </ul>
+          ${careMoreCount > 0 ? `
+            <button class="dash-care-more-btn" id="dashCareMoreBtn"
+                    data-zh="顯示其他 ${careMoreCount} 項 ↓"
+                    data-en="Show ${careMoreCount} more ↓">顯示其他 ${careMoreCount} 項 ↓</button>
+          ` : ""}
+        `}
+      </div>
+    </section>`;
+
+  // Lifetime stats grid — 4 KPIs, 2-col mobile / 4-col desktop.
+  const statsCard = `
+    <section class="dash-section" aria-labelledby="dashStatsHead">
+      <h2 id="dashStatsHead">
+        <span data-zh="🌱 累積成果" data-en="🌱 Lifetime impact">🌱 累積成果</span>
+        <span class="dash-section-sub"
+              data-zh="所有設計加總"
+              data-en="summed across designs">所有設計加總</span>
+      </h2>
+      <div class="dash-stats-grid">
+        <div class="dash-stat">
+          <span class="dash-stat-icon" aria-hidden="true">📐</span>
+          <span class="dash-stat-value">${stats.totalDesigns}</span>
+          <span class="dash-stat-label" data-zh="個設計" data-en="designs">個設計</span>
+        </div>
+        <div class="dash-stat">
+          <span class="dash-stat-icon" aria-hidden="true">🪴</span>
+          <span class="dash-stat-value">${stats.totalSlots}</span>
+          <span class="dash-stat-label" data-zh="個植物單位" data-en="plant slots">個植物單位</span>
+        </div>
+        <div class="dash-stat">
+          <span class="dash-stat-icon" aria-hidden="true">🟢</span>
+          <span class="dash-stat-value">${stats.nativePct}<span class="dash-stat-unit">%</span></span>
+          <span class="dash-stat-label" data-zh="本土比例" data-en="native ratio">本土比例</span>
+        </div>
+        <div class="dash-stat">
+          <span class="dash-stat-icon" aria-hidden="true">🌍</span>
+          <span class="dash-stat-value">${stats.co2Yr}</span>
+          <span class="dash-stat-unit">kg CO₂/<span data-zh="年" data-en="yr">年</span></span>
+          <span class="dash-stat-label" data-zh="每年固碳" data-en="captured annually">每年固碳</span>
+        </div>
+      </div>
+    </section>`;
+
+  // Recent journal — top 5 across all designs, design name + date + note.
+  const journalCard = `
+    <section class="dash-section" aria-labelledby="dashJournalHead">
+      <h2 id="dashJournalHead">
+        <span data-zh="📔 最近筆記" data-en="📔 Recent notes">📔 最近筆記</span>
+        <span class="dash-section-sub"
+              data-zh="跨所有設計"
+              data-en="across all designs">跨所有設計</span>
+      </h2>
+      ${recentJournal.length === 0 ? `
+        <div class="dash-journal-empty"
+             data-zh="還沒寫過筆記 — 在「我的設計」卡片上點「+ 寫筆記」就能開始記錄"
+             data-en="No notes yet — tap '+ Add note' on any My Designs card to start logging">還沒寫過筆記 — 在「我的設計」卡片上點「+ 寫筆記」就能開始記錄</div>
+      ` : `
+        <ul class="dash-journal-list">
+          ${recentJournal.map(j => {
+            const d = new Date(j.ts || 0);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            const dateStr = `${y}-${m}-${day}`;
+            return `
+              <li class="dash-journal-row">
+                <div class="dash-journal-meta">
+                  <button class="dash-journal-design" type="button"
+                          data-design-id="${escapeHtml(j.designId)}"
+                          aria-label="${escapeHtml(t('開啟設計：' + j.designName, 'Open design: ' + j.designName))}"
+                          data-zh-aria="開啟設計：${escapeHtml(j.designName)}"
+                          data-en-aria="Open design: ${escapeHtml(j.designName)}">${escapeHtml(j.designName)}</button>
+                  <span>${dateStr}</span>
+                </div>
+                <div class="dash-journal-note">${escapeHtml(j.note || "")}</div>
+              </li>`;
+          }).join("")}
+        </ul>
+      `}
+    </section>`;
+
+  // Hero strip with a count subtitle. Keep tight — the homepage hero is
+  // still beneath for "start something new" energy.
+  const hero = `
+    <div class="dash-hero">
+      <h1 data-zh="🌿 你的花園儀表板" data-en="🌿 Your Garden Dashboard">🌿 你的花園儀表板</h1>
+      <p class="dash-sub"
+         data-zh="${stats.totalDesigns} 個設計 · ${stats.totalSlots} 個植物單位 · ${stats.nativePct}% 本土"
+         data-en="${stats.totalDesigns} designs · ${stats.totalSlots} plant slots · ${stats.nativePct}% native">${stats.totalDesigns} 個設計 · ${stats.totalSlots} 個植物單位 · ${stats.nativePct}% 本土</p>
+    </div>`;
+
+  return `
+    <div class="personal-dashboard" id="personalDashboard">
+      ${hero}
+      ${quickActions}
+      ${careCard}
+      ${statsCard}
+      ${journalCard}
+    </div>`;
+}
+
+function wirePersonalDashboard() {
+  const dash = document.getElementById("personalDashboard");
+  if (!dash) return;
+  const photoBtn = document.getElementById("dashQuickPhotoBtn");
+  const wizBtn   = document.getElementById("dashQuickWizardBtn");
+  const dictBtn  = document.getElementById("dashQuickDictBtn");
+  if (photoBtn) photoBtn.addEventListener("click", () => startPhotoFlow());
+  if (wizBtn)   wizBtn.addEventListener("click", () => startWizard());
+  if (dictBtn)  dictBtn.addEventListener("click", () => {
+    // Mirror the existing homepage "browse dict" path: jump to wizard step 5
+    // and switch the result tab to the dictionary view.
+    applyQuickFilter && applyQuickFilter("all");
+  });
+  // "Show more" expands the care list inline — single-shot toggle, no
+  // persisted state needed.
+  const moreBtn = document.getElementById("dashCareMoreBtn");
+  if (moreBtn) moreBtn.addEventListener("click", () => {
+    const list = loadDesignList();
+    const monthIdx = new Date().getMonth() + 1;
+    const allCare = aggregateThisMonthCare(list, monthIdx);
+    const card = moreBtn.closest(".dash-care-card");
+    if (!card) return;
+    const ul = card.querySelector(".dash-care-list");
+    if (!ul) return;
+    const existing = ul.querySelectorAll(".dash-care-item").length;
+    const html = allCare.slice(existing).map(t => {
+      const designTagZh = t.designs.length > 1 ? `${t.designs.length} 個設計` : t.designs[0];
+      const designTagEn = t.designs.length > 1 ? `${t.designs.length} designs` : t.designs[0];
+      return `
+        <li class="dash-care-item">
+          <span class="dash-care-icon" aria-hidden="true">${t.icon}</span>
+          <span class="dash-care-text">
+            <span class="dash-care-kind"
+                  data-zh="${escapeHtml(t.kindZh)}" data-en="${escapeHtml(t.kindEn)}">${escapeHtml(t.kindZh)}</span>
+            <span data-zh=" ${escapeHtml(t.plantZh)}" data-en=" ${escapeHtml(t.plantEn)}"> ${escapeHtml(t.plantZh)}</span>
+            <span class="dash-care-tag"
+                  data-zh="${escapeHtml(designTagZh)}"
+                  data-en="${escapeHtml(designTagEn)}">${escapeHtml(designTagZh)}</span>
+          </span>
+        </li>`;
+    }).join("");
+    ul.insertAdjacentHTML("beforeend", html);
+    moreBtn.remove();
+    applyLanguage(ul);
+  });
+  // Journal entry → click design name to open that design.
+  dash.querySelectorAll(".dash-journal-design").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-design-id");
+      if (id) resumeDesignById(id);
+    });
+  });
+}
+
 // ── HOMEPAGE — the friendly landing ─────────────────────────
 // Three paths: take the design wizard, browse the full plant dictionary,
 // or jump straight into a quick tool. Each path commits less than the
@@ -8433,6 +8744,8 @@ function renderHome() {
       ${renderFirstVisitBanner()}
 
       ${renderWelcomeBackBanner()}
+
+      ${renderPersonalDashboard()}
 
       ${renderMyDesignsSection()}
 
@@ -8627,6 +8940,9 @@ function renderHome() {
   document.getElementById("homeQuickBtn").addEventListener("click", () => {
     document.querySelector(".home-quick-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
   });
+
+  // R57: personal dashboard — appears above the hero for returning users.
+  wirePersonalDashboard();
 
   // "我的設計" portfolio cards: click to resume, ✎ to rename, 🗑 to delete
   wireMyDesignsSection();
