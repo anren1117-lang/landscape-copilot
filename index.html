@@ -3600,6 +3600,226 @@
     font-style: italic;
     font-family: var(--serif);
   }
+  .layout-editor-add {
+    background: var(--sage-deep);
+    color: var(--paper);
+    border: 0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .layout-editor-add:hover { background: var(--forest); }
+
+  /* R66: Plant picker panel — slides under the canvas when "+ Add" is tapped */
+  .layout-picker {
+    margin-top: 14px;
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.30);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 6px 14px -10px rgba(44,53,38,0.20);
+  }
+  .layout-picker-head {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 10px;
+  }
+  .layout-picker-search {
+    flex: 1; min-width: 0;
+    padding: 8px 12px;
+    border: 1.5px solid rgba(110,126,96,0.30);
+    border-radius: 8px;
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 13.5px;
+    color: var(--forest);
+  }
+  .layout-picker-search:focus {
+    outline: none;
+    border-color: var(--sage-deep);
+    box-shadow: 0 0 0 3px rgba(110,126,96,0.18);
+  }
+  .layout-picker-close {
+    background: none; border: 0;
+    width: 32px; height: 32px;
+    color: var(--clay);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .layout-picker-close:hover { background: rgba(178,80,52,0.10); color: #8C2A22; }
+  .layout-picker-section-label {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    font-weight: 600;
+    margin: 8px 4px 6px;
+    letter-spacing: 0.02em;
+  }
+  .layout-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+    gap: 6px;
+  }
+  .layout-picker-card {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(196,210,176,0.10);
+    border: 1px solid rgba(110,126,96,0.18);
+    border-radius: 8px;
+    padding: 7px 9px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--forest);
+    text-align: left;
+    min-height: 44px;
+    position: relative;
+    transition: background 0.14s ease, border-color 0.14s ease;
+  }
+  .layout-picker-card:hover {
+    background: rgba(196,210,176,0.30);
+    border-color: var(--sage-deep);
+  }
+  .layout-picker-card.in-design {
+    background: rgba(196,160,76,0.12);
+    border-color: rgba(196,160,76,0.32);
+  }
+  .layout-picker-card.in-design:hover {
+    background: rgba(196,160,76,0.22);
+  }
+  .layout-picker-swatch {
+    position: relative;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .layout-picker-native {
+    position: absolute;
+    bottom: -3px; right: -3px;
+    font-size: 8px;
+    line-height: 1;
+  }
+  .layout-picker-name {
+    flex: 1; min-width: 0;
+    font-family: var(--serif);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .layout-picker-qty {
+    flex-shrink: 0;
+    background: var(--clay);
+    color: var(--paper);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 7px;
+    min-width: 18px;
+    text-align: center;
+  }
+  .layout-picker-empty,
+  .layout-picker-more {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--clay);
+    font-style: italic;
+    font-size: 12.5px;
+    padding: 12px 6px;
+    font-family: var(--serif);
+  }
+
+  /* R66: Placing-mode banner — floats above the canvas with active plant info */
+  .layout-placing-banner {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(196,160,76,0.18);
+    border: 1px dashed rgba(196,160,76,0.45);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--forest);
+  }
+  .layout-placing-icon { font-size: 18px; }
+  .layout-placing-text {
+    flex: 1; min-width: 0;
+    font-family: var(--serif);
+  }
+  .layout-placing-cancel {
+    background: var(--paper);
+    color: var(--clay);
+    border: 1px solid rgba(168,138,106,0.35);
+    border-radius: 7px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .layout-placing-cancel:hover {
+    background: var(--clay);
+    color: var(--paper);
+    border-color: var(--clay);
+  }
+
+  /* R66: Action bar surfaced when a token is tapped (vs. dragged) */
+  .layout-action-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.32);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    font-size: 13px;
+    box-shadow: 0 4px 10px -6px rgba(44,53,38,0.20);
+  }
+  .layout-action-swatch {
+    width: 16px; height: 16px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .layout-action-name {
+    font-family: var(--serif);
+    color: var(--forest);
+    font-weight: 500;
+  }
+  .layout-action-qty {
+    color: var(--clay);
+    font-style: italic;
+    font-size: 11.5px;
+    font-family: var(--serif);
+    margin-right: auto;
+  }
+  .layout-action-remove {
+    background: var(--paper);
+    color: #8C2A22;
+    border: 1px solid rgba(178,80,52,0.30);
+    border-radius: 7px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .layout-action-remove:hover {
+    background: #8C2A22;
+    color: var(--paper);
+    border-color: #8C2A22;
+  }
+  .layout-action-close {
+    background: none;
+    border: 0;
+    color: var(--clay);
+    cursor: pointer;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    font-size: 13px;
+  }
+  .layout-action-close:hover { background: rgba(110,126,96,0.10); color: var(--forest); }
+
+  @media print {
+    .layout-picker,
+    .layout-placing-banner,
+    .layout-action-bar,
+    .layout-editor-add { display: none !important; }
+  }
 
   /* Settings */
   .ddash-settings-card {
@@ -7393,6 +7613,13 @@ const state = {
   //    pointer) because the dashboard can be open on a design that isn't
   //    the active edit target.
   designDashboardId: null,
+  // ── R66: Layout editor add/remove modes. Both ephemeral — never
+  //    persisted. `placingPlantId` is set when the user picks a plant
+  //    from the picker; the next canvas tap places a new token of that
+  //    species. `selectedTokenId` is set on a tap (not drag) of an
+  //    existing token; the action bar then offers "✕ Remove."
+  //    `pickerOpen` controls inline picker panel visibility.
+  layoutEditor: { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" },
   lang: "zh",
 };
 
@@ -10247,6 +10474,200 @@ function resetEntryLayout(designId) {
   saveDesignList(list);
 }
 
+// R66 — Add a new token to the design's layout AND increment snap.qty.
+// snap.qty is the source-of-truth for "how many of plant X are in this
+// design" (scoring, shopping, gallery thumbnail all read it), so any
+// canvas-side add MUST mirror into qty for consistency.
+function addLayoutToken(designId, plantId, x, y) {
+  if (!plantId) return null;
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return null;
+  if (!Array.isArray(entry.layout)) entry.layout = ensureDesignLayout(entry).slice();
+  if (entry.layout.length >= LAYOUT_MAX_TOKENS) return null;
+  const newToken = {
+    tokenId: makeTokenId(),
+    plantId,
+    x: Math.max(0, Math.min(1, x)),
+    y: Math.max(0, Math.min(1, y)),
+  };
+  entry.layout.push(newToken);
+  // Mirror into snap.qty so gallery / shopping / scoring all see the new plant.
+  if (!entry.snapshot.qty || typeof entry.snapshot.qty !== "object") entry.snapshot.qty = {};
+  entry.snapshot.qty[plantId] = (Number(entry.snapshot.qty[plantId]) || 0) + 1;
+  saveDesignList(list);
+  return newToken;
+}
+
+// R66 — Remove a token from layout AND decrement snap.qty (delete entry
+// when qty drops to 0). Keeps the qty mirror invariant intact.
+function removeLayoutToken(designId, tokenId) {
+  if (!tokenId) return;
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return;
+  if (!Array.isArray(entry.layout)) entry.layout = ensureDesignLayout(entry).slice();
+  const idx = entry.layout.findIndex(t => t.tokenId === tokenId);
+  if (idx < 0) return;
+  const plantId = entry.layout[idx].plantId;
+  entry.layout.splice(idx, 1);
+  if (entry.snapshot.qty && typeof entry.snapshot.qty === "object") {
+    const current = Number(entry.snapshot.qty[plantId]) || 0;
+    if (current <= 1) delete entry.snapshot.qty[plantId];
+    else entry.snapshot.qty[plantId] = current - 1;
+  }
+  saveDesignList(list);
+}
+
+// Returns the picker plant grid HTML. Sorted by:
+// 1. Plants already in this design (with qty badge), so users see what
+//    they have before scrolling for new species.
+// 2. Plants suitable for the design's space + sun, so the picker leads
+//    with relevant species instead of dumping all 184.
+// 3. Everything else (filtered by search query when present).
+function renderLayoutPickerGrid(entry) {
+  const snap = entry.snapshot || {};
+  const qtyMap = snap.qty || {};
+  const q = (state.layoutEditor.pickerQuery || "").trim().toLowerCase();
+
+  const matches = (p) => {
+    if (!q) return true;
+    return (p.zh || "").includes(q)
+        || (p.en || "").toLowerCase().includes(q)
+        || (p.lt || "").toLowerCase().includes(q);
+  };
+
+  // Bucket A: already in design.
+  const inDesign = Object.keys(qtyMap)
+    .filter(id => Number(qtyMap[id]) > 0 && PLANT_BY_ID[id])
+    .map(id => PLANT_BY_ID[id])
+    .filter(matches);
+
+  // Bucket B: not in design — prioritize matching sun, then alphabetical.
+  const inDesignIds = new Set(inDesign.map(p => p.id));
+  const sunRank = (p) => {
+    if (!snap.sun) return 1;
+    const ok = (p.sun || []).indexOf(snap.sun) >= 0;
+    return ok ? 0 : 1;
+  };
+  const others = PLANTS
+    .filter(p => !inDesignIds.has(p.id))
+    .filter(matches)
+    .sort((a, b) => sunRank(a) - sunRank(b) || (a.zh || "").localeCompare(b.zh || "", "zh-Hant"));
+
+  // Cap the visible list so we don't ship 200 cards into the DOM on first paint.
+  // Search narrows it; without a query we show top 40 others.
+  const othersToShow = q ? others.slice(0, 80) : others.slice(0, 30);
+
+  const card = (p, isInDesign) => {
+    const qty = isInDesign ? (Number(qtyMap[p.id]) || 0) : 0;
+    const color = p.color || "#8A9A7B";
+    const isNative = !!p.native;
+    return `
+      <button type="button" class="layout-picker-card ${isInDesign ? "in-design" : ""}"
+              data-picker-plant="${escapeHtml(p.id)}"
+              aria-label="${escapeHtml(t('加入 ' + p.zh, 'Add ' + p.en))}"
+              data-zh-aria="加入 ${escapeHtml(p.zh)}"
+              data-en-aria="Add ${escapeHtml(p.en)}">
+        <span class="layout-picker-swatch" style="background:${escapeHtml(color)};"
+              aria-hidden="true">
+          ${isNative ? `<span class="layout-picker-native" aria-hidden="true">🟢</span>` : ""}
+        </span>
+        <span class="layout-picker-name"
+              data-zh="${escapeHtml(p.zh)}"
+              data-en="${escapeHtml(p.en)}">${escapeHtml(p.zh)}</span>
+        ${qty > 0 ? `<span class="layout-picker-qty">${qty}</span>` : ""}
+      </button>`;
+  };
+
+  return `
+    ${inDesign.length > 0 ? `
+      <div class="layout-picker-section-label"
+           data-zh="⭐ 已在這個設計中"
+           data-en="⭐ Already in this design">⭐ 已在這個設計中</div>
+      <div class="layout-picker-grid">${inDesign.map(p => card(p, true)).join("")}</div>
+    ` : ""}
+    <div class="layout-picker-section-label"
+         data-zh="🌿 從字典加入"
+         data-en="🌿 Add from dictionary">🌿 從字典加入</div>
+    <div class="layout-picker-grid">
+      ${othersToShow.length === 0 ? `
+        <div class="layout-picker-empty"
+             data-zh="沒有符合的植物 — 試試其他關鍵字"
+             data-en="No matches — try a different search">沒有符合的植物 — 試試其他關鍵字</div>
+      ` : othersToShow.map(p => card(p, false)).join("")}
+      ${(!q && others.length > 30) ? `
+        <div class="layout-picker-more"
+             data-zh="🔍 還有 ${others.length - 30} 種 — 用搜尋找特定植物"
+             data-en="🔍 ${others.length - 30} more — search for a specific plant">🔍 還有 ${others.length - 30} 種 — 用搜尋找特定植物</div>
+      ` : ""}
+    </div>`;
+}
+
+function renderLayoutPickerPanel(entry) {
+  if (!state.layoutEditor.pickerOpen) return "";
+  return `
+    <div class="layout-picker" id="layoutPickerPanel">
+      <div class="layout-picker-head">
+        <input type="search" id="layoutPickerSearch"
+               class="layout-picker-search"
+               value="${escapeHtml(state.layoutEditor.pickerQuery || "")}"
+               data-zh-placeholder="搜尋植物中文/英文/學名…"
+               data-en-placeholder="Search plant (Chinese / English / Latin)…"
+               placeholder="${state.lang === "en" ? "Search plant (Chinese / English / Latin)…" : "搜尋植物中文/英文/學名…"}"
+               aria-label="${escapeHtml(t('搜尋植物', 'Search plant'))}">
+        <button type="button" class="layout-picker-close" id="layoutPickerCloseBtn"
+                aria-label="${escapeHtml(t('關閉植物選擇器', 'Close plant picker'))}"
+                data-zh-aria="關閉植物選擇器" data-en-aria="Close plant picker">✕</button>
+      </div>
+      ${renderLayoutPickerGrid(entry)}
+    </div>`;
+}
+
+function renderLayoutPlacingBanner() {
+  const plantId = state.layoutEditor.placingPlantId;
+  if (!plantId) return "";
+  const p = PLANT_BY_ID[plantId];
+  if (!p) return "";
+  return `
+    <div class="layout-placing-banner" role="status">
+      <span class="layout-placing-icon" aria-hidden="true">🎯</span>
+      <span class="layout-placing-text"
+            data-zh="點空間任意位置放置 ${escapeHtml(p.zh)}"
+            data-en="Tap anywhere in the space to place ${escapeHtml(p.en)}">點空間任意位置放置 ${escapeHtml(p.zh)}</span>
+      <button type="button" class="layout-placing-cancel" id="layoutPlacingCancelBtn"
+              data-zh="取消"
+              data-en="Cancel">取消</button>
+    </div>`;
+}
+
+function renderLayoutSelectedActionBar(entry) {
+  const tokenId = state.layoutEditor.selectedTokenId;
+  if (!tokenId) return "";
+  const layout = ensureDesignLayout(entry);
+  const token = layout.find(t => t.tokenId === tokenId);
+  if (!token) return "";
+  const p = PLANT_BY_ID[token.plantId];
+  if (!p) return "";
+  const qty = Number((entry.snapshot.qty || {})[token.plantId]) || 0;
+  return `
+    <div class="layout-action-bar" role="status">
+      <span class="layout-action-swatch" style="background:${escapeHtml(p.color || '#8A9A7B')};"
+            aria-hidden="true"></span>
+      <span class="layout-action-name"
+            data-zh="${escapeHtml(p.zh)}"
+            data-en="${escapeHtml(p.en)}">${escapeHtml(p.zh)}</span>
+      <span class="layout-action-qty"
+            data-zh="共 ${qty} 株" data-en="${qty} total">共 ${qty} 株</span>
+      <button type="button" class="layout-action-remove" id="layoutActionRemoveBtn"
+              data-zh="✕ 移除這株"
+              data-en="✕ Remove this">✕ 移除這株</button>
+      <button type="button" class="layout-action-close" id="layoutActionCloseBtn"
+              aria-label="${escapeHtml(t('關閉', 'Close'))}"
+              data-zh-aria="關閉" data-en-aria="Close">↩</button>
+    </div>`;
+}
+
 function renderLayoutEditorSVG(entry) {
   const snap = entry.snapshot || {};
   const w = Number(snap.widthM || 0);
@@ -10284,6 +10705,7 @@ function renderLayoutEditorSVG(entry) {
 
   const layout = ensureDesignLayout(entry);
 
+  const selectedTokenId = state.layoutEditor && state.layoutEditor.selectedTokenId;
   const tokensHtml = layout.map(token => {
     const plant = PLANT_BY_ID[token.plantId];
     if (!plant) return "";
@@ -10292,8 +10714,9 @@ function renderLayoutEditorSVG(entry) {
     const r = 9.5;
     const color = plant.color || "#8A9A7B";
     const isNative = !!plant.native;
+    const isSelected = token.tokenId === selectedTokenId;
     return `
-      <g class="layout-token"
+      <g class="layout-token ${isSelected ? "selected" : ""}"
          data-token-id="${escapeHtml(token.tokenId)}"
          data-plant-id="${escapeHtml(token.plantId)}"
          transform="translate(${cx.toFixed(1)}, ${cy.toFixed(1)})"
@@ -10302,6 +10725,7 @@ function renderLayoutEditorSVG(entry) {
          aria-label="${escapeHtml(t(plant.zh + ' — 拖移以移動', plant.en + ' — drag to move'))}"
          data-zh-aria="${escapeHtml(plant.zh + ' — 拖移以移動')}"
          data-en-aria="${escapeHtml(plant.en + ' — drag to move')}">
+        ${isSelected ? `<circle r="${(r + 7).toFixed(1)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="3 2" opacity="0.85"/>` : ""}
         <circle r="${(r + 3).toFixed(1)}" fill="${color}" opacity="0.22"/>
         <circle r="${r.toFixed(1)}" fill="${color}" opacity="0.84" stroke="${color}" stroke-width="0.8"/>
         ${isNative ? `<circle cx="${(r*0.55).toFixed(1)}" cy="${(-r*0.55).toFixed(1)}" r="2" fill="#2D8B5C"/>` : ""}
@@ -10361,6 +10785,7 @@ function wireLayoutEditor(entry) {
   let dragOffset = null;  // SVG-space offset from pointer to token center
   let dragTokenId = null;
   let dragged = false;    // tells click vs drag apart on pointerup
+  let downAtPoint = null; // pointerdown SVG-space coords — used for tap-place
 
   function svgPointFromClient(clientX, clientY) {
     const pt = svg.createSVGPoint();
@@ -10370,18 +10795,23 @@ function wireLayoutEditor(entry) {
   }
 
   function onPointerDown(e) {
+    downAtPoint = svgPointFromClient(e.clientX, e.clientY);
     const token = e.target.closest(".layout-token");
-    if (!token) return;
+    if (!token) {
+      // Empty-canvas press — defer the decision to pointerup. If the user is in
+      // placing mode, we'll create a token at the up-point. Otherwise we'll
+      // clear any selectedTokenId UI on tap-outside.
+      return;
+    }
     e.preventDefault();
     activeToken = token;
     dragTokenId = token.getAttribute("data-token-id");
     dragged = false;
     const layoutEntry = workingLayout.find(t => t.tokenId === dragTokenId);
     if (!layoutEntry) return;
-    const pt = svgPointFromClient(e.clientX, e.clientY);
     const currentCx = rectX + layoutEntry.x * rectW;
     const currentCy = rectY + layoutEntry.y * rectH;
-    dragOffset = { x: currentCx - pt.x, y: currentCy - pt.y };
+    dragOffset = { x: currentCx - downAtPoint.x, y: currentCy - downAtPoint.y };
     token.classList.add("dragging");
     // Bring dragged token to the front so it isn't obscured by other tokens.
     svg.appendChild(token);
@@ -10391,7 +10821,14 @@ function wireLayoutEditor(entry) {
   function onPointerMove(e) {
     if (!activeToken || !dragOffset) return;
     e.preventDefault();
-    dragged = true;
+    // Only count it as a drag once the pointer has actually moved enough — a
+    // few px of jitter on touch shouldn't kill a tap. ~3px in SVG space.
+    if (!dragged && downAtPoint) {
+      const pt = svgPointFromClient(e.clientX, e.clientY);
+      const dx = pt.x - downAtPoint.x, dy = pt.y - downAtPoint.y;
+      if (Math.hypot(dx, dy) < 3) return;
+      dragged = true;
+    }
     const pt = svgPointFromClient(e.clientX, e.clientY);
     const newCx = pt.x + dragOffset.x;
     const newCy = pt.y + dragOffset.y;
@@ -10407,17 +10844,52 @@ function wireLayoutEditor(entry) {
   }
 
   function onPointerUp(e) {
+    // Case 1: Tap on empty canvas in placing mode → create a new token.
+    if (!activeToken && downAtPoint) {
+      const upPt = svgPointFromClient(e.clientX, e.clientY);
+      const dx = upPt.x - downAtPoint.x, dy = upPt.y - downAtPoint.y;
+      const isTap = Math.hypot(dx, dy) < 3;
+      const insideRect = upPt.x >= rectX && upPt.x <= rectX + rectW
+                      && upPt.y >= rectY && upPt.y <= rectY + rectH;
+      if (isTap && state.layoutEditor.placingPlantId && insideRect) {
+        const nx = (upPt.x - rectX) / rectW;
+        const ny = (upPt.y - rectY) / rectH;
+        const newToken = addLayoutToken(entry.id, state.layoutEditor.placingPlantId, nx, ny);
+        // After one placement, exit placing mode — user can re-open the picker
+        // for the next plant. This avoids confusing repeated-tap-adds.
+        state.layoutEditor.placingPlantId = null;
+        state.layoutEditor.selectedTokenId = newToken ? newToken.tokenId : null;
+        render();
+        applyLanguage();
+        return;
+      } else if (isTap && state.layoutEditor.selectedTokenId) {
+        // Tap-outside on a selected token clears the selection bar.
+        state.layoutEditor.selectedTokenId = null;
+        render();
+        applyLanguage();
+        return;
+      }
+      downAtPoint = null;
+      return;
+    }
     if (!activeToken) return;
     activeToken.classList.remove("dragging");
     try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
-    if (dragged) {
-      // Persist only if the user actually moved the token. A pure click
-      // (no movement) is reserved for tap-select in R66 — for now it's a no-op.
-      saveEntryLayout(entry.id, workingLayout);
-    }
+    const wasDragged = dragged;
+    const tokenId = dragTokenId;
     activeToken = null;
     dragOffset = null;
     dragTokenId = null;
+    downAtPoint = null;
+    if (wasDragged) {
+      saveEntryLayout(entry.id, workingLayout);
+    } else {
+      // Tap (no drag) on an existing token → select it, surface the action bar.
+      state.layoutEditor.selectedTokenId = tokenId;
+      state.layoutEditor.placingPlantId = null;
+      render();
+      applyLanguage();
+    }
   }
 
   function onPointerCancel() {
@@ -10425,12 +10897,87 @@ function wireLayoutEditor(entry) {
     activeToken = null;
     dragOffset = null;
     dragTokenId = null;
+    downAtPoint = null;
   }
 
   svg.addEventListener("pointerdown", onPointerDown);
   svg.addEventListener("pointermove", onPointerMove);
   svg.addEventListener("pointerup", onPointerUp);
   svg.addEventListener("pointercancel", onPointerCancel);
+
+  // R66 toolbar + picker + placing/action bar wiring.
+  const addBtn = document.getElementById("layoutEditorAddBtn");
+  if (addBtn) addBtn.addEventListener("click", () => {
+    state.layoutEditor.pickerOpen = true;
+    state.layoutEditor.pickerQuery = "";
+    state.layoutEditor.selectedTokenId = null;
+    render();
+    applyLanguage();
+    // Focus the search field so the user can immediately type.
+    setTimeout(() => {
+      const s = document.getElementById("layoutPickerSearch");
+      if (s) s.focus();
+    }, 30);
+  });
+  const closePickerBtn = document.getElementById("layoutPickerCloseBtn");
+  if (closePickerBtn) closePickerBtn.addEventListener("click", () => {
+    state.layoutEditor.pickerOpen = false;
+    render();
+    applyLanguage();
+  });
+  const searchInput = document.getElementById("layoutPickerSearch");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      state.layoutEditor.pickerQuery = searchInput.value;
+      // Re-render only the grid to avoid losing focus on every keystroke.
+      const panel = document.getElementById("layoutPickerPanel");
+      if (!panel) return;
+      const oldGridLabels = panel.querySelectorAll(".layout-picker-section-label, .layout-picker-grid");
+      oldGridLabels.forEach(n => n.remove());
+      panel.insertAdjacentHTML("beforeend", renderLayoutPickerGrid(entry));
+      applyLanguage();
+      // Re-wire only the new card buttons; the search input itself keeps its listener.
+      panel.querySelectorAll("[data-picker-plant]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.layoutEditor.placingPlantId = btn.getAttribute("data-picker-plant");
+          state.layoutEditor.pickerOpen = false;
+          state.layoutEditor.selectedTokenId = null;
+          render();
+          applyLanguage();
+        });
+      });
+    });
+  }
+  document.querySelectorAll("[data-picker-plant]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.layoutEditor.placingPlantId = btn.getAttribute("data-picker-plant");
+      state.layoutEditor.pickerOpen = false;
+      state.layoutEditor.selectedTokenId = null;
+      render();
+      applyLanguage();
+    });
+  });
+  const cancelPlacing = document.getElementById("layoutPlacingCancelBtn");
+  if (cancelPlacing) cancelPlacing.addEventListener("click", () => {
+    state.layoutEditor.placingPlantId = null;
+    render();
+    applyLanguage();
+  });
+  const removeBtn = document.getElementById("layoutActionRemoveBtn");
+  if (removeBtn) removeBtn.addEventListener("click", () => {
+    const tokenId = state.layoutEditor.selectedTokenId;
+    if (!tokenId) return;
+    removeLayoutToken(entry.id, tokenId);
+    state.layoutEditor.selectedTokenId = null;
+    render();
+    applyLanguage();
+  });
+  const closeActionBtn = document.getElementById("layoutActionCloseBtn");
+  if (closeActionBtn) closeActionBtn.addEventListener("click", () => {
+    state.layoutEditor.selectedTokenId = null;
+    render();
+    applyLanguage();
+  });
 
   // Keyboard nudge — arrow keys move a focused token by 2% per press.
   // Saves on every keystroke (cheap; up to ~50 writes per session).
@@ -10763,26 +11310,29 @@ function renderDesignDashboard() {
       </div>
     </section>`;
 
-  // R65: Drag-to-rearrange layout editor. Falls back to the static mini SVG
-  // when the design has no dimensions (can't edit what we can't draw).
+  // R65/R66: Interactive layout editor — drag to rearrange, tap-place to
+  // add, tap an existing token to surface a remove action.
   const layoutCard = `
     <section class="dash-section" aria-labelledby="ddashLayoutHead">
       <h2 id="ddashLayoutHead">
         <span data-zh="🎨 你的景觀" data-en="🎨 Your landscape">🎨 你的景觀</span>
         <span class="dash-section-sub"
-              data-zh="拖移植物來調整位置 · 鍵盤方向鍵微調"
-              data-en="drag plants to rearrange · arrow keys nudge">拖移植物來調整位置 · 鍵盤方向鍵微調</span>
+              data-zh="拖移調整 · 點植物可移除 · 加入新植物"
+              data-en="drag to rearrange · tap a plant to remove · add new plants">拖移調整 · 點植物可移除 · 加入新植物</span>
       </h2>
       <div class="ddash-layout-wrap">
         ${renderLayoutEditorSVG(entry)}
+        ${renderLayoutPlacingBanner()}
+        ${renderLayoutSelectedActionBar(entry)}
         <div class="layout-editor-toolbar">
+          <button type="button" class="layout-editor-add" id="layoutEditorAddBtn"
+                  data-zh="＋ 加入植物"
+                  data-en="＋ Add plant">＋ 加入植物</button>
           <button type="button" class="layout-editor-reset" id="layoutEditorResetBtn"
                   data-zh="↺ 自動排版"
                   data-en="↺ Auto-layout">↺ 自動排版</button>
-          <span class="layout-editor-hint"
-                data-zh="加入 / 移除植物 → 即將推出"
-                data-en="Add / remove plants → coming soon">加入 / 移除植物 → 即將推出</span>
         </div>
+        ${renderLayoutPickerPanel(entry)}
       </div>
     </section>`;
 
