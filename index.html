@@ -3545,6 +3545,62 @@
     border-radius: 8px;
   }
 
+  /* R65: Drag-and-drop layout editor */
+  .layout-editor-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+    /* Stop the browser from interpreting pointer-drag as a scroll on touch */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .layout-token {
+    cursor: grab;
+    transition: filter 0.12s ease;
+  }
+  .layout-token:hover { filter: brightness(1.08); }
+  .layout-token.dragging {
+    cursor: grabbing;
+    filter: drop-shadow(0 2px 6px rgba(44,53,38,0.32));
+  }
+  .layout-token:focus { outline: none; }
+  .layout-token:focus circle:nth-of-type(2) {
+    /* Focus ring around the visible plant circle for keyboard users */
+    stroke: var(--sage-deep);
+    stroke-width: 2.5;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .layout-token { transition: none; }
+  }
+  .layout-editor-toolbar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    padding: 10px 4px 0;
+  }
+  .layout-editor-reset {
+    background: var(--paper);
+    color: var(--forest);
+    border: 1.5px solid rgba(110,126,96,0.30);
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .layout-editor-reset:hover {
+    background: var(--sage-deep);
+    color: var(--paper);
+    border-color: var(--sage-deep);
+  }
+  .layout-editor-hint {
+    font-size: 11.5px;
+    color: var(--clay);
+    font-style: italic;
+    font-family: var(--serif);
+  }
+
   /* Settings */
   .ddash-settings-card {
     background: var(--paper);
@@ -10125,6 +10181,293 @@ function setBudgetTarget(designId, target) {
   saveDesignList(list);
 }
 
+// ─────────────────────────────────────────────────────────────
+// R65 — Drag-and-drop layout editor (pointer + tap-place hybrid)
+// User can move existing plant tokens around the canvas. R66 will
+// add the "+ add plant" picker and the tap-place mode for new
+// tokens; R65 ships just the move-things-around foundation.
+//
+// Data: entry.layout = [{ tokenId, plantId, x, y }] where x/y are
+// normalized 0..1 inside the space rectangle. Persisted in LIST_KEY.
+//
+// First-time render auto-generates positions from snap.qty using the
+// same tier-stacked PRNG as the gallery thumbnail, so before the user
+// has touched anything the editor view matches the gallery card.
+// ─────────────────────────────────────────────────────────────
+const LAYOUT_MAX_TOKENS = 60;
+
+function makeTokenId() {
+  return "tk_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+}
+
+function ensureDesignLayout(entry) {
+  if (Array.isArray(entry.layout) && entry.layout.length > 0) return entry.layout;
+  // Auto-init from snap.qty using the gallery thumbnail's deterministic
+  // tier-stacked PRNG so the first paint of the editor matches what the
+  // user has been looking at on the global dashboard.
+  const snap = entry.snapshot || {};
+  const qtyMap = snap.qty || {};
+  const w = Number(snap.widthM || 1), d = Number(snap.depthM || 1);
+  const plantEntries = Object.keys(qtyMap)
+    .filter(id => Number(qtyMap[id]) > 0)
+    .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: PLANT_BY_ID[id] }))
+    .filter(e => e.plant)
+    .sort((a, b) => (b.plant.tier || 0) - (a.plant.tier || 0));
+  const rand = _miniSvgRand(Math.round(w * 1000 + d * 7 + plantEntries.length * 13));
+  const layout = [];
+  for (const e of plantEntries) {
+    const tier = e.plant.tier || 1;
+    const yFraction = 1 - Math.min(4, tier - 1) / 4;
+    const qty = Math.min(e.qty, 8);  // cap per-species at 8 tokens to keep the canvas readable
+    for (let i = 0; i < qty; i++) {
+      if (layout.length >= LAYOUT_MAX_TOKENS) break;
+      const yJ = (rand() - 0.5) * 0.20;
+      const y = Math.max(0.06, Math.min(0.94, yFraction + yJ));
+      const x = 0.06 + rand() * 0.88;
+      layout.push({ tokenId: makeTokenId(), plantId: e.id, x, y });
+    }
+    if (layout.length >= LAYOUT_MAX_TOKENS) break;
+  }
+  return layout;
+}
+
+function saveEntryLayout(designId, layout) {
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return;
+  entry.layout = layout;
+  saveDesignList(list);
+}
+
+function resetEntryLayout(designId) {
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return;
+  entry.layout = []; // ensureDesignLayout will auto-init next read
+  saveDesignList(list);
+}
+
+function renderLayoutEditorSVG(entry) {
+  const snap = entry.snapshot || {};
+  const w = Number(snap.widthM || 0);
+  const d = Number(snap.depthM || 0);
+  const vbW = 480, vbH = 320;
+  const margin = 24;
+
+  if (!w || !d) {
+    return `
+      <svg viewBox="0 0 ${vbW} ${vbH}" class="layout-editor-svg" aria-hidden="true">
+        <rect width="${vbW}" height="${vbH}" fill="rgba(196,210,176,0.10)" rx="10"/>
+        <text x="${vbW/2}" y="${vbH/2}" text-anchor="middle" font-family="serif" font-style="italic" font-size="13" fill="rgba(110,126,96,0.7)">
+          ${state.lang === "en" ? "Set width × depth in Settings to start editing" : "請在「設定」設定寬度與深度才能編輯"}
+        </text>
+      </svg>`;
+  }
+
+  const drawW = vbW - margin * 2;
+  const drawH = vbH - margin * 2;
+  const aspect = w / d;
+  let rectW, rectH;
+  if (aspect > drawW / drawH) {
+    rectW = drawW;
+    rectH = drawW / aspect;
+  } else {
+    rectH = drawH;
+    rectW = drawH * aspect;
+  }
+  const rectX = (vbW - rectW) / 2;
+  const rectY = (vbH - rectH) / 2;
+
+  let bgTint = "rgba(196,210,176,0.16)";
+  if (snap.sun === "shade") bgTint = "rgba(70,90,80,0.14)";
+  if (snap.sun === "full")  bgTint = "rgba(245,210,140,0.18)";
+
+  const layout = ensureDesignLayout(entry);
+
+  const tokensHtml = layout.map(token => {
+    const plant = PLANT_BY_ID[token.plantId];
+    if (!plant) return "";
+    const cx = rectX + token.x * rectW;
+    const cy = rectY + token.y * rectH;
+    const r = 9.5;
+    const color = plant.color || "#8A9A7B";
+    const isNative = !!plant.native;
+    return `
+      <g class="layout-token"
+         data-token-id="${escapeHtml(token.tokenId)}"
+         data-plant-id="${escapeHtml(token.plantId)}"
+         transform="translate(${cx.toFixed(1)}, ${cy.toFixed(1)})"
+         tabindex="0"
+         role="button"
+         aria-label="${escapeHtml(t(plant.zh + ' — 拖移以移動', plant.en + ' — drag to move'))}"
+         data-zh-aria="${escapeHtml(plant.zh + ' — 拖移以移動')}"
+         data-en-aria="${escapeHtml(plant.en + ' — drag to move')}">
+        <circle r="${(r + 3).toFixed(1)}" fill="${color}" opacity="0.22"/>
+        <circle r="${r.toFixed(1)}" fill="${color}" opacity="0.84" stroke="${color}" stroke-width="0.8"/>
+        ${isNative ? `<circle cx="${(r*0.55).toFixed(1)}" cy="${(-r*0.55).toFixed(1)}" r="2" fill="#2D8B5C"/>` : ""}
+      </g>`;
+  }).join("");
+
+  return `
+    <svg viewBox="0 0 ${vbW} ${vbH}"
+         class="layout-editor-svg"
+         id="layoutEditorSvg"
+         data-rect-x="${rectX.toFixed(2)}"
+         data-rect-y="${rectY.toFixed(2)}"
+         data-rect-w="${rectW.toFixed(2)}"
+         data-rect-h="${rectH.toFixed(2)}"
+         preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <pattern id="layout-grid-${Math.round(w * 1000 + d)}" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(110,126,96,0.10)" stroke-width="0.5"/>
+        </pattern>
+      </defs>
+      <rect x="0" y="0" width="${vbW}" height="${vbH}" fill="${bgTint}" rx="10"/>
+      <rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}"
+            width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}"
+            fill="url(#layout-grid-${Math.round(w * 1000 + d)})"
+            stroke="rgba(110,126,96,0.50)" stroke-width="1" rx="4"
+            id="layoutEditorRect"/>
+      ${tokensHtml}
+      <g class="mini-compass" transform="translate(${(vbW - 28).toFixed(1)}, 28)">
+        <circle r="12" fill="rgba(255,255,255,0.78)" stroke="rgba(110,126,96,0.40)" stroke-width="0.8"/>
+        <path d="M 0,-9 L 3,0 L 0,9 L -3,0 Z" fill="rgba(178,80,52,0.88)"/>
+        <text y="-3" text-anchor="middle" font-size="7" font-family="serif"
+              fill="rgba(110,126,96,0.90)" font-weight="600">N</text>
+      </g>
+    </svg>`;
+}
+
+// Pointer event drag handler. Uses native pointer events so the same
+// code path works for mouse, touch, and pen. Stores working state in
+// closure variables so a single drag doesn't write to localStorage on
+// every move event — only on pointerup.
+function wireLayoutEditor(entry) {
+  const svg = document.getElementById("layoutEditorSvg");
+  if (!svg) return;
+
+  const rectX = Number(svg.dataset.rectX);
+  const rectY = Number(svg.dataset.rectY);
+  const rectW = Number(svg.dataset.rectW);
+  const rectH = Number(svg.dataset.rectH);
+  if (!rectW || !rectH) return;
+
+  // Pull a working copy so drag rendering doesn't keep re-reading from
+  // localStorage. Only save back on pointerup. Defensive deep slice — we
+  // never mutate the persisted array directly.
+  let workingLayout = ensureDesignLayout(entry).map(t => ({ ...t }));
+
+  let activeToken = null;
+  let dragOffset = null;  // SVG-space offset from pointer to token center
+  let dragTokenId = null;
+  let dragged = false;    // tells click vs drag apart on pointerup
+
+  function svgPointFromClient(clientX, clientY) {
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  function onPointerDown(e) {
+    const token = e.target.closest(".layout-token");
+    if (!token) return;
+    e.preventDefault();
+    activeToken = token;
+    dragTokenId = token.getAttribute("data-token-id");
+    dragged = false;
+    const layoutEntry = workingLayout.find(t => t.tokenId === dragTokenId);
+    if (!layoutEntry) return;
+    const pt = svgPointFromClient(e.clientX, e.clientY);
+    const currentCx = rectX + layoutEntry.x * rectW;
+    const currentCy = rectY + layoutEntry.y * rectH;
+    dragOffset = { x: currentCx - pt.x, y: currentCy - pt.y };
+    token.classList.add("dragging");
+    // Bring dragged token to the front so it isn't obscured by other tokens.
+    svg.appendChild(token);
+    try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+  }
+
+  function onPointerMove(e) {
+    if (!activeToken || !dragOffset) return;
+    e.preventDefault();
+    dragged = true;
+    const pt = svgPointFromClient(e.clientX, e.clientY);
+    const newCx = pt.x + dragOffset.x;
+    const newCy = pt.y + dragOffset.y;
+    // Clamp inside the space rectangle so plants never end up "off the lot".
+    const clampedX = Math.max(rectX, Math.min(rectX + rectW, newCx));
+    const clampedY = Math.max(rectY, Math.min(rectY + rectH, newCy));
+    activeToken.setAttribute("transform", `translate(${clampedX.toFixed(1)}, ${clampedY.toFixed(1)})`);
+    const idx = workingLayout.findIndex(t => t.tokenId === dragTokenId);
+    if (idx >= 0) {
+      workingLayout[idx].x = (clampedX - rectX) / rectW;
+      workingLayout[idx].y = (clampedY - rectY) / rectH;
+    }
+  }
+
+  function onPointerUp(e) {
+    if (!activeToken) return;
+    activeToken.classList.remove("dragging");
+    try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (dragged) {
+      // Persist only if the user actually moved the token. A pure click
+      // (no movement) is reserved for tap-select in R66 — for now it's a no-op.
+      saveEntryLayout(entry.id, workingLayout);
+    }
+    activeToken = null;
+    dragOffset = null;
+    dragTokenId = null;
+  }
+
+  function onPointerCancel() {
+    if (activeToken) activeToken.classList.remove("dragging");
+    activeToken = null;
+    dragOffset = null;
+    dragTokenId = null;
+  }
+
+  svg.addEventListener("pointerdown", onPointerDown);
+  svg.addEventListener("pointermove", onPointerMove);
+  svg.addEventListener("pointerup", onPointerUp);
+  svg.addEventListener("pointercancel", onPointerCancel);
+
+  // Keyboard nudge — arrow keys move a focused token by 2% per press.
+  // Saves on every keystroke (cheap; up to ~50 writes per session).
+  svg.addEventListener("keydown", (e) => {
+    const token = e.target.closest && e.target.closest(".layout-token");
+    if (!token) return;
+    const tokenId = token.getAttribute("data-token-id");
+    const layoutEntry = workingLayout.find(t => t.tokenId === tokenId);
+    if (!layoutEntry) return;
+    let dx = 0, dy = 0;
+    if (e.key === "ArrowLeft")  dx = -0.02;
+    else if (e.key === "ArrowRight") dx = 0.02;
+    else if (e.key === "ArrowUp")    dy = -0.02;
+    else if (e.key === "ArrowDown")  dy = 0.02;
+    else return;
+    e.preventDefault();
+    layoutEntry.x = Math.max(0, Math.min(1, layoutEntry.x + dx));
+    layoutEntry.y = Math.max(0, Math.min(1, layoutEntry.y + dy));
+    const newCx = rectX + layoutEntry.x * rectW;
+    const newCy = rectY + layoutEntry.y * rectH;
+    token.setAttribute("transform", `translate(${newCx.toFixed(1)}, ${newCy.toFixed(1)})`);
+    saveEntryLayout(entry.id, workingLayout);
+  });
+
+  // Reset button — clears entry.layout so the next ensure() call re-auto-generates.
+  const resetBtn = document.getElementById("layoutEditorResetBtn");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      if (!confirm(t("重置版面為自動排版？拖移過的位置會消失。",
+                     "Reset layout to auto-placement? Your drag positions will be lost."))) return;
+      resetEntryLayout(entry.id);
+      render();
+      applyLanguage();
+    });
+  }
+}
+
 function renderBudgetCard(entry) {
   const auto = autoPlantCostForEntry(entry);
   const b = ensureBudget(entry);
@@ -10420,19 +10763,26 @@ function renderDesignDashboard() {
       </div>
     </section>`;
 
-  // Layout snapshot — bigger version of the gallery thumbnail for in-context
-  // "this is what I designed" reference. The drag editor lands in R66/R67;
-  // for now we surface the same SVG renderer at a roomier viewport.
+  // R65: Drag-to-rearrange layout editor. Falls back to the static mini SVG
+  // when the design has no dimensions (can't edit what we can't draw).
   const layoutCard = `
     <section class="dash-section" aria-labelledby="ddashLayoutHead">
       <h2 id="ddashLayoutHead">
         <span data-zh="🎨 你的景觀" data-en="🎨 Your landscape">🎨 你的景觀</span>
         <span class="dash-section-sub"
-              data-zh="自動依層次排版 · 可拖移編輯即將推出"
-              data-en="auto-laid out by tier · drag-to-edit coming soon">自動依層次排版 · 可拖移編輯即將推出</span>
+              data-zh="拖移植物來調整位置 · 鍵盤方向鍵微調"
+              data-en="drag plants to rearrange · arrow keys nudge">拖移植物來調整位置 · 鍵盤方向鍵微調</span>
       </h2>
       <div class="ddash-layout-wrap">
-        ${renderDesignMiniSVG(snap)}
+        ${renderLayoutEditorSVG(entry)}
+        <div class="layout-editor-toolbar">
+          <button type="button" class="layout-editor-reset" id="layoutEditorResetBtn"
+                  data-zh="↺ 自動排版"
+                  data-en="↺ Auto-layout">↺ 自動排版</button>
+          <span class="layout-editor-hint"
+                data-zh="加入 / 移除植物 → 即將推出"
+                data-en="Add / remove plants → coming soon">加入 / 移除植物 → 即將推出</span>
+        </div>
       </div>
     </section>`;
 
@@ -10493,6 +10843,7 @@ function renderDesignDashboard() {
 
   wireDesignDashboard(entry);
   wireBudgetCard(entry);
+  wireLayoutEditor(entry);
   // The doctor and Q&A widgets bind their own listeners through the same
   // wirePersonalDashboard() they use on the global dashboard. Reusing it
   // keeps both surfaces in sync as those features evolve.
