@@ -10544,12 +10544,8 @@ function makeTokenId() {
 
 function ensureDesignLayout(entry) {
   if (Array.isArray(entry.layout) && entry.layout.length > 0) return entry.layout;
-  // R67 critic #3: auto-init AND PERSIST. Previous version returned a fresh
-  // PRNG'd array per call — render() and wireLayoutEditor() got two different
-  // arrays with mismatched tokenIds, so the first drag silently failed
-  // (`workingLayout.find(t => t.tokenId === X)` returned undefined).
-  // Now we generate once, write back to the entry, and saveDesignList so
-  // every subsequent caller sees the same identifiers.
+  // Auto-init from snap.qty AND persist back so render() + wireLayoutEditor()
+  // see identical tokenIds (without this, the first drag silently fails).
   const snap = entry.snapshot || {};
   const qtyMap = snap.qty || {};
   const w = Number(snap.widthM || 1), d = Number(snap.depthM || 1);
@@ -10597,14 +10593,6 @@ function saveEntryLayout(designId, layout) {
   const entry = list.designs.find(e => e.id === designId);
   if (!entry) return;
   entry.layout = layout;
-  saveDesignList(list);
-}
-
-function resetEntryLayout(designId) {
-  const list = loadDesignList();
-  const entry = list.designs.find(e => e.id === designId);
-  if (!entry) return;
-  entry.layout = []; // ensureDesignLayout will auto-init next read
   saveDesignList(list);
 }
 
@@ -10675,37 +10663,6 @@ function removeLayoutToken(designId, tokenId) {
 // 2. Plants suitable for the design's space + sun, so the picker leads
 //    with relevant species instead of dumping all 184.
 // 3. Everything else (filtered by search query when present).
-// R68 critic-fix #3: memoize the sun-ranked + alphabetized "others" list per
-// (designId, qtyMap signature) so search keystrokes only re-filter against
-// a cached array instead of re-sorting all 184 plants on every input.
-const _pickerOthersCache = new Map();
-function _pickerCacheKey(designId, snap, qtyMap) {
-  const ids = Object.keys(qtyMap || {}).sort().join(",");
-  return designId + "|" + (snap.sun || "") + "|" + ids;
-}
-function _getPickerOthers(designId, snap, qtyMap) {
-  const key = _pickerCacheKey(designId, snap, qtyMap);
-  if (_pickerOthersCache.has(key)) return _pickerOthersCache.get(key);
-  const inDesignIds = new Set(
-    Object.keys(qtyMap).filter(id => Number(qtyMap[id]) > 0)
-  );
-  const sunRank = (p) => {
-    if (!snap.sun) return 1;
-    return (p.sun || []).indexOf(snap.sun) >= 0 ? 0 : 1;
-  };
-  const sorted = PLANTS
-    .filter(p => !inDesignIds.has(p.id))
-    .sort((a, b) => sunRank(a) - sunRank(b) || (a.zh || "").localeCompare(b.zh || "", "zh-Hant"));
-  // Cap cache size — workspace can swap between designs but should never
-  // hold more than a few sorted arrays at a time.
-  if (_pickerOthersCache.size > 8) {
-    const oldestKey = _pickerOthersCache.keys().next().value;
-    _pickerOthersCache.delete(oldestKey);
-  }
-  _pickerOthersCache.set(key, sorted);
-  return sorted;
-}
-
 function renderLayoutPickerGrid(entry) {
   const snap = entry.snapshot || {};
   const qtyMap = snap.qty || {};
@@ -10718,16 +10675,27 @@ function renderLayoutPickerGrid(entry) {
         || (p.lt || "").toLowerCase().includes(q);
   };
 
-  // Bucket A: already in design (always filtered — small list, sub-millisecond).
-  const inDesign = Object.keys(qtyMap)
-    .filter(id => Number(qtyMap[id]) > 0 && PLANT_BY_ID[id])
+  const inDesignIds = new Set(
+    Object.keys(qtyMap).filter(id => Number(qtyMap[id]) > 0)
+  );
+
+  // Bucket A: already in design.
+  const inDesign = Array.from(inDesignIds)
     .map(id => PLANT_BY_ID[id])
+    .filter(Boolean)
     .filter(matches);
 
-  // Bucket B: not in design — use the memoized sun-ranked sorted list, then
-  // just filter against the query. Per-keystroke cost drops from O(n log n) to
-  // O(n).
-  const others = _getPickerOthers(entry.id, snap, qtyMap).filter(matches);
+  // Bucket B: not in design — sun-ranked then alphabetical, filtered by query.
+  // ~200 plants × cheap compare; sub-millisecond and runs only when the
+  // picker is open + on each keystroke. No memoization theatre.
+  const sunRank = (p) => {
+    if (!snap.sun) return 1;
+    return (p.sun || []).indexOf(snap.sun) >= 0 ? 0 : 1;
+  };
+  const others = PLANTS
+    .filter(p => !inDesignIds.has(p.id))
+    .filter(matches)
+    .sort((a, b) => sunRank(a) - sunRank(b) || (a.zh || "").localeCompare(b.zh || "", "zh-Hant"));
 
   // Cap the visible list so we don't ship 200 cards into the DOM on first paint.
   // Search narrows it; without a query we show top 40 others.
@@ -11250,7 +11218,10 @@ function wireLayoutEditor(entry) {
     resetBtn.addEventListener("click", () => {
       if (!confirm(t("重置版面為自動排版？拖移過的位置會消失。",
                      "Reset layout to auto-placement? Your drag positions will be lost."))) return;
-      resetEntryLayout(entry.id);
+      // Clear entry.layout; ensureDesignLayout auto-inits on next read.
+      const list = loadDesignList();
+      const e2 = list.designs.find(e => e.id === entry.id);
+      if (e2) { e2.layout = []; saveDesignList(list); }
       render();
       applyLanguage();
     });
