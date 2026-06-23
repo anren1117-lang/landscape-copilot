@@ -3929,6 +3929,79 @@
     background: #8C2A22; color: var(--paper); border-color: #8C2A22;
   }
 
+  /* R72: Share this design — link / QR / LINE */
+  .ddash-share-card {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .ddash-share-url-row {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .ddash-share-url {
+    flex: 1; min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid rgba(110,126,96,0.30);
+    border-radius: 8px;
+    background: rgba(196,210,176,0.08);
+    font-family: monospace, ui-monospace, SFMono-Regular;
+    font-size: 11px;
+    color: var(--forest);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ddash-share-url:focus {
+    outline: none;
+    border-color: var(--sage-deep);
+    box-shadow: 0 0 0 3px rgba(110,126,96,0.15);
+  }
+  .ddash-share-actions {
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .ddash-share-btn {
+    flex: 1; min-width: 130px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: center;
+    text-decoration: none;
+    border: 1px solid rgba(110,126,96,0.30);
+    background: var(--paper);
+    color: var(--forest);
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  .ddash-share-btn:hover {
+    background: var(--sage-deep);
+    color: var(--paper);
+    border-color: var(--sage-deep);
+  }
+  .ddash-share-btn.ddash-share-line {
+    background: #06C755;
+    color: white;
+    border-color: #06C755;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .ddash-share-btn.ddash-share-line:hover {
+    background: #05A647;
+    border-color: #05A647;
+  }
+  .ddash-share-hint {
+    font-size: 11px;
+    color: var(--clay);
+    font-style: italic;
+    line-height: 1.5;
+    margin-top: 2px;
+  }
+  @media (max-width: 480px) {
+    .ddash-share-btn { min-width: 0; }
+    .ddash-share-url { font-size: 10.5px; }
+  }
+  @media print { .ddash-share-card { display: none !important; } }
+
   /* Journal wrap — strip the My-Designs-card padding so it sits flush */
   .ddash-journal-wrap {
     background: var(--paper);
@@ -11633,6 +11706,58 @@ function renderDesignDashboard() {
       </div>
     </section>`;
 
+  // R72: Share this design — builds a URL with the design's snapshot
+  // encoded into the #d= hash so recipients see the same design when they
+  // open the link. Reuses the existing encoder + LINE / clipboard / QR
+  // infrastructure but doesn't depend on the user being on the result page.
+  const shareUrl = (() => {
+    try {
+      const s = JSON.stringify(entry.snapshot || {});
+      return `${location.origin}${location.pathname}#${HASH_KEY}=${btoa(encodeURIComponent(s))}`;
+    } catch (_) { return location.href; }
+  })();
+  const lineText = state.lang === "zh"
+    ? `我用 AI Landscape Copilot 設計了一個花園：「${entry.name}」— 看看吧 → ${shareUrl}`
+    : `I designed a garden with AI Landscape Copilot: "${entry.name}" — check it out → ${shareUrl}`;
+  const lineHref = `https://line.me/R/share?text=${encodeURIComponent(lineText)}`;
+  const shareCard = `
+    <section class="dash-section" aria-labelledby="ddashShareHead">
+      <h2 id="ddashShareHead">
+        <span data-zh="📤 分享這個設計" data-en="📤 Share this design">📤 分享這個設計</span>
+        <span class="dash-section-sub"
+              data-zh="連結內含完整快照 · 收件人不需註冊"
+              data-en="link carries the full snapshot · no signup needed">連結內含完整快照 · 收件人不需註冊</span>
+      </h2>
+      <div class="ddash-share-card">
+        <div class="ddash-share-url-row">
+          <input type="text" id="ddashShareUrl"
+                 class="ddash-share-url"
+                 readonly
+                 value="${escapeHtml(shareUrl)}"
+                 aria-label="${escapeHtml(t('分享連結', 'Share link'))}">
+        </div>
+        <div class="ddash-share-actions">
+          <button type="button" class="ddash-share-btn ddash-share-copy"
+                  id="ddashShareCopyBtn"
+                  data-zh="🔗 複製連結"
+                  data-en="🔗 Copy link">🔗 複製連結</button>
+          <a class="ddash-share-btn ddash-share-line"
+             href="${escapeHtml(lineHref)}"
+             target="_blank" rel="noopener"
+             id="ddashShareLineBtn"
+             data-zh="💬 分享到 LINE"
+             data-en="💬 Share to LINE">💬 分享到 LINE</a>
+          <button type="button" class="ddash-share-btn ddash-share-qr"
+                  id="ddashShareQRBtn"
+                  data-zh="📱 顯示 QR Code"
+                  data-en="📱 Show QR code">📱 顯示 QR Code</button>
+        </div>
+        <div class="ddash-share-hint"
+             data-zh="* 快照只在連結裡 — 不上傳到任何伺服器。收件人看到的是 dataset 一致的同一個花園。"
+             data-en="* The snapshot lives in the link only — never uploaded. Recipients see the same garden you do.">* 快照只在連結裡 — 不上傳到任何伺服器。收件人看到的是 dataset 一致的同一個花園。</div>
+      </div>
+    </section>`;
+
   // Settings / edit params — opens existing R59 modal scoped to this design.
   const settingsCard = `
     <section class="dash-section" aria-labelledby="ddashSettingsHead">
@@ -11686,6 +11811,7 @@ function renderDesignDashboard() {
       ${todayCard}
       ${layoutCard}
       ${budgetCard}
+      ${shareCard}
       ${settingsCard}
       ${journalCard}
       ${doctorCard}
@@ -11851,6 +11977,70 @@ function wireDesignDashboard(entry) {
   // listeners via the existing wiring helper. We scoped the inline render
   // to one design, so handler selectors target exactly that entry's IDs.
   wireJournalForEntry(entry.id);
+
+  // R72: Share buttons — copy URL to clipboard, open LINE deep-link, show QR.
+  // The URL was baked into the input's value at render time; LINE href is on
+  // the <a> tag. Copy + QR fire from the input value to stay consistent if
+  // the URL has been edited (it shouldn't — readonly — but defence in depth).
+  const shareCopyBtn = document.getElementById("ddashShareCopyBtn");
+  if (shareCopyBtn) shareCopyBtn.addEventListener("click", async () => {
+    const urlInput = document.getElementById("ddashShareUrl");
+    const url = urlInput ? urlInput.value : location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      const original = shareCopyBtn.innerHTML;
+      shareCopyBtn.innerHTML = `✓ <span>${state.lang === "zh" ? "已複製" : "Copied"}</span>`;
+      setTimeout(() => { shareCopyBtn.innerHTML = original; applyLanguage(); }, 1800);
+    } catch (e) {
+      // Clipboard API blocked (insecure context / Safari) — fall back to a prompt.
+      prompt(state.lang === "zh" ? "請手動複製此連結：" : "Please copy this link:", url);
+    }
+  });
+
+  const shareQRBtn = document.getElementById("ddashShareQRBtn");
+  if (shareQRBtn) shareQRBtn.addEventListener("click", () => {
+    // Use the design-specific URL we built, NOT location.href (which is the
+    // dashboard route, not the design).
+    const urlInput = document.getElementById("ddashShareUrl");
+    const url = urlInput ? urlInput.value : location.href;
+    openQRModalForUrl(url);
+  });
+}
+
+// R72: variant of openQRModal that takes an explicit URL instead of
+// location.href, so the per-design dashboard share button QRs the correct
+// snapshot link. Mirrors the global modal shape exactly.
+function openQRModalForUrl(url) {
+  if (typeof closeQRModal === "function") closeQRModal();
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(url)}`;
+  const isZh = state.lang === "zh";
+  const titleText = isZh ? "分享連結 QR Code" : "Share link QR code";
+  const closeText = isZh ? "關閉" : "Close";
+  const altText   = isZh ? "分享連結的 QR Code 圖片" : "QR code image for share link";
+  const footText  = isZh
+    ? "QR 圖片由 qrserver.com 即時產生（外部服務）。"
+    : "QR image generated on demand by qrserver.com (external service).";
+  const overlay = document.createElement("div");
+  overlay.className = "qr-overlay";
+  overlay.id = "qrOverlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", titleText);
+  overlay.innerHTML = `
+    <div class="qr-modal">
+      <button class="qr-close" id="qrCloseBtn" aria-label="${closeText}">✕</button>
+      <h3 class="qr-title">${titleText}</h3>
+      <img class="qr-img" src="${qrSrc}" alt="${altText}" />
+      <div class="qr-foot">${footText}</div>
+    </div>`;
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay && typeof closeQRModal === "function") closeQRModal();
+  });
+  document.body.appendChild(overlay);
+  const close = document.getElementById("qrCloseBtn");
+  if (close) close.addEventListener("click", () => {
+    if (typeof closeQRModal === "function") closeQRModal();
+  });
 }
 
 // Slimmer wire helper for the journal CRUD on the per-design dashboard.
