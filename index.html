@@ -10207,9 +10207,15 @@ function renderDesignMiniSVG(snap, layoutOverride) {
   let plantsHtml;
   let totalCount = 0;
   if (Array.isArray(layoutOverride) && layoutOverride.length > 0) {
+    // R71 critic #7: count only tokens that still resolve to an existing plant.
+    // If a saved layout references plantIds that have since been removed from
+    // PLANTS, we used to suppress the "no plants yet" fallback because
+    // layoutOverride.length > 0, leaving a blank rectangle.
+    let renderedCount = 0;
     plantsHtml = layoutOverride.slice(0, 30).map(token => {
       const plant = PLANT_BY_ID[token.plantId];
       if (!plant) return "";
+      renderedCount++;
       const cx = rectX + Number(token.x) * rectW;
       const cy = rectY + Number(token.y) * rectH;
       const r = 5.5; // uniform small for the thumbnail
@@ -10220,7 +10226,7 @@ function renderDesignMiniSVG(snap, layoutOverride) {
         <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="0.82" stroke="${color}" stroke-width="0.6"/>
         ${isNative ? `<circle cx="${(cx + r * 0.55).toFixed(1)}" cy="${(cy - r * 0.55).toFixed(1)}" r="1.7" fill="#2D8B5C"/>` : ""}`;
     }).join("");
-    totalCount = layoutOverride.length;
+    totalCount = renderedCount;
   } else {
     // Fallback: tier-stacked PRNG (original gallery path).
     const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
@@ -10259,16 +10265,21 @@ function renderDesignMiniSVG(snap, layoutOverride) {
           text-anchor="middle" font-size="10" font-family="serif" font-style="italic"
           fill="rgba(110,126,96,0.55)">no plants yet</text>` : "";
 
+  // R71 critic #8: unique pattern id per render so two gallery cards with the
+  // same widthM×depthM don't collide on `url(#mini-grid-1500)`. Math.random gives
+  // a per-call suffix; collision odds across N cards on one render are
+  // vanishing for any reasonable N.
+  const gridId = "mini-grid-" + Math.round(w * 1000 + d) + "-" + Math.random().toString(36).slice(2, 7);
   return `
     <svg viewBox="0 0 ${vbW} ${vbH}" class="design-mini-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <defs>
-        <pattern id="mini-grid-${Math.round(w * 1000 + d)}" width="18" height="18" patternUnits="userSpaceOnUse">
+        <pattern id="${gridId}" width="18" height="18" patternUnits="userSpaceOnUse">
           <path d="M 18 0 L 0 0 0 18" fill="none" stroke="rgba(110,126,96,0.10)" stroke-width="0.5"/>
         </pattern>
       </defs>
       <rect x="0" y="0" width="${vbW}" height="${vbH}" fill="${bgTint}" rx="8"/>
       <rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}" width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}"
-            fill="url(#mini-grid-${Math.round(w * 1000 + d)})"
+            fill="url(#${gridId})"
             stroke="rgba(110,126,96,0.50)" stroke-width="1" rx="4"/>
       ${plantsHtml}
       ${emptyStateHtml}
@@ -10389,6 +10400,10 @@ function openDesignDashboard(designId) {
   // R67 critic #1: reset layout editor transient state on every entry so
   // design A's placing banner / selected token doesn't bleed into design B.
   state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
+  // R71 critic #5: opening a saved design from the gallery clears any
+  // in-flight wizard pendingSnapshot — otherwise the welcome-back banner
+  // re-appears for an "unsaved" wizard that the user has clearly moved past.
+  state.pendingSnapshot = null;
   state.view = "designDashboard";
   setActiveDesignId(designId);
   render();
@@ -11661,8 +11676,12 @@ function renderDesignDashboard() {
   // R64: Budget editor — plants auto + user line items + target.
   const budgetCard = renderBudgetCard(entry);
 
+  // R71 critic #1 (HIGH): the workspace wrapper used to share id="personalDashboard"
+  // with the global home dashboard. renderPersonalDashboardInPlace (Doctor handlers,
+  // etc) used getElementById("personalDashboard") and replaceWith global-home HTML,
+  // stomping the workspace contents mid-interaction. Distinct id = workspace stays.
   app.innerHTML = `
-    <div class="fade-up personal-dashboard" id="personalDashboard">
+    <div class="fade-up personal-dashboard" id="designDashboardRoot">
       ${header}
       ${todayCard}
       ${layoutCard}
@@ -11819,6 +11838,10 @@ function wireDesignDashboard(entry) {
     delete state.journalExpanded[entry.id];
     state.view = "home";
     state.designDashboardId = null;
+    // R71 critic #2: clear in-memory activeDesignId — deleteDesignById
+    // nulled list.activeId but state.activeDesignId still points at the
+    // now-deleted entry until we explicitly null it.
+    if (state.activeDesignId === entry.id) state.activeDesignId = null;
     state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
     render();
     applyLanguage();
@@ -11888,6 +11911,11 @@ function wireJournalForEntry(designId) {
 }
 
 function renderPersonalDashboardInPlace() {
+  // R71 critic #1: explicitly target the GLOBAL home dashboard, never the
+  // per-design workspace (which now has its own id). If Doctor/Q&A handlers
+  // fire from inside the workspace, we route through full render() instead so
+  // the workspace contents aren't replaced by global-home HTML.
+  if (state.view === "designDashboard") { render(); return; }
   const dash = document.getElementById("personalDashboard");
   if (!dash) return;
   // Preserve focus + ephemeral form picks across re-renders:
@@ -19657,9 +19685,13 @@ document.getElementById("langToggle").addEventListener("click", () => {
 document.getElementById("brandHomeBtn").addEventListener("click", () => {
   if (state.view === "home") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   state.view = "home";
-  // R67 critic #2: clear per-design dashboard transient state on brand-home so
-  // a re-entry next session doesn't open into a stale focused design.
+  // R67 critic #2 / R71 critic #2: clear all per-design transient state on
+  // brand-home so a re-entry next session doesn't open into a stale focused
+  // design AND so state.activeDesignId doesn't keep pointing at the just-left
+  // design (the LIST_KEY mirror also has activeId, but our in-memory copy
+  // is what `persistDashboard` and resume flows read first).
   state.designDashboardId = null;
+  state.activeDesignId = null;
   state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
   if (typeof closeDrawer === "function") closeDrawer();
   render();
