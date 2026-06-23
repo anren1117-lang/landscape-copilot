@@ -10147,7 +10147,11 @@ function buildDashQAContext() {
       lines.push("Also has: " + others.map(o => `"${o.name}"`).join(", "));
     }
   } else {
-    list.designs.slice(0, 5).forEach((entry, idx) => {
+    // R74 (R71 critic #6 fix): bump the silent slice from 5 → 10 designs and
+    // append a "...and N more" line when truncated, so the AI is at least
+    // aware its context is partial instead of being told the user only has 5.
+    const HOME_QA_CONTEXT_CAP = 10;
+    list.designs.slice(0, HOME_QA_CONTEXT_CAP).forEach((entry, idx) => {
       const sum = designSummary(entry.snapshot);
       if (!sum) return;
       const snap = entry.snapshot || {};
@@ -10157,6 +10161,10 @@ function buildDashQAContext() {
       const area = (Number(snap.widthM) * Number(snap.depthM) || 0).toFixed(1);
       lines.push(`${idx + 1}. "${entry.name}" — ${area}m² ${spaceLabel}, ${sunLabel}, top plants: ${topPlantNames || "n/a"}.`);
     });
+    const overflow = list.designs.length - HOME_QA_CONTEXT_CAP;
+    if (overflow > 0) {
+      lines.push(`(...and ${overflow} more design${overflow === 1 ? "" : "s"} not shown here)`);
+    }
   }
   return lines.join("\n");
 }
