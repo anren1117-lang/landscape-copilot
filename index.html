@@ -10638,10 +10638,17 @@ function makeTokenId() {
   return "tk_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
 }
 
-function ensureDesignLayout(entry) {
+// R76: explicit `persist` parameter. Default false so any future caller is
+// safe — only the workspace render + wire path needs persistence (so the
+// SVG and the drag handler share the same tokenIds). Read-only callers
+// (gallery aggregators, summary, etc.) pass nothing and get a fresh in-
+// memory array with no localStorage side effect.
+function ensureDesignLayout(entry, opts) {
   if (Array.isArray(entry.layout) && entry.layout.length > 0) return entry.layout;
-  // Auto-init from snap.qty AND persist back so render() + wireLayoutEditor()
-  // see identical tokenIds (without this, the first drag silently fails).
+  const persist = !!(opts && opts.persist);
+  // Auto-init from snap.qty AND (when persist=true) write back so render() +
+  // wireLayoutEditor() see identical tokenIds (without that, the first drag
+  // silently fails).
   const snap = entry.snapshot || {};
   const qtyMap = snap.qty || {};
   const w = Number(snap.widthM || 1), d = Number(snap.depthM || 1);
@@ -10665,10 +10672,10 @@ function ensureDesignLayout(entry) {
     }
     if (layout.length >= LAYOUT_MAX_TOKENS) break;
   }
-  // Persist so subsequent reads (renderLayoutEditorSVG + wireLayoutEditor)
-  // see the same tokenIds. If entry is detached (no id on the list), skip
-  // the save — read-only callers like the gallery thumbnail go this path.
-  if (entry.id && layout.length > 0) {
+  // Persist only when the caller asked for it AND the entry has an id we can
+  // find on the list. Read-only callers leave persist=false and get the
+  // in-memory layout without touching localStorage.
+  if (persist && entry.id && layout.length > 0) {
     try {
       entry.layout = layout;
       const list = loadDesignList();
@@ -10941,7 +10948,10 @@ function renderLayoutEditorSVG(entry) {
   if (snap.sun === "shade") bgTint = "rgba(70,90,80,0.14)";
   if (snap.sun === "full")  bgTint = "rgba(245,210,140,0.18)";
 
-  const layout = ensureDesignLayout(entry);
+  // R76: opt into persistence — the SVG's tokenIds must match what
+  // wireLayoutEditor reads next for the first drag to work. Other (read-
+  // only) callers leave the default and don't write to localStorage.
+  const layout = ensureDesignLayout(entry, { persist: true });
 
   const selectedTokenId = state.layoutEditor && state.layoutEditor.selectedTokenId;
   const tokensHtml = layout.map(token => {
@@ -11016,8 +11026,11 @@ function wireLayoutEditor(entry) {
 
   // Pull a working copy so drag rendering doesn't keep re-reading from
   // localStorage. Only save back on pointerup. Defensive deep slice — we
-  // never mutate the persisted array directly.
-  let workingLayout = ensureDesignLayout(entry).map(t => ({ ...t }));
+  // never mutate the persisted array directly. persist=true is defence-
+  // in-depth: renderLayoutEditorSVG already persisted on its first paint,
+  // but if for some reason it didn't (e.g. someone called wireLayoutEditor
+  // standalone), this guarantees the in-memory and persisted layouts match.
+  let workingLayout = ensureDesignLayout(entry, { persist: true }).map(t => ({ ...t }));
 
   let activeToken = null;
   let dragOffset = null;  // SVG-space offset from pointer to token center
