@@ -1,0 +1,53 @@
+# Deploy the static site to GitHub Pages on every push to main.
+#
+# `actions/configure-pages@v5` with `enablement: true` auto-enables Pages on
+# the first run, so this workflow doubles as a "turn the site on" trigger
+# without anyone having to click in the repo settings UI.
+#
+# The whole repo root is a single index.html + LICENSE; we upload everything
+# and let GitHub Pages serve it.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one Pages deploy at a time. In-progress deploys finish; queued
+# extras are cancelled so we always ship the latest commit.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Auto-enable Pages on the first run if it isn't enabled yet —
+          # this is what avoids a manual toggle in repo settings.
+          enablement: true
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Repo root is the site. index.html sits there.
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
