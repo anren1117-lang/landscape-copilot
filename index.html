@@ -11571,16 +11571,28 @@ function ensureDesignLayout(entry, opts) {
     .sort((a, b) => (b.plant.tier || 0) - (a.plant.tier || 0));
   const rand = _miniSvgRand(Math.round(w * 1000 + d * 7 + plantEntries.length * 13));
   const layout = [];
+  // R87: auto-init respects the shape. For non-rect shapes we reject any
+  // randomly chosen (x, y) that falls outside the shape interior and retry.
+  // Done in unit-rect coords (0..1) so the shape test reads naturally.
+  const shape = (snap.shape === "L" || snap.shape === "round") ? snap.shape : "rect";
+  const inUnitShape = (x, y) => pointInShape(shape, x, y, 0, 0, 1, 1);
   for (const e of plantEntries) {
     const tier = e.plant.tier || 1;
     const yFraction = 1 - Math.min(4, tier - 1) / 4;
     const qty = Math.min(e.qty, 8);  // cap per-species at 8 tokens to keep the canvas readable
     for (let i = 0; i < qty; i++) {
       if (layout.length >= LAYOUT_MAX_TOKENS) break;
-      const yJ = (rand() - 0.5) * 0.20;
-      const y = Math.max(0.06, Math.min(0.94, yFraction + yJ));
-      const x = 0.06 + rand() * 0.88;
+      // Up to 6 tries to land inside the shape; otherwise fall back to a
+      // bounding-rect placement (still valid — outline is informational).
+      let x = 0, y = 0, ok = false;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const yJ = (rand() - 0.5) * 0.20;
+        y = Math.max(0.06, Math.min(0.94, yFraction + yJ));
+        x = 0.06 + rand() * 0.88;
+        if (inUnitShape(x, y)) { ok = true; break; }
+      }
       layout.push({ tokenId: makeTokenId(), plantId: e.id, x, y });
+      void ok; // retry success was used to break; tracked here for clarity
     }
     if (layout.length >= LAYOUT_MAX_TOKENS) break;
   }
@@ -11774,6 +11786,68 @@ function shapeOutlineSVG(shape, rectX, rectY, rectW, rectH, opts) {
   return `<rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}"
                 width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}"
                 fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" rx="${radius}"/>`;
+}
+
+// R87: point-in-shape test. (x, y) and the rect are all in SVG-space.
+// Returns true if the point falls inside the shape's interior.
+function pointInShape(shape, x, y, rectX, rectY, rectW, rectH) {
+  if (shape === "round") {
+    const cx = rectX + rectW / 2, cy = rectY + rectH / 2;
+    const r = Math.min(rectW, rectH) / 2;
+    const dx = x - cx, dy = y - cy;
+    return (dx * dx + dy * dy) <= r * r;
+  }
+  if (shape === "L") {
+    // Bounding box check first.
+    if (x < rectX || x > rectX + rectW || y < rectY || y > rectY + rectH) return false;
+    // The cutout is the upper-right 40% × 40% region — point is OUTSIDE
+    // the L if it falls inside the cutout.
+    const cutW = rectW * 0.4, cutH = rectH * 0.4;
+    const inCutout = x > rectX + rectW - cutW && y < rectY + cutH;
+    return !inCutout;
+  }
+  // rect default
+  return x >= rectX && x <= rectX + rectW && y >= rectY && y <= rectY + rectH;
+}
+
+// R87: nudge a (potentially out-of-shape) point onto the nearest point
+// that IS inside the shape. For rect/round we have closed-form solutions;
+// for L we step toward the bounding rect's center until we're inside the
+// shape (rare since drag clamp already keeps us in the bounding rect).
+function clampToShape(shape, x, y, rectX, rectY, rectW, rectH) {
+  // Always clamp to bounding rect first.
+  x = Math.max(rectX, Math.min(rectX + rectW, x));
+  y = Math.max(rectY, Math.min(rectY + rectH, y));
+  if (pointInShape(shape, x, y, rectX, rectY, rectW, rectH)) return { x, y };
+  if (shape === "round") {
+    // Project to circle perimeter.
+    const cx = rectX + rectW / 2, cy = rectY + rectH / 2;
+    const r = Math.min(rectW, rectH) / 2;
+    const dx = x - cx, dy = y - cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return { x: cx, y: cy };
+    return {
+      x: cx + (dx / dist) * (r - 0.5),
+      y: cy + (dy / dist) * (r - 0.5),
+    };
+  }
+  if (shape === "L") {
+    // Point is in the L's cutout region. Nudge to the nearest edge of the
+    // cutout (left edge or bottom edge of the cutout). Whichever is closer.
+    const cutW = rectW * 0.4, cutH = rectH * 0.4;
+    const leftEdge = rectX + rectW - cutW;  // left edge of cutout
+    const bottomEdge = rectY + cutH;        // bottom edge of cutout
+    const distLeft = x - leftEdge;          // how far past the left edge
+    const distBottom = bottomEdge - y;      // how far above the bottom edge
+    if (distLeft < distBottom) {
+      // Closer to the left edge of the cutout — snap left.
+      return { x: leftEdge - 0.5, y };
+    } else {
+      // Closer to the bottom edge — snap down.
+      return { x, y: bottomEdge + 0.5 };
+    }
+  }
+  return { x, y };
 }
 
 function announceLayoutChange(msg) {
@@ -12199,9 +12273,14 @@ function wireLayoutEditor(entry) {
     const pt = svgPointFromClient(e.clientX, e.clientY);
     const newCx = pt.x + dragOffset.x;
     const newCy = pt.y + dragOffset.y;
-    // Clamp inside the space rectangle so plants never end up "off the lot".
-    const clampedX = Math.max(rectX, Math.min(rectX + rectW, newCx));
-    const clampedY = Math.max(rectY, Math.min(rectY + rectH, newCy));
+    // R87: clamp to the actual shape interior, not just the bounding rect.
+    // This catches L cutouts + round exterior. Falls back to rect clamp for
+    // shape === "rect", so existing designs behave identically.
+    const snap = entry.snapshot || {};
+    const shape = (snap.shape === "L" || snap.shape === "round") ? snap.shape : "rect";
+    const clamped = clampToShape(shape, newCx, newCy, rectX, rectY, rectW, rectH);
+    const clampedX = clamped.x;
+    const clampedY = clamped.y;
     activeToken.setAttribute("transform", `translate(${clampedX.toFixed(1)}, ${clampedY.toFixed(1)})`);
     const idx = workingLayout.findIndex(t => t.tokenId === dragTokenId);
     if (idx >= 0) {
@@ -12216,9 +12295,13 @@ function wireLayoutEditor(entry) {
       const upPt = svgPointFromClient(e.clientX, e.clientY);
       const dx = upPt.x - downAtPoint.x, dy = upPt.y - downAtPoint.y;
       const isTap = Math.hypot(dx, dy) < 3;
-      const insideRect = upPt.x >= rectX && upPt.x <= rectX + rectW
-                      && upPt.y >= rectY && upPt.y <= rectY + rectH;
-      if (isTap && state.layoutEditor.placingPlantId && insideRect) {
+      // R87: tap-place gate now uses the actual shape interior, not just
+      // the bounding rect. Tapping in the L's cutout corner won't drop a
+      // plant there; tapping outside the round won't either.
+      const snap = entry.snapshot || {};
+      const shape = (snap.shape === "L" || snap.shape === "round") ? snap.shape : "rect";
+      const insideShape = pointInShape(shape, upPt.x, upPt.y, rectX, rectY, rectW, rectH);
+      if (isTap && state.layoutEditor.placingPlantId && insideShape) {
         const nx = (upPt.x - rectX) / rectW;
         const ny = (upPt.y - rectY) / rectH;
         const placedPlantId = state.layoutEditor.placingPlantId;
