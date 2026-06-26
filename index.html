@@ -11580,6 +11580,33 @@ function autoPlantCostForEntry(entry) {
   return { lines, total };
 }
 
+// R90: aggregate landscape-element costs from entry.layout. Returns
+// { lines: [{element, qty, unit, subtotal}], total }. Walks the layout
+// (not snap.qty — elements don't pollute the qty mirror) and groups by
+// elementId so the budget table shows one row per element kind.
+function autoElementCostForEntry(entry) {
+  if (!entry || !Array.isArray(entry.layout)) return { lines: [], total: 0 };
+  const counts = new Map();
+  entry.layout.forEach(t => {
+    const kind = t.kind || (t.elementId ? "element" : "plant");
+    if (kind !== "element") return;
+    const id = t.elementId || t.id;
+    if (!id) return;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  });
+  const lines = [];
+  let total = 0;
+  counts.forEach((qty, id) => {
+    const el = ELEMENT_BY_ID[id];
+    if (!el || !el.cost) return;
+    const subtotal = qty * Number(el.cost);
+    total += subtotal;
+    lines.push({ element: el, qty, unit: Number(el.cost), subtotal });
+  });
+  lines.sort((a, b) => b.subtotal - a.subtotal);
+  return { lines, total };
+}
+
 function ensureBudget(entry) {
   if (!entry.budget || typeof entry.budget !== "object") {
     entry.budget = { target: 0, items: [] };
@@ -12953,9 +12980,13 @@ function wireLayoutEditor(entry) {
 
 function renderBudgetCard(entry) {
   const auto = autoPlantCostForEntry(entry);
+  // R90: pull element costs into the grand total + as a separate budget
+  // section so users see the full landscape build cost (plants + hardscape +
+  // furniture + lighting) at a glance.
+  const autoEl = autoElementCostForEntry(entry);
   const b = ensureBudget(entry);
   const userTotal = b.items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.unit) || 0), 0);
-  const grandTotal = auto.total + userTotal;
+  const grandTotal = auto.total + autoEl.total + userTotal;
   const target = Number(b.target) || 0;
   const hasTarget = target > 0;
   const overBudget = hasTarget && grandTotal > target;
@@ -13037,6 +13068,32 @@ function renderBudgetCard(entry) {
           </thead>
           <tbody>${autoRowsHtml}</tbody>
         </table>
+        ${autoEl.lines.length > 0 ? `
+          <div class="ddash-budget-section-label"
+               data-zh="🏗 景觀元素 (依版面配置)"
+               data-en="🏗 Landscape elements (from layout)">🏗 景觀元素 (依版面配置)</div>
+          <table class="ddash-budget-table">
+            <thead>
+              <tr>
+                <th data-zh="項目" data-en="Item">項目</th>
+                <th class="ddash-budget-num" data-zh="數量" data-en="Qty">數量</th>
+                <th class="ddash-budget-num" data-zh="單價" data-en="Unit">單價</th>
+                <th class="ddash-budget-num" data-zh="小計" data-en="Subtotal">小計</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${autoEl.lines.map(l => `
+                <tr>
+                  <td class="ddash-budget-name"
+                      data-zh="${escapeHtml((l.element.glyph || "") + " " + l.element.zh)}"
+                      data-en="${escapeHtml((l.element.glyph || "") + " " + l.element.en)}">${escapeHtml((l.element.glyph || "") + " " + l.element.zh)}</td>
+                  <td class="ddash-budget-num">${l.qty}</td>
+                  <td class="ddash-budget-num">${fmt(l.unit)}</td>
+                  <td class="ddash-budget-num">${fmt(l.subtotal)}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+        ` : ""}
         <div class="ddash-budget-section-label"
              data-zh="📦 其他項目 (土壤、容器、灌溉…)"
              data-en="📦 Other items (soil, containers, irrigation…)">📦 其他項目 (土壤、容器、灌溉…)</div>
@@ -13179,9 +13236,12 @@ function rerenderBudgetTotals(entry) {
   const fresh = loadDesignById(entry.id);
   if (!fresh) return;
   const auto = autoPlantCostForEntry(fresh);
+  // R90: include landscape elements in the grand total so the bar/remaining
+  // text stays in sync with the budget card's expanded section.
+  const autoEl = autoElementCostForEntry(fresh);
   const b = ensureBudget(fresh);
   const userTotal = b.items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.unit) || 0), 0);
-  const grandTotal = auto.total + userTotal;
+  const grandTotal = auto.total + autoEl.total + userTotal;
   const target = Number(b.target) || 0;
   const hasTarget = target > 0;
   const overBudget = hasTarget && grandTotal > target;
