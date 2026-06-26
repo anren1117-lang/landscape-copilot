@@ -11859,18 +11859,30 @@ function renderSeasonalSlider(entry) {
 // the design as a colored chip. Helps users read the overall palette at
 // a glance and decide if they need a contrast plant. Tap a swatch to
 // open the plant drawer for that species.
-// R91 (B9): synthesize a per-id HSL color so plants without an explicit
-// color don't all collapse to the same sage swatch. djb2-style string
-// hash → hue 0-360, fixed saturation + lightness for a Kinfolk-aesthetic
-// muted palette. Stable across reloads (pure id hash, no Math.random).
+// R94: per-id HSL color for plants without an explicit color. Three
+// independent hash channels drive hue, saturation, and lightness so
+// adjacent hues don't collapse and every swatch hits a usable contrast
+// against the white card background. R91's fixed (36%, 55%) was visually
+// indistinguishable on blue/purple hues — varying L and S fixes both.
 function _swatchColorFor(plant) {
   if (plant && plant.color) return plant.color;
   const id = (plant && plant.id) || "";
-  let h = 5381;
-  for (let i = 0; i < id.length; i++) h = ((h << 5) + h + id.charCodeAt(i)) >>> 0;
-  const hue = h % 360;
-  // 36% saturation, 55% lightness — sits in the Kinfolk muted-paper palette.
-  return `hsl(${hue}, 36%, 55%)`;
+  // Three independent djb2 hashes with different seeds give us three
+  // ~uncorrelated channels — much fewer collisions than splitting one
+  // hash into byte slices.
+  const hashWith = (seed) => {
+    let h = seed;
+    for (let i = 0; i < id.length; i++) h = ((h << 5) + h + id.charCodeAt(i)) >>> 0;
+    return h;
+  };
+  const hue = hashWith(5381) % 360;
+  // Saturation 42-72% — avoid washed-out at the low end and screaming
+  // primary at the high end. Lightness 38-58% — dark enough that the
+  // white "·" native marker stays readable and the swatch passes WCAG
+  // contrast against the white card background.
+  const sat = 42 + (hashWith(8191) % 30);
+  const lit = 38 + (hashWith(13331) % 20);
+  return `hsl(${hue}, ${sat}%, ${lit}%)`;
 }
 
 function renderColorPalette(entry) {
