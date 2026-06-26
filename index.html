@@ -9509,6 +9509,12 @@ function cloneDesign(sourceId) {
   if (Array.isArray(cloned.layout)) {
     cloned.layout = cloned.layout.map(t => ({ ...t, tokenId: makeTokenId() }));
   }
+  // R93 B6: fresh per-design state on the variant — the user shouldn't
+  // inherit the source's "✓ Today's care done" checkmarks or journal
+  // entries. The plan, plants, and budget are the variant's interesting
+  // starting point; the diary is not.
+  delete cloned.dailyDone;
+  delete cloned.journal;
   list.designs.unshift(cloned);
   list.activeId = newId;
   saveDesignList(list);
@@ -11532,7 +11538,7 @@ function openDesignDashboard(designId) {
   // design A's placing banner / selected token doesn't bleed into design B.
   // R88 B8: keep showLabels + undoStack + previewMonth + pickerQuery in the
   // reset so design A's slider position doesn't apply to design B's canvas.
-  state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
+  state.layoutEditor = { placingPlantId: null, placingElementId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", pickerTab: "plant", showLabels: false, undoStack: [], previewMonth: null };
   // R71 critic #5: opening a saved design from the gallery clears any
   // in-flight wizard pendingSnapshot — otherwise the welcome-back banner
   // re-appears for an "unsaved" wizard that the user has clearly moved past.
@@ -12697,8 +12703,11 @@ function wireLayoutEditor(entry) {
       saveEntryLayout(entry.id, workingLayout);
     } else {
       // Tap (no drag) on an existing token → select it, surface the action bar.
+      // R93 B4: clear element placement too — otherwise the placing banner
+      // lingers behind the new action bar showing a stale element mode.
       state.layoutEditor.selectedTokenId = tokenId;
       state.layoutEditor.placingPlantId = null;
+      state.layoutEditor.placingElementId = null;
       render();
       applyLanguage();
     }
@@ -12876,21 +12885,43 @@ function wireLayoutEditor(entry) {
       if (!panel) return;
       const oldGridLabels = panel.querySelectorAll(".layout-picker-section-label, .layout-picker-grid");
       oldGridLabels.forEach(n => n.remove());
-      panel.insertAdjacentHTML("beforeend", renderLayoutPickerGrid(entry));
-      applyLanguage();
-      // Re-wire only the new card buttons; the search input itself keeps its listener.
-      panel.querySelectorAll("[data-picker-plant]").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const plantId = btn.getAttribute("data-picker-plant");
-          state.layoutEditor.placingPlantId = plantId;
-          state.layoutEditor.pickerOpen = false;
-          state.layoutEditor.selectedTokenId = null;
-          render();
-          applyLanguage();
-          const plant = PLANT_BY_ID[plantId];
-          if (plant) announceLayoutChange(t(`點空間放置 ${plant.zh}`, `Tap to place ${plant.en}`));
+      // R93 B2: branch on the active tab so typing in the 🏗 Elements tab
+      // doesn't replace the element grid with plant cards. Each branch wires
+      // its own card-click listeners.
+      const tab = state.layoutEditor.pickerTab || "plant";
+      if (tab === "element") {
+        panel.insertAdjacentHTML("beforeend", renderLayoutElementGrid(entry));
+        applyLanguage();
+        panel.querySelectorAll("[data-picker-element]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const elementId = btn.getAttribute("data-picker-element");
+            state.layoutEditor.placingElementId = elementId;
+            state.layoutEditor.placingPlantId = null;
+            state.layoutEditor.pickerOpen = false;
+            state.layoutEditor.selectedTokenId = null;
+            render();
+            applyLanguage();
+            const el = ELEMENT_BY_ID[elementId];
+            if (el) announceLayoutChange(t(`點空間放置 ${el.zh}`, `Tap to place ${el.en}`));
+          });
         });
-      });
+      } else {
+        panel.insertAdjacentHTML("beforeend", renderLayoutPickerGrid(entry));
+        applyLanguage();
+        panel.querySelectorAll("[data-picker-plant]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const plantId = btn.getAttribute("data-picker-plant");
+            state.layoutEditor.placingPlantId = plantId;
+            state.layoutEditor.placingElementId = null;
+            state.layoutEditor.pickerOpen = false;
+            state.layoutEditor.selectedTokenId = null;
+            render();
+            applyLanguage();
+            const plant = PLANT_BY_ID[plantId];
+            if (plant) announceLayoutChange(t(`點空間放置 ${plant.zh}`, `Tap to place ${plant.en}`));
+          });
+        });
+      }
     });
   }
   document.querySelectorAll("[data-picker-plant]").forEach(btn => {
@@ -12946,14 +12977,17 @@ function wireLayoutEditor(entry) {
     // Capture the plant before removing so we can announce it after.
     const currentLayout = ensureDesignLayout(entry);
     const token = currentLayout.find(t => t.tokenId === tokenId);
-    const plant = token ? PLANT_BY_ID[token.plantId] : null;
+    // R93 B5: use getTokenSubject so element removes announce too. The old
+    // code looked up PLANT_BY_ID[token.plantId] which is undefined for elements
+    // and silently skipped the aria-live announcement.
+    const sub = token ? getTokenSubject(token) : null;
     // R84: snapshot before remove so ↶ Undo restores the token.
     pushLayoutUndo(entry);
     removeLayoutToken(entry.id, tokenId);
     state.layoutEditor.selectedTokenId = null;
     render();
     applyLanguage();
-    if (plant) announceLayoutChange(t(`已移除 ${plant.zh}`, `Removed ${plant.en}`));
+    if (sub) announceLayoutChange(t(`已移除 ${sub.subject.zh}`, `Removed ${sub.subject.en}`));
   });
   const closeActionBtn = document.getElementById("layoutActionCloseBtn");
   if (closeActionBtn) closeActionBtn.addEventListener("click", () => {
@@ -12967,8 +13001,10 @@ function wireLayoutEditor(entry) {
   // next render() removes it cleanly via DOM teardown.
   const escListener = (e) => {
     if (e.key !== "Escape") return;
-    if (state.layoutEditor.placingPlantId) {
+    if (state.layoutEditor.placingPlantId || state.layoutEditor.placingElementId) {
+      // R93 B1: also clear element placement so ESC cancels both kinds.
       state.layoutEditor.placingPlantId = null;
+      state.layoutEditor.placingElementId = null;
       render();
       applyLanguage();
       announceLayoutChange(t("已取消放置", "Placement cancelled"));
@@ -21711,7 +21747,7 @@ document.getElementById("brandHomeBtn").addEventListener("click", () => {
   // is what `persistDashboard` and resume flows read first).
   state.designDashboardId = null;
   state.activeDesignId = null;
-  state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
+  state.layoutEditor = { placingPlantId: null, placingElementId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", pickerTab: "plant", showLabels: false, undoStack: [], previewMonth: null };
   if (typeof closeDrawer === "function") closeDrawer();
   render();
   window.scrollTo({ top: 0, behavior: "smooth" });
