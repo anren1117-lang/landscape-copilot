@@ -3613,6 +3613,78 @@
   }
   .layout-editor-add:hover { background: var(--forest); }
 
+  /* R84: secondary toolbar chips — labels toggle + undo */
+  .layout-editor-chip {
+    background: var(--paper);
+    color: var(--forest);
+    border: 1.5px solid rgba(110,126,96,0.30);
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  .layout-editor-chip:hover:not(:disabled) {
+    background: var(--sage-deep);
+    color: var(--paper);
+    border-color: var(--sage-deep);
+  }
+  .layout-editor-chip:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .layout-editor-chip.on {
+    background: var(--clay);
+    color: var(--paper);
+    border-color: var(--clay);
+  }
+
+  /* R84: Color palette swatch row beneath the canvas */
+  .layout-palette {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: rgba(196,210,176,0.10);
+    border: 1px solid rgba(110,126,96,0.18);
+    border-radius: 10px;
+  }
+  .layout-palette-label {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    font-family: var(--serif);
+    font-style: italic;
+    margin-bottom: 8px;
+  }
+  .layout-palette-row {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    align-items: center;
+  }
+  .layout-palette-swatch {
+    border: 1px solid rgba(255,255,255,0.5);
+    box-shadow: 0 1px 3px rgba(44,53,38,0.18);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.14s ease, box-shadow 0.14s ease;
+    color: rgba(255,255,255,0.85);
+    font-size: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .layout-palette-swatch:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 10px rgba(44,53,38,0.25);
+  }
+  .layout-palette-swatch:focus-visible {
+    outline: 2px solid var(--sage-deep);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .layout-palette-swatch { transition: none; }
+    .layout-palette-swatch:hover { transform: none; }
+  }
+  @media print { .layout-palette { display: none !important; } }
+
   /* R69 a11y: visually hidden but still announced by screen readers.
      Used for live regions on the layout editor (announce add/remove). */
   .visually-hidden {
@@ -8539,7 +8611,9 @@ const state = {
   //    species. `selectedTokenId` is set on a tap (not drag) of an
   //    existing token; the action bar then offers "✕ Remove."
   //    `pickerOpen` controls inline picker panel visibility.
-  layoutEditor: { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" },
+  //    R84: showLabels toggles plant-name labels under each token.
+  //    undoStack holds up to 8 prior layout snapshots for ↶ undo.
+  layoutEditor: { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [] },
   lang: "zh",
 };
 
@@ -11471,6 +11545,78 @@ function saveEntryLayout(designId, layout) {
 // R69 a11y: announce layout changes (add / remove / placement mode) via the
 // hidden #layoutEditorLive aria-live region so screen-reader users hear what
 // just happened. No-op when the region isn't on the page (e.g. global home).
+// R84: Color palette swatch row — shows every unique plant species in
+// the design as a colored chip. Helps users read the overall palette at
+// a glance and decide if they need a contrast plant. Tap a swatch to
+// open the plant drawer for that species.
+function renderColorPalette(entry) {
+  const layout = (entry.layout && Array.isArray(entry.layout)) ? entry.layout : [];
+  if (!layout.length) return "";
+  // De-dupe by plantId, count tokens per species so the dominant plants
+  // surface larger swatches.
+  const counts = new Map();
+  layout.forEach(t => {
+    if (!PLANT_BY_ID[t.plantId]) return;
+    counts.set(t.plantId, (counts.get(t.plantId) || 0) + 1);
+  });
+  if (counts.size === 0) return "";
+  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  return `
+    <div class="layout-palette">
+      <div class="layout-palette-label"
+           data-zh="🎨 設計色盤 · ${sorted.length} 種"
+           data-en="🎨 Design palette · ${sorted.length} species">🎨 設計色盤 · ${sorted.length} 種</div>
+      <div class="layout-palette-row">
+        ${sorted.map(([plantId, n]) => {
+          const p = PLANT_BY_ID[plantId];
+          const color = p.color || "#8A9A7B";
+          const size = 24 + Math.min(20, n * 4);
+          return `
+            <button type="button" class="layout-palette-swatch"
+                    data-palette-plant="${escapeHtml(plantId)}"
+                    style="background:${escapeHtml(color)}; width:${size}px; height:${size}px;"
+                    aria-label="${escapeHtml(t(p.zh + ' · ' + n + ' 株', p.en + ' · ' + n + ' plants'))}"
+                    data-zh-aria="${escapeHtml(p.zh + ' · ' + n + ' 株')}"
+                    data-en-aria="${escapeHtml(p.en + ' · ' + n + ' plants')}"
+                    title="${escapeHtml(t(p.zh + ' · ' + n, p.en + ' · ' + n))}">${p.native ? "·" : ""}</button>`;
+        }).join("")}
+      </div>
+    </div>`;
+}
+
+// R84: tiny undo-stack helpers. Push the persisted layout BEFORE any
+// mutation (add/remove/drag-end) so the user can step back. Stack lives
+// on state.layoutEditor.undoStack — ephemeral, never persisted. 8-deep
+// cap keeps memory bounded.
+const LAYOUT_UNDO_MAX = 8;
+function pushLayoutUndo(entry) {
+  if (!state.layoutEditor) state.layoutEditor = {};
+  if (!Array.isArray(state.layoutEditor.undoStack)) state.layoutEditor.undoStack = [];
+  const layout = Array.isArray(entry.layout) ? entry.layout : [];
+  // Deep clone so future mutations don't taint the stack frame.
+  const snap = {
+    layout: layout.map(t => ({ ...t })),
+    qty: { ...(entry.snapshot && entry.snapshot.qty ? entry.snapshot.qty : {}) },
+  };
+  state.layoutEditor.undoStack.push(snap);
+  if (state.layoutEditor.undoStack.length > LAYOUT_UNDO_MAX) {
+    state.layoutEditor.undoStack.shift();
+  }
+}
+function popLayoutUndo(designId) {
+  if (!state.layoutEditor || !Array.isArray(state.layoutEditor.undoStack)) return false;
+  const snap = state.layoutEditor.undoStack.pop();
+  if (!snap) return false;
+  const list = loadDesignList();
+  const entry = list.designs.find(e => e.id === designId);
+  if (!entry) return false;
+  entry.layout = snap.layout;
+  if (!entry.snapshot || typeof entry.snapshot !== "object") entry.snapshot = {};
+  entry.snapshot.qty = snap.qty;
+  saveDesignList(list);
+  return true;
+}
+
 function announceLayoutChange(msg) {
   if (!msg) return;
   const live = document.getElementById("layoutEditorLive");
@@ -11723,6 +11869,7 @@ function renderLayoutEditorSVG(entry) {
   const layout = ensureDesignLayout(entry, { persist: true });
 
   const selectedTokenId = state.layoutEditor && state.layoutEditor.selectedTokenId;
+  const showLabels = !!(state.layoutEditor && state.layoutEditor.showLabels);
   const tokensHtml = layout.map(token => {
     const plant = PLANT_BY_ID[token.plantId];
     if (!plant) return "";
@@ -11732,6 +11879,13 @@ function renderLayoutEditorSVG(entry) {
     const color = plant.color || "#8A9A7B";
     const isNative = !!plant.native;
     const isSelected = token.tokenId === selectedTokenId;
+    // R84: optional plant-name label sits below the token. Cap to 4 chars
+    // (Chinese) or 8 chars (English) so the canvas doesn't get noisy.
+    const labelText = showLabels
+      ? (state.lang === "en"
+          ? (plant.en || "").slice(0, 10)
+          : (plant.zh || "").slice(0, 5))
+      : "";
     return `
       <g class="layout-token ${isSelected ? "selected" : ""}"
          data-token-id="${escapeHtml(token.tokenId)}"
@@ -11746,6 +11900,11 @@ function renderLayoutEditorSVG(entry) {
         <circle r="${(r + 3).toFixed(1)}" fill="${color}" opacity="0.22"/>
         <circle r="${r.toFixed(1)}" fill="${color}" opacity="0.84" stroke="${color}" stroke-width="0.8"/>
         ${isNative ? `<circle cx="${(r*0.55).toFixed(1)}" cy="${(-r*0.55).toFixed(1)}" r="2" fill="#2D8B5C"/>` : ""}
+        ${labelText ? `<text class="layout-token-label" y="${(r + 11).toFixed(1)}" text-anchor="middle"
+                            font-size="9" font-family="serif" font-style="italic"
+                            fill="rgba(44,53,38,0.78)"
+                            data-zh="${escapeHtml((plant.zh || "").slice(0, 5))}"
+                            data-en="${escapeHtml((plant.en || "").slice(0, 10))}">${escapeHtml(labelText)}</text>` : ""}
       </g>`;
   }).join("");
 
@@ -11878,6 +12037,8 @@ function wireLayoutEditor(entry) {
         const nx = (upPt.x - rectX) / rectW;
         const ny = (upPt.y - rectY) / rectH;
         const placedPlantId = state.layoutEditor.placingPlantId;
+        // R84: snapshot BEFORE the add so ↶ Undo can restore the prior state.
+        pushLayoutUndo(entry);
         const newToken = addLayoutToken(entry.id, placedPlantId, nx, ny);
         // After one placement, exit placing mode — user can re-open the picker
         // for the next plant. This avoids confusing repeated-tap-adds.
@@ -11909,6 +12070,8 @@ function wireLayoutEditor(entry) {
     dragTokenId = null;
     downAtPoint = null;
     if (wasDragged) {
+      // R84: snapshot BEFORE we save the new position so ↶ Undo restores it.
+      pushLayoutUndo(entry);
       saveEntryLayout(entry.id, workingLayout);
     } else {
       // Tap (no drag) on an existing token → select it, surface the action bar.
@@ -11937,6 +12100,32 @@ function wireLayoutEditor(entry) {
   // coordinates.
   svg.addEventListener("pointerleave", () => {
     if (!activeToken) downAtPoint = null;
+  });
+
+  // R84 toolbar — labels toggle, undo button, palette swatch jumps.
+  const labelsBtn = document.getElementById("layoutEditorLabelsBtn");
+  if (labelsBtn) labelsBtn.addEventListener("click", () => {
+    state.layoutEditor.showLabels = !state.layoutEditor.showLabels;
+    render();
+    applyLanguage();
+    announceLayoutChange(t(
+      state.layoutEditor.showLabels ? "已顯示植物名" : "已隱藏植物名",
+      state.layoutEditor.showLabels ? "Labels shown" : "Labels hidden"
+    ));
+  });
+  const undoBtn = document.getElementById("layoutEditorUndoBtn");
+  if (undoBtn) undoBtn.addEventListener("click", () => {
+    const ok = popLayoutUndo(entry.id);
+    render();
+    applyLanguage();
+    if (ok) announceLayoutChange(t("已還原上一步", "Restored previous step"));
+  });
+  // Palette swatch clicks open the plant drawer for quick lookup.
+  document.querySelectorAll("[data-palette-plant]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-palette-plant");
+      if (id && typeof openDrawer === "function") openDrawer(id);
+    });
   });
 
   // R66 toolbar + picker + placing/action bar wiring.
@@ -12018,6 +12207,8 @@ function wireLayoutEditor(entry) {
     const currentLayout = ensureDesignLayout(entry);
     const token = currentLayout.find(t => t.tokenId === tokenId);
     const plant = token ? PLANT_BY_ID[token.plantId] : null;
+    // R84: snapshot before remove so ↶ Undo restores the token.
+    pushLayoutUndo(entry);
     removeLayoutToken(entry.id, tokenId);
     state.layoutEditor.selectedTokenId = null;
     render();
@@ -12488,10 +12679,21 @@ function renderDesignDashboard() {
           <button type="button" class="layout-editor-add" id="layoutEditorAddBtn"
                   data-zh="＋ 加入植物"
                   data-en="＋ Add plant">＋ 加入植物</button>
+          <button type="button" class="layout-editor-chip ${state.layoutEditor.showLabels ? "on" : ""}" id="layoutEditorLabelsBtn"
+                  aria-pressed="${state.layoutEditor.showLabels ? "true" : "false"}"
+                  data-zh="📋 ${state.layoutEditor.showLabels ? "隱藏名稱" : "顯示植物名"}"
+                  data-en="📋 ${state.layoutEditor.showLabels ? "Hide labels" : "Show labels"}">📋 ${state.layoutEditor.showLabels ? "隱藏名稱" : "顯示植物名"}</button>
+          <button type="button" class="layout-editor-chip" id="layoutEditorUndoBtn"
+                  ${(state.layoutEditor.undoStack || []).length === 0 ? "disabled" : ""}
+                  aria-label="${escapeHtml(t('還原上一步 / Undo', 'Undo'))}"
+                  data-zh-aria="還原上一步" data-en-aria="Undo"
+                  data-zh="↶ 還原"
+                  data-en="↶ Undo">↶ 還原</button>
           <button type="button" class="layout-editor-reset" id="layoutEditorResetBtn"
                   data-zh="↺ 自動排版"
                   data-en="↺ Auto-layout">↺ 自動排版</button>
         </div>
+        ${renderColorPalette(entry)}
         ${renderLayoutPickerPanel(entry)}
       </div>
     </section>`;
