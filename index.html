@@ -19775,6 +19775,7 @@ function renderDictionary() {
       <span style="width:1px; background: var(--line); margin: 0 4px;"></span>
       <button class="dict-chip ${state.dictFragOnly ? "on" : ""}" data-flag="frag">🌸 <span data-zh="芳香" data-en="Fragrant">芳香</span></button>
       <button class="dict-chip ${state.dictPetSafeOnly ? "on" : ""}" data-flag="petsafe">🐾 <span data-zh="寵物安全" data-en="Pet-safe">寵物安全</span></button>
+      <button class="dict-chip ${state.dictEdibleOnly ? "on" : ""}" data-flag="edible">🥗 <span data-zh="可食" data-en="Edible">可食</span></button>
       <button class="dict-chip ${state.dictIndigenousOnly ? "on" : ""}" data-flag="indigenous">🏹 <span data-zh="原住民傳統" data-en="Indigenous tradition">原住民傳統</span></button>
       <span style="width:1px; background: var(--line); margin: 0 4px;"></span>
       <button class="dict-chip ${state.dictSeason === "all"    ? "on" : ""}" data-season="all"><span data-zh="四季" data-en="All seasons">四季</span></button>
@@ -19891,6 +19892,7 @@ function wireDictionary() {
     el.addEventListener("click", () => {
       if (el.dataset.flag === "frag") state.dictFragOnly = !state.dictFragOnly;
       if (el.dataset.flag === "petsafe") state.dictPetSafeOnly = !state.dictPetSafeOnly;
+      if (el.dataset.flag === "edible") state.dictEdibleOnly = !state.dictEdibleOnly;
       if (el.dataset.flag === "indigenous") state.dictIndigenousOnly = !state.dictIndigenousOnly;
       rerenderDict();
     });
