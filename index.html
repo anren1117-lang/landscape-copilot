@@ -11825,13 +11825,29 @@ function renderSeasonalSlider(entry) {
 // the design as a colored chip. Helps users read the overall palette at
 // a glance and decide if they need a contrast plant. Tap a swatch to
 // open the plant drawer for that species.
+// R91 (B9): synthesize a per-id HSL color so plants without an explicit
+// color don't all collapse to the same sage swatch. djb2-style string
+// hash → hue 0-360, fixed saturation + lightness for a Kinfolk-aesthetic
+// muted palette. Stable across reloads (pure id hash, no Math.random).
+function _swatchColorFor(plant) {
+  if (plant && plant.color) return plant.color;
+  const id = (plant && plant.id) || "";
+  let h = 5381;
+  for (let i = 0; i < id.length; i++) h = ((h << 5) + h + id.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  // 36% saturation, 55% lightness — sits in the Kinfolk muted-paper palette.
+  return `hsl(${hue}, 36%, 55%)`;
+}
+
 function renderColorPalette(entry) {
   const layout = (entry.layout && Array.isArray(entry.layout)) ? entry.layout : [];
   if (!layout.length) return "";
-  // De-dupe by plantId, count tokens per species so the dominant plants
-  // surface larger swatches.
+  // De-dupe by plant id, count tokens per species. R89: element tokens
+  // are skipped — the palette is a plant-only view of the design's vibe.
   const counts = new Map();
   layout.forEach(t => {
+    const kind = t.kind || (t.elementId ? "element" : "plant");
+    if (kind !== "plant") return;
     if (!PLANT_BY_ID[t.plantId]) return;
     counts.set(t.plantId, (counts.get(t.plantId) || 0) + 1);
   });
@@ -11845,7 +11861,7 @@ function renderColorPalette(entry) {
       <div class="layout-palette-row">
         ${sorted.map(([plantId, n]) => {
           const p = PLANT_BY_ID[plantId];
-          const color = p.color || "#8A9A7B";
+          const color = _swatchColorFor(p);
           const size = 24 + Math.min(20, n * 4);
           return `
             <button type="button" class="layout-palette-swatch"
@@ -11994,11 +12010,15 @@ function clampToShape(shape, x, y, rectX, rectY, rectW, rectH) {
   if (shape === "L") {
     // Point is in the L's cutout region. Nudge to the nearest edge of the
     // cutout (left edge or bottom edge of the cutout). Whichever is closer.
+    // R91 (B6): compare absolute distances. The raw deltas can go slightly
+    // negative on float jitter (point on the cutout edge but pointInShape
+    // returned false), and `distLeft < distBottom` then snaps to the wrong
+    // edge by a wide margin.
     const cutW = rectW * 0.4, cutH = rectH * 0.4;
     const leftEdge = rectX + rectW - cutW;  // left edge of cutout
     const bottomEdge = rectY + cutH;        // bottom edge of cutout
-    const distLeft = x - leftEdge;          // how far past the left edge
-    const distBottom = bottomEdge - y;      // how far above the bottom edge
+    const distLeft = Math.abs(x - leftEdge);
+    const distBottom = Math.abs(bottomEdge - y);
     if (distLeft < distBottom) {
       // Closer to the left edge of the cutout — snap left.
       return { x: leftEdge - 0.5, y };
@@ -12752,8 +12772,19 @@ function wireLayoutEditor(entry) {
         });
         // 2) Patch the season chip's stats + tick indicator in place —
         //    do NOT touch the slider DOM (user is mid-drag).
+        // R91 (B3/B4): re-resolve the design from LIST_KEY on every rAF
+        // instead of trusting the closure `entry`, which can go stale if
+        // anything else triggered a full render() between input events
+        // (picker close, undo, tap on token). Otherwise the chip counts
+        // diverge from what's visible on the canvas.
+        const freshEntry = (loadDesignById && state.designDashboardId === entry.id)
+          ? (loadDesignById(entry.id) || entry)
+          : entry;
         let blooming = 0, fruiting = 0;
-        (entry.layout || []).forEach(t => {
+        (freshEntry.layout || []).forEach(t => {
+          // R89: token may now be a plant or an element. Elements don't bloom.
+          const kind = t.kind || (t.elementId ? "element" : "plant");
+          if (kind !== "plant") return;
           const p = PLANT_BY_ID[t.plantId];
           if (!p) return;
           if ((p.bloom || []).includes(month)) blooming++;
