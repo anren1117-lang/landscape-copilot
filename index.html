@@ -8082,6 +8082,124 @@ const EXPERT_META = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────
+// R82: Recipe pairings from《台灣島嶼植物生活圖譜 100 選》atlas.
+// Each entry maps a plant id (must match PLANTS[].id) to a single
+// pairing: title (Kinfolk-italic dish name) + body (one-line cook
+// instruction with the Taiwan-everyday angle the atlas defines).
+// Surfaced in the plant drawer when present — no impact when absent.
+// ─────────────────────────────────────────────────────────────
+const RECIPE_PAIRINGS = {
+  cinnamomum_osmo: {
+    title_zh: "土肉桂葉 ✕ 醬油慢燉黑豬五花肉",
+    title_en: "Taiwan cinnamon leaf ✕ soy-braised black-pork belly",
+    body_zh: "用陽台現摘的土肉桂葉取代八角，與老醬油、冰糖慢燉黑豬五花。葉片頂級的清甜木質香融入濃郁焦糖醬汁，去油解膩，配白飯三碗起跳。",
+    body_en: "Swap star anise for fresh balcony-grown cinnamon leaf. Slow-braise black-pork belly with dark soy and rock sugar — the leaf's clean woody sweetness cuts the fat and lacquers the sauce caramel-dark.",
+  },
+  litsea_cubeba: {
+    title_zh: "油封馬告 ✕ 炙燒東海岸小卷",
+    title_en: "Maqaw confit ✕ torched east-coast squid",
+    body_zh: "陽台馬告爆碎與大量橄欖油低溫慢熬成馬告油，將新鮮小卷油封鎖住海鮮甜。上桌前用噴槍猛烈炙燒表面至微焦，馬告的爆發性檸檬與香茅香衝撞海味。",
+    body_en: "Crush mountain pepper into olive oil, confit small squid in it, then torch the surface to caramel before serving. The maqaw's citrus-lemongrass burst meets the squid's sweet sea brine.",
+  },
+  perilla_frut: {
+    title_zh: "紫蘇 ✕ 初夏青梅紫蘇梅酒",
+    title_en: "Wild perilla ✕ early-summer green-plum liqueur",
+    body_zh: "鋸齒紫葉與初夏盛產的台灣青梅一同醃漬，搭配冰糖與燒酎。靜置三個月後酒色染成淡紫紅，是夏日陽台冰塊裡的島嶼味道。",
+    body_en: "Layer wild perilla leaves with green plums and rock sugar in shochu. After three months the liquor turns lavender-rose — the island's summer in a chilled glass.",
+  },
+  zanthoxylum_ail: {
+    title_zh: "刺蔥風味綠鹽 ✕ 炭烤酥皮戰斧豬排",
+    title_en: "Tana green salt ✕ charcoal tomahawk pork chop",
+    body_zh: "陽台刺蔥葉低溫烘乾後與粗海鹽擣碎，是強烈柑橘與花椒的狂放沾鹽。配剛切開、還帶粉紅肉汁的厚切戰斧豬排，油脂的甜與刺蔥的野是肉食最高享受。",
+    body_en: "Dehydrate tana leaves at low heat, pound with sea salt — a wild green dipping salt with citrus and Sichuan-pepper kick. Pair with thick-cut tomahawk pork still pink at the bone.",
+  },
+  asplenium_nidus: {
+    title_zh: "破布子醬油油潑 ✕ 陽台山蘇炒鮮蝦",
+    title_en: "Cordia jam-soy ✕ bird's-nest fern stir-fry with shrimp",
+    body_zh: "大蒜爆香鮮蝦，加入陽台採摘的山蘇嫩芽，調入阿嬤冰箱的破布子醬汁。起鍋前燒熱一勺苦茶油「嘶——」一聲潑在山蘇與鮮蝦上，激發海鮮的鮮與野菜的爽。",
+    body_en: "Garlic-sear large shrimp, add fresh-picked nest fern shoots, spoon over grandma's cordia jam-soy. Finish with screaming-hot tea-seed oil poured over — the splash wakes both the seafood and the wild green.",
+  },
+  piper_betle: {
+    title_zh: "荖葉 ✕ 脆皮烤肥鴨",
+    title_en: "Betel leaf ✕ crispy roast duck",
+    body_zh: "利用荖葉天生的黑胡椒與丁香煙燻木質香，將大把荖葉塞入宜蘭鴨腹中縫合。烤箱高溫烘烤鴨油不斷逼出，荖葉的胡椒香深深吸入鴨肉肌理，鴨皮酥脆爆汁。",
+    body_en: "Stuff Yilan duck cavity with handfuls of betel leaf and sew shut. Roast hot — duck fat renders out while the leaves' pepper-smoke-clove perfume soaks the meat. Skin shatters, juice flows.",
+  },
+  eryngium_foet: {
+    title_zh: "台灣刺芫荽 ✕ 台式花生大蒜青醬烤五花肉",
+    title_en: "Long coriander ✕ Taiwan peanut-garlic pesto on grilled pork belly",
+    body_zh: "陽台生命力強的刺芫荽搭配烤香的台灣本土花生、大蒜與橄欖油，擣成台式青醬。厚厚抹在烤到雙面焦黃帶軟骨的五花肉上，大蒜的辣、花生的糯與刺芫荽的狂放過癮至極。",
+    body_en: "Pound long coriander with toasted Taiwan peanuts, garlic, and olive oil. Slather on twice-grilled pork belly with the gnaw-bones still attached — every bite spicy, nutty, and wildly herbaceous.",
+  },
+  anredera_cord: {
+    title_zh: "麻油生薑 ✕ 土雞肉爆炒川七與枸杞",
+    title_en: "Sesame-ginger ✕ free-range chicken stir-fry with Madeira vine + wolfberry",
+    body_zh: "寒冬最療癒的台灣味。黑麻油慢火煸老薑至邊緣捲曲，倒入土雞腿肉大火爆炒封住肉汁，最後拌入陽台肥厚多汁的川七葉。川七的微黏滑口感包裹著麻油雞湯，枸杞的清甜，是暖胃肉香家常補品。",
+    body_en: "Most healing winter Taiwan flavor. Slow-coil ginger in black sesame oil till the edges curl, sear free-range chicken thigh hard, fold in lush Madeira vine leaves at the end. The vine's silky-mucilage coats the chicken-fat sauce with wolfberry sweetness — warmth in a bowl.",
+  },
+  cinnamomum_insul: {
+    title_zh: "山肉桂葉 ✕ 慢燉台灣清燉黃牛肉湯",
+    title_en: "Mountain cinnamon leaf ✕ clear-braised Taiwan yellow beef",
+    body_zh: "台灣本土黃牛肋條，老薑、米酒慢燉。湯頭收尾前半小時丟入幾片陽台山肉桂葉。三出脈葉片釋放出溫和不刺鼻的樟腦與胡椒肉桂甜香，讓牛肉湯瞬間變得清亮、充滿森林霧氣般的層次。",
+    body_en: "Slow-simmer Taiwan yellow-beef ribs with ginger and rice wine. Thirty minutes before serving, drop in a few three-veined mountain cinnamon leaves. The broth turns crystalline with gentle camphor-pepper-cinnamon — beef wrapped in mountain mist.",
+  },
+  limnophila_rug: {
+    title_zh: "大葉田香草 ✕ 茴香海鹽烤午仔魚",
+    title_en: "Rice paddy herb ✕ fennel sea-salt baked threadfin",
+    body_zh: "新鮮午仔魚腹中填滿陽台現摘的大葉田香草，表面撒粗海鹽進烤箱。高溫讓魚皮下的油脂滋滋滲出，並將田香草的優雅八角甜香完全鎖在雪白魚肉裡，香甜多汁。",
+    body_en: "Stuff threadfin cavity with fresh paddy herb, salt the skin, bake hot. The fat sizzles out as the herb's elegant anise sweetness gets sealed into the snow-white flesh — sweet, juicy, fragrant.",
+  },
+  hedychium_cor: {
+    title_zh: "野薑花幽香 ✕ 清蒸山泉鱸魚",
+    title_en: "White ginger lily ✕ steamed mountain-spring sea bass",
+    body_zh: "鱸魚鋪蔥薑絲與少許豬油蒸熟。出鍋前 2 分鐘揭蓋，將陽台盛開的純白野薑花瓣大把鋪在魚身上，重新蓋上。高溫蒸汽會把野薑花極度高雅的香氣逼入魚肉脂肪中，滿口溫柔島嶼清香。",
+    body_en: "Steam sea bass with scallion-ginger threads and a little lard. Two minutes before pulling, drape fresh white-ginger-lily petals across the fish and cover again. The steam drives the ethereal fragrance deep into the flesh — gentle island air on the tongue.",
+  },
+  solanum_nigrum: {
+    title_zh: "黑甜仔菜 ✕ 黑豬肉碎小農鹹粥",
+    title_en: "Black nightshade ✕ small-farm rice porridge with black-pork mince",
+    body_zh: "豬油爆香紅蔥頭與五花肉絲，注入高湯放入隔夜剩飯慢熬。起鍋前投入一把陽台現剪的黑甜仔菜嫩葉。野草微苦的滋味與黑豬肉的油脂、紅蔥頭的香氣在熱粥裡交融，苦後回甘。",
+    body_en: "Render lard with shallot and pork-belly threads, ladle in stock and leftover rice, simmer slow. Toss in fresh-cut black nightshade leaves at the end — wild bitterness meets pork fat and shallot in the hot porridge, bitter into sweet.",
+  },
+  trichodesma: {
+    title_zh: "假酸漿葉 ✕ 原民風味小米黑豬肉粽 (Cinavu)",
+    title_en: "Cinavu leaf ✕ indigenous black-pork millet wrap",
+    body_zh: "肥多瘦少的黑豬五花肉，用鹽與馬告稍微醃漬。內層用陽台現摘的假酸漿葉緊緊包裹豬肉與小米（葉片受熱會變軟，可直接吃，化解油膩與糯米脹氣），外層再用月桃葉包覆蒸熟。打開時豬油滲透小米，野草香撲鼻。",
+    body_en: "Marinate black-pork belly with salt and maqaw. Wrap pork + millet tightly in cinavu leaves (they soften and stay edible — they tame both pork fat and starch). Outer-wrap in shell-ginger leaf, steam. Unwrap and the pork fat has soaked the millet through with wild green.",
+  },
+  rhus_chin_form: {
+    title_zh: "台灣鹽膚木果實 ✕ 鹽麴厚切炙烤牛小排",
+    title_en: "Taiwan sumac ✕ shio-koji thick-cut short rib",
+    body_zh: "短肋鹽麴醃漬後在炭火上烤到表面焦糖化。採收陽台台灣鹽膚木果實表面那層白色的天然結晶「島嶼結晶鹽」，撒在剛切開、油脂滿溢的牛小排上。微酸與純淨的鹹度瞬間勾出牛肉最狂暴的肉汁甜味。",
+    body_en: "Marinate thick-cut short rib in shio-koji, sear charcoal-hot to caramel crust. Collect the wild salt crystals from sumac fruit and scatter over the cut rib — citrus-tinged saltiness pulls the meat's most savage sweetness forward.",
+  },
+  cajanus_cajan: {
+    title_zh: "樹豆 ✕ 排骨慢燉黑湯",
+    title_en: "Pigeon pea ✕ slow pork-rib black soup",
+    body_zh: "布農族稱「勇士的豆子」。採收豆子與台灣本土排骨慢火細燉，熬出一鍋帶有濃郁堅果香與煙燻感的黑湯。一碗入口，是山林與餐桌的對話。",
+    body_en: "The Bunun call it 'warrior's bean'. Slow-simmer with Taiwan pork ribs into a smoky-nut black broth — one bowl is a mountain conversation.",
+  },
+  gynura_bicolor: {
+    title_zh: "紅鳳菜深紫醬汁 ✕ 麻油爆炒脆牛骨髓",
+    title_en: "Okinawan spinach ruby sauce ✕ sesame-oil seared beef marrow",
+    body_zh: "鮮嫩的豬肝（或高級牛骨髓）快速川燙，用黑麻油、老薑快炒至剛好斷生。加入葉背帶高級深紫色的紅鳳菜。炒出的天然紫紅色醬汁與麻油、肉汁融合成一種濃郁、帶鐵質香氣的厚重醬汁，拌飯食欲滿點。",
+    body_en: "Quick-blanch pork liver (or beef marrow), sear in black sesame oil with ginger till just turned. Fold in deep-purple-backed Okinawan spinach. The natural ruby sauce that releases marries sesame oil and meat juice — iron-rich, dense, made for white rice.",
+  },
+  allium_tuber: {
+    title_zh: "韭菜花苞 ✕ 肥美鮮蚵與皮蛋爆炒「極致蒼蠅頭」",
+    title_en: "Garlic-chive buds ✕ wok-blasted 'fly heads' with oyster + century egg",
+    body_zh: "白米飯殺手！陽台長出白色球狀花序前的韭菜花苞切細丁，與東石鮮蚵、皮蛋碎、黑豬肉末、豆豉、辣椒大火狂暴快炒。韭菜花的甜脆、皮蛋的濃郁、鮮蚵爆開的鮮汁，光顏色就讓人連扒兩碗飯。",
+    body_en: "Rice killer. Fine-dice garlic-chive buds before the white umbel pops, blast in the wok with east-coast oyster, century egg crumb, black-pork mince, douchi, and chili. Sweet-crisp buds, rich egg, oyster brine — two bowls of rice gone.",
+  },
+  epiphyllum_oxy: {
+    title_zh: "曇花清香 ✕ 乾貝黑豬排骨慢敦盅",
+    title_en: "Queen of the night ✕ slow-stewed scallop + black-pork rib pot",
+    body_zh: "夏夜全家守在陽台等那朵巨大曇花盛開。盛開後摘下，隔天清晨與川燙過的黑豬軟排骨、日本乾貝同燉。曇花熬煮後呈現極度滑嫩、類似大木耳又更細緻的質地，排骨肉香與乾貝鮮味被高雅清香包裹，膠原豐厚。",
+    body_en: "Sit on the balcony all summer night waiting for the giant white bloom to open. Pick it at dawn, simmer with blanched black-pork ribs and Japanese scallop. The bloom turns silky — finer than wood ear — and wraps pork and scallop in delicate sweetness. Collagen-thick broth.",
+  },
+};
+
 // Resolve expert/baseline values for a plant ID with a single helper.
 function expert(p) {
   const base = TIER_BASELINES[p.tier] || TIER_BASELINES.G;
@@ -20028,6 +20146,30 @@ function openDrawer(id) {
                        data-zh="* 僅供文化資訊，非醫療建議"
                        data-en="* Cultural info only, not medical advice">* 僅供文化資訊，非醫療建議 · Cultural info only, not medical advice</div>` : ""}
               </div>` : ""}
+
+            ${(() => {
+              // R82: Recipe pairings from the《島嶼植物生活圖譜》atlas. The map
+              // lives at module-level (RECIPE_PAIRINGS). When a plant has a
+              // pairing we surface it here — title in a Kinfolk-italic line,
+              // body as a single line of culinary suggestion.
+              const pair = (typeof RECIPE_PAIRINGS !== "undefined") ? RECIPE_PAIRINGS[plant.id] : null;
+              if (!pair) return "";
+              return `
+                <div class="drawer-block">
+                  <div class="drawer-block-title"
+                       data-zh="🍽 餐桌搭配 · PAIRINGS"
+                       data-en="🍽 At the table · PAIRINGS">🍽 餐桌搭配 · PAIRINGS</div>
+                  <p class="drawer-text" style="font-style: italic;"
+                     data-zh="${escapeHtml(pair.title_zh || '')}"
+                     data-en="${escapeHtml(pair.title_en || pair.title_zh || '')}">${escapeHtml(pair.title_zh || '')}</p>
+                  <p class="drawer-text" style="margin-top: 6px;"
+                     data-zh="${escapeHtml(pair.body_zh || '')}"
+                     data-en="${escapeHtml(pair.body_en || pair.body_zh || '')}">${escapeHtml(pair.body_zh || '')}</p>
+                  <div style="font-size: 11px; color: var(--clay-mid); font-style: italic; opacity: 0.8; margin-top: 4px;"
+                       data-zh="出自《台灣島嶼植物生活圖譜》"
+                       data-en="from《Taiwan Island Plant Life Atlas》">出自《台灣島嶼植物生活圖譜》</div>
+                </div>`;
+            })()}
 
             ${(e.hazards_zh && e.hazards_zh.length) ? `
               <div class="drawer-block">
