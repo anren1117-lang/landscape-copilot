@@ -10504,7 +10504,7 @@ function render() {
       state.view = "home";
       // R67: same scrub as brand-home so the next dashboard entry starts fresh.
       state.designDashboardId = null;
-      state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
+      state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -11259,7 +11259,7 @@ function renderDesignMiniSVG(snap, layoutOverride) {
         </pattern>
         <clipPath id="${clipId}">
           ${miniShape === "round"
-            ? `<circle cx="${(rectX + rectW/2).toFixed(1)}" cy="${(rectY + rectH/2).toFixed(1)}" r="${(Math.min(rectW, rectH)/2).toFixed(1)}"/>`
+            ? `<ellipse cx="${(rectX + rectW/2).toFixed(1)}" cy="${(rectY + rectH/2).toFixed(1)}" rx="${(rectW/2).toFixed(1)}" ry="${(rectH/2).toFixed(1)}"/>`
             : miniShape === "L"
               ? (() => {
                   const cutW = rectW * 0.4, cutH = rectH * 0.4;
@@ -11392,7 +11392,9 @@ function openDesignDashboard(designId) {
   state.designDashboardId = designId;
   // R67 critic #1: reset layout editor transient state on every entry so
   // design A's placing banner / selected token doesn't bleed into design B.
-  state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
+  // R88 B8: keep showLabels + undoStack + previewMonth + pickerQuery in the
+  // reset so design A's slider position doesn't apply to design B's canvas.
+  state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
   // R71 critic #5: opening a saved design from the gallery clears any
   // in-flight wizard pendingSnapshot — otherwise the welcome-back banner
   // re-appears for an "unsaved" wizard that the user has clearly moved past.
@@ -11582,17 +11584,29 @@ function ensureDesignLayout(entry, opts) {
     const qty = Math.min(e.qty, 8);  // cap per-species at 8 tokens to keep the canvas readable
     for (let i = 0; i < qty; i++) {
       if (layout.length >= LAYOUT_MAX_TOKENS) break;
-      // Up to 6 tries to land inside the shape; otherwise fall back to a
-      // bounding-rect placement (still valid — outline is informational).
-      let x = 0, y = 0, ok = false;
-      for (let attempt = 0; attempt < 6; attempt++) {
+      // Up to 8 tries to land inside the shape. If none succeed, snap to
+      // the center of the bounding rect — for round that's guaranteed to
+      // be inside; for L that's the intersection point between the two
+      // walls of the L, also always inside.
+      let x = 0.5, y = 0.5, ok = false;
+      for (let attempt = 0; attempt < 8; attempt++) {
         const yJ = (rand() - 0.5) * 0.20;
         y = Math.max(0.06, Math.min(0.94, yFraction + yJ));
         x = 0.06 + rand() * 0.88;
         if (inUnitShape(x, y)) { ok = true; break; }
       }
+      if (!ok) {
+        // R88 B1: fall back to a guaranteed-in-shape placement instead of
+        // shipping the last-attempt (likely out-of-shape) coords.
+        if (shape === "round") {
+          x = 0.5; y = 0.5;
+        } else if (shape === "L") {
+          // The lower-left quadrant is always inside the L.
+          x = 0.25 + rand() * 0.20;
+          y = 0.55 + rand() * 0.30;
+        }
+      }
       layout.push({ tokenId: makeTokenId(), plantId: e.id, x, y });
-      void ok; // retry success was used to break; tracked here for clarity
     }
     if (layout.length >= LAYOUT_MAX_TOKENS) break;
   }
@@ -11758,11 +11772,11 @@ function shapeOutlineSVG(shape, rectX, rectY, rectW, rectH, opts) {
   const strokeWidth = (opts && opts.strokeWidth) || 1;
   const radius = (opts && opts.radius) || 4;
   if (shape === "round") {
-    const cx = rectX + rectW / 2;
-    const cy = rectY + rectH / 2;
-    const r = Math.min(rectW, rectH) / 2;
-    return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}"
-                    fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+    // R88 B2: ellipse inscribed in the bounding rect (uses full W and H).
+    const cx = rectX + rectW / 2, cy = rectY + rectH / 2;
+    const rx = rectW / 2, ry = rectH / 2;
+    return `<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}"
+                     fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
   }
   if (shape === "L") {
     // L-shape — full bounding box minus a 40%×40% cutout from upper-right.
@@ -11792,10 +11806,14 @@ function shapeOutlineSVG(shape, rectX, rectY, rectW, rectH, opts) {
 // Returns true if the point falls inside the shape's interior.
 function pointInShape(shape, x, y, rectX, rectY, rectW, rectH) {
   if (shape === "round") {
+    // R88 B2: use the ellipse inscribed in the bounding rect (rx = W/2,
+    // ry = H/2) so non-square designs use the full space. (rect[xy] zero-
+    // guard prevents div-by-zero for malformed snapshots.)
+    if (rectW <= 0 || rectH <= 0) return false;
     const cx = rectX + rectW / 2, cy = rectY + rectH / 2;
-    const r = Math.min(rectW, rectH) / 2;
-    const dx = x - cx, dy = y - cy;
-    return (dx * dx + dy * dy) <= r * r;
+    const rx = rectW / 2, ry = rectH / 2;
+    const dx = (x - cx) / rx, dy = (y - cy) / ry;
+    return (dx * dx + dy * dy) <= 1;
   }
   if (shape === "L") {
     // Bounding box check first.
@@ -11820,15 +11838,20 @@ function clampToShape(shape, x, y, rectX, rectY, rectW, rectH) {
   y = Math.max(rectY, Math.min(rectY + rectH, y));
   if (pointInShape(shape, x, y, rectX, rectY, rectW, rectH)) return { x, y };
   if (shape === "round") {
-    // Project to circle perimeter.
+    // R88 B2: project to ellipse perimeter (matches new pointInShape).
     const cx = rectX + rectW / 2, cy = rectY + rectH / 2;
-    const r = Math.min(rectW, rectH) / 2;
-    const dx = x - cx, dy = y - cy;
-    const dist = Math.hypot(dx, dy);
-    if (dist === 0) return { x: cx, y: cy };
+    const rx = rectW / 2, ry = rectH / 2;
+    if (rx <= 0 || ry <= 0) return { x: cx, y: cy };
+    // Scale to unit-circle space, normalize, scale back. The 1px inset
+    // keeps the projection just inside the perimeter so pointInShape
+    // doesn't reject the result on float jitter.
+    const ux = (x - cx) / rx, uy = (y - cy) / ry;
+    const mag = Math.hypot(ux, uy);
+    if (mag === 0) return { x: cx, y: cy };
+    const inset = 0.5;
     return {
-      x: cx + (dx / dist) * (r - 0.5),
-      y: cy + (dy / dist) * (r - 0.5),
+      x: cx + (ux / mag) * (rx - inset),
+      y: cy + (uy / mag) * (ry - inset),
     };
   }
   if (shape === "L") {
@@ -12101,6 +12124,15 @@ function renderLayoutEditorSVG(entry) {
   // outline and the grid clip.
   const shape = (snap.shape === "L" || snap.shape === "round") ? snap.shape : "rect";
 
+  // R88 B5: unique pattern + clipPath ids per render so the editor canvas
+  // and gallery thumbnails of same-dimension designs don't cross-wire each
+  // other's url(#…) lookups (SVG resolves to the first matching def in
+  // document order, so a gallery thumbnail rendered before the workspace
+  // canvas would steal the workspace's id).
+  const _idSfx = Math.random().toString(36).slice(2, 8);
+  const editorGridId = "layout-grid-" + Math.round(w * 1000 + d) + "-" + _idSfx;
+  const editorClipId = "layout-shape-clip-" + Math.round(w * 1000 + d) + "-" + _idSfx;
+
   // R76: opt into persistence — the SVG's tokenIds must match what
   // wireLayoutEditor reads next for the first drag to work. Other (read-
   // only) callers leave the default and don't write to localStorage.
@@ -12164,12 +12196,12 @@ function renderLayoutEditorSVG(entry) {
          data-rect-h="${rectH.toFixed(2)}"
          preserveAspectRatio="xMidYMid meet">
       <defs>
-        <pattern id="layout-grid-${Math.round(w * 1000 + d)}" width="20" height="20" patternUnits="userSpaceOnUse">
+        <pattern id="${editorGridId}" width="20" height="20" patternUnits="userSpaceOnUse">
           <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(110,126,96,0.10)" stroke-width="0.5"/>
         </pattern>
-        <clipPath id="layout-shape-clip-${Math.round(w * 1000 + d)}">
+        <clipPath id="${editorClipId}">
           ${shape === "round"
-            ? `<circle cx="${(rectX + rectW/2).toFixed(1)}" cy="${(rectY + rectH/2).toFixed(1)}" r="${(Math.min(rectW, rectH)/2).toFixed(1)}"/>`
+            ? `<ellipse cx="${(rectX + rectW/2).toFixed(1)}" cy="${(rectY + rectH/2).toFixed(1)}" rx="${(rectW/2).toFixed(1)}" ry="${(rectH/2).toFixed(1)}"/>`
             : shape === "L"
               ? (() => {
                   const cutW = rectW * 0.4, cutH = rectH * 0.4;
@@ -12183,8 +12215,8 @@ function renderLayoutEditorSVG(entry) {
       <!-- Grid fill clipped to the design's shape -->
       <rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}"
             width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}"
-            fill="url(#layout-grid-${Math.round(w * 1000 + d)})"
-            clip-path="url(#layout-shape-clip-${Math.round(w * 1000 + d)})"/>
+            fill="url(#${editorGridId})"
+            clip-path="url(#${editorClipId})"/>
       <!-- Shape outline on top of the clipped grid -->
       ${shapeOutlineSVG(shape, rectX, rectY, rectW, rectH, { stroke: "rgba(110,126,96,0.50)", strokeWidth: 1 })}
       ${tokensHtml}
@@ -13255,7 +13287,7 @@ function wireDesignDashboard(entry) {
     state.view = "home";
     state.designDashboardId = null;
     // R67: scrub transient editor state so a re-entry shows no stale picker / banner.
-    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
+    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
@@ -13266,7 +13298,7 @@ function wireDesignDashboard(entry) {
     // applySnapshot. We clear designDashboardId so back-from-result lands
     // on the personal home (not bounces back to the per-design view).
     state.designDashboardId = null;
-    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
+    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
     resumeDesignById(entry.id);
   });
 
@@ -13309,7 +13341,7 @@ function wireDesignDashboard(entry) {
     // nulled list.activeId but state.activeDesignId still points at the
     // now-deleted entry until we explicitly null it.
     if (state.activeDesignId === entry.id) state.activeDesignId = null;
-    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "" };
+    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
     render();
     applyLanguage();
   });
@@ -20245,6 +20277,17 @@ function renderDictionary() {
     if (state.dictEdibleOnly) {
       const txt = [p.type_zh, p.type_en, p.role_zh, p.role_en, (p.supports_zh||[]).join(" "), (p.supports_en||[]).join(" ")].join(" ").toLowerCase();
       if (!/可食|edible/i.test(txt)) return false;
+      // R88 B7: exclude plants with documented hazards from the 🥗 chip —
+      // the chip implies "safe to eat," so a plant whose unripe fruit is
+      // toxic (黑甜仔 etc.) or whose sap stings shouldn't pass without a
+      // separate warning surface. Hazards live on EXPERT_META[id].hazards_*.
+      const meta = (typeof EXPERT_META !== "undefined") ? (EXPERT_META[p.id] || {}) : {};
+      const hasHazards = Array.isArray(meta.hazards_zh) && meta.hazards_zh.length > 0;
+      const hasMedicinal = !!(meta.medicinal_zh || meta.medicinal_en);
+      if (hasHazards) return false;
+      // Medicinal-only entries (no edible/food use) also shouldn't pass the
+      // chip — but supports_zh="可食" already qualifies them, so honor that.
+      void hasMedicinal;
     }
     if (state.dictThisMonth) {
       const bloomNow = (p.bloom || []).includes(curMonth);
