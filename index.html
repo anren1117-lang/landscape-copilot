@@ -9487,6 +9487,34 @@ function deleteDesignById(id) {
   saveDesignList(list);
 }
 
+// R92: deep-clone an existing saved design into a new entry. Copies the
+// snapshot (including qty + shape), layout (with FRESH tokenIds so the
+// two designs can't accidentally share token state), budget, journal,
+// and dailyDone state. Name is auto-suffixed with " 副本" / " (copy)".
+// Returns the new design's id, or null if the source doesn't exist.
+function cloneDesign(sourceId) {
+  const list = loadDesignList();
+  const src = list.designs.find(e => e.id === sourceId);
+  if (!src) return null;
+  const newId = makeDesignId();
+  // Deep clone via JSON round-trip — simple, safe for plain data, and
+  // avoids accidentally sharing arrays/maps between the two entries.
+  const cloned = JSON.parse(JSON.stringify(src));
+  cloned.id = newId;
+  cloned.name = (src.name || "未命名設計") + (state.lang === "en" ? " (copy)" : " 副本");
+  cloned.savedAt = Date.now();
+  // R92: regenerate every tokenId on the cloned layout. Without this,
+  // dragging a token on the clone would also "see" the original token's
+  // entry in any in-memory undo stack that happens to be live.
+  if (Array.isArray(cloned.layout)) {
+    cloned.layout = cloned.layout.map(t => ({ ...t, tokenId: makeTokenId() }));
+  }
+  list.designs.unshift(cloned);
+  list.activeId = newId;
+  saveDesignList(list);
+  return newId;
+}
+
 function renameDesign(id, newName) {
   const list = loadDesignList();
   const entry = list.designs.find(e => e.id === id);
@@ -13513,6 +13541,9 @@ function renderDesignDashboard() {
         <button type="button" class="ddash-settings-btn ddash-settings-btn-rename" id="ddashRenameBtn"
                 data-zh="✎ 重新命名"
                 data-en="✎ Rename">✎ 重新命名</button>
+        <button type="button" class="ddash-settings-btn" id="ddashCloneBtn"
+                data-zh="📋 複製此設計 (試試變體)"
+                data-en="📋 Duplicate this design (try a variant)">📋 複製此設計 (試試變體)</button>
         <button type="button" class="ddash-settings-btn ddash-settings-btn-danger" id="ddashDeleteBtn"
                 data-zh="🗑 刪除這個設計"
                 data-en="🗑 Delete this design">🗑 刪除這個設計</button>
@@ -13691,6 +13722,17 @@ function wireDesignDashboard(entry) {
       renameDesign(entry.id, newName);
       render();
       applyLanguage();
+    }
+  });
+
+  // R92: clone the current design into a fresh entry and jump there.
+  // Useful for trying a variant without re-running the wizard.
+  const cloneBtn = document.getElementById("ddashCloneBtn");
+  if (cloneBtn) cloneBtn.addEventListener("click", () => {
+    const newId = cloneDesign(entry.id);
+    if (newId) {
+      announceLayoutChange(t("已複製設計", "Design duplicated"));
+      openDesignDashboard(newId);
     }
   });
 
