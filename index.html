@@ -12372,7 +12372,7 @@ function renderLayoutElementGrid(entry) {
         <span class="layout-picker-name"
               data-zh="${escapeHtml(el.zh)}"
               data-en="${escapeHtml(el.en)}">${escapeHtml(el.zh)}</span>
-        <span class="layout-element-cost">${fmt(el.cost)}</span>
+        <span class="layout-element-cost" title="${escapeHtml(t('* 售價為估算', '* price is an estimate'))}">~${fmt(el.cost)}</span>
       </button>`;
   };
   return Object.keys(ELEMENT_CATEGORIES).filter(k => groups[k] && groups[k].length).map(k => {
@@ -13193,8 +13193,8 @@ function renderBudgetCard(entry) {
       <h2 id="ddashBudgetHead">
         <span data-zh="💰 預算" data-en="💰 Budget">💰 預算</span>
         <span class="dash-section-sub"
-              data-zh="植物自動計算 · 其他項目自行新增"
-              data-en="plants auto-calculated · add other line items">植物自動計算 · 其他項目自行新增</span>
+              data-zh="植物自動計算 · 其他項目自行新增 · *售價皆為估算"
+              data-en="plants auto-calculated · add other line items · *all prices are estimates">植物自動計算 · 其他項目自行新增 · *售價皆為估算</span>
       </h2>
       <div class="ddash-budget-card">
         <div class="ddash-budget-section-label"
@@ -21110,6 +21110,15 @@ function openDrawer(id) {
             <div class="meta-label" data-zh="成熟期" data-en="To mature">成熟期</div>
             <div class="meta-val" data-zh="約 ${plant.mature_yr ?? "—"} 年" data-en="~ ${plant.mature_yr ?? "—"} years">約 ${plant.mature_yr ?? "—"} 年</div>
           </div>
+          ${plant.cost ? `
+          <div class="meta-cell">
+            <div class="meta-label" data-zh="估算售價 ⓘ" data-en="Est. price ⓘ">估算售價 ⓘ</div>
+            <div class="meta-val" title="${escapeHtml(t('台北苗圃 2025 一般估算 · 詳見「關於」資料來源', 'Taipei nursery 2025 estimate · see About → Sources'))}">NT$ ${plant.cost.toLocaleString()}</div>
+          </div>` : `
+          <div class="meta-cell">
+            <div class="meta-label" data-zh="估算售價" data-en="Est. price">估算售價</div>
+            <div class="meta-val" data-zh="—" data-en="—">—</div>
+          </div>`}
         </div>
 
         ${(() => {
@@ -22024,6 +22033,33 @@ window.openAboutModal = function () {
       icon: "👋",
       zh: `<b>誰做的</b>：An-Ren Ho 與 Claude 一起寫的個人開源專案，獻給想為自己的空間種出一點生態的人。歡迎在 GitHub 提 issue、PR、或植物資料補充。`,
       en: `<b>Who built it</b>: a personal open-source project by An-Ren Ho with Claude, made for anyone who wants to bring a little ecology back to their own space. Issues, PRs and plant-data contributions welcome on GitHub.`,
+    },
+    {
+      icon: "📚",
+      zh: `<b>資料來源與方法</b>：
+        <div style="margin-top:6px;line-height:1.65;font-size:13px;">
+          <div style="margin-bottom:4px;">• <b>植物物種資料</b>：彙整自台灣維管束植物簡誌、林業試驗所植物誌、台灣植物資訊整合查詢系統 (TaiBIF)；許多條目為普遍植物學常識，無單一引用。</div>
+          <div style="margin-bottom:4px;">• <b>原住民傳統與料理應用</b>：《台灣島嶼植物生活圖譜 100 選》（atlas）— 內附詳細條目皆會在植物詳細視窗的「🍽 餐桌搭配」區塊註明出處。其餘文化條目（EXPERT_META.cultural_zh）標明族群或地區出處（泰雅族、布農族、排灣族、客家、閩南等），如無明確出處則為一般民俗知識。</div>
+          <div style="margin-bottom:4px;">• <b>售價</b>：<b>所有售價皆為估算</b>。植物以台北地區一般苗圃 2025 年常見售價估算，元素以線上零售平均估算。實際價格依規格、苗圃、季節、地區而異 — 建議向當地苗圃或廠商實際詢價。</div>
+          <div style="margin-bottom:4px;">• <b>花期與結果期</b>：台灣平地一般時間範圍，高山或寒流年份會偏移 ±1 個月。</div>
+          <div style="margin-bottom:4px;">• <b>養護日曆</b>：以台灣平地氣候為基準，與實際微氣候可能有差異。</div>
+          <div style="margin-bottom:4px;">• <b>AI 諮詢與植物醫生</b>：由 Pollinations.ai 提供（開放 API，無內建出處），答案僅供參考，重要決策請諮詢專業園藝師或農業改良場。</div>
+          <div style="margin-bottom:4px;">• <b>地址查詢</b>：OpenStreetMap Nominatim 地理編碼服務（免費）。</div>
+          <div style="margin-bottom:4px;">• <b>QR 圖示</b>：qrserver.com 即時產生（外部服務）。</div>
+          <div style="margin-top:6px;color:#8C6F52;font-style:italic;font-size:12px;">本工具不取代專業景觀設計或農業諮詢；所有數據僅供規劃參考。</div>
+        </div>`,
+      en: `<b>Sources & methodology</b>:
+        <div style="margin-top:6px;line-height:1.65;font-size:13px;">
+          <div style="margin-bottom:4px;">• <b>Plant species data</b>: aggregated from Taiwan vascular plant references, the Forestry Research Institute publications, and TaiBIF; many entries are general botanical knowledge with no single citation.</div>
+          <div style="margin-bottom:4px;">• <b>Indigenous tradition + culinary applications</b>: 《Taiwan Island Plant Life Atlas 100 Selections》— individual entries are cited inline in the plant drawer's "🍽 At the table" section. Other cultural notes (EXPERT_META.cultural_zh) name the tribe or region of origin (Atayal, Bunun, Paiwan, Hakka, Hokkien); where no clear origin exists, it's general folk knowledge.</div>
+          <div style="margin-bottom:4px;">• <b>Prices</b>: <b>all prices are estimates</b>. Plants are estimated from typical Taipei-area 2025 nursery quotes; elements from average online retail. Real prices vary by specimen, vendor, season, and region — verify with local nurseries or suppliers.</div>
+          <div style="margin-bottom:4px;">• <b>Bloom + fruit months</b>: general timing for Taiwan lowlands; shifts ±1 month at altitude or in cold-snap years.</div>
+          <div style="margin-bottom:4px;">• <b>Care calendar</b>: tuned to Taiwan lowland climate; may differ from your local microclimate.</div>
+          <div style="margin-bottom:4px;">• <b>AI Q&A + Plant Doctor</b>: provided by Pollinations.ai (open API, no built-in sourcing). Treat answers as advisory; verify with a horticulturist or agricultural research station for major decisions.</div>
+          <div style="margin-bottom:4px;">• <b>Address lookup</b>: OpenStreetMap Nominatim geocoding (free).</div>
+          <div style="margin-bottom:4px;">• <b>QR codes</b>: generated on demand by qrserver.com (external).</div>
+          <div style="margin-top:6px;color:#8C6F52;font-style:italic;font-size:12px;">This tool does not replace professional landscape design or agricultural consulting; all data is advisory.</div>
+        </div>`,
     },
     {
       icon: "🔗",
