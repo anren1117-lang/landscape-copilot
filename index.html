@@ -3746,6 +3746,7 @@
   }
   .layout-picker-tab {
     flex: 1;
+    min-width: 0; /* allow shrink + ellipsis on long labels */
     background: transparent;
     color: var(--ink-soft);
     border: 0;
@@ -3755,6 +3756,9 @@
     font-weight: 500;
     cursor: pointer;
     font-family: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     transition: background 0.12s ease, color 0.12s ease;
   }
   .layout-picker-tab:hover { color: var(--forest); }
@@ -3780,6 +3784,7 @@
     font-family: var(--serif);
     font-style: italic;
     margin-left: auto;
+    flex-shrink: 0; /* R95: don't let the flex:1 name push the cost to "NT$…" */
   }
 
   /* R89: element tokens render as rounded-square emoji glyphs */
@@ -4065,11 +4070,36 @@
       padding: 10px 0 0;
     }
     .layout-editor-add,
-    .layout-editor-reset {
+    .layout-editor-reset,
+    .layout-editor-chip {
       flex: 1;
       padding: 10px 12px;
       font-size: 12.5px;
     }
+    /* R95: picker tabs already nowrap+ellipsis above; on tiny viewports
+       reduce padding so longer Chinese labels fit without ellipsis. */
+    .layout-picker-tab { padding: 8px 6px; font-size: 12px; }
+    /* R95: element cards' cost cell — keep it tight + don't let the
+       cost get shrunk to "NT$…" by the flex:1 name. */
+    .layout-element-cost { font-size: 10px; flex-shrink: 0; }
+    /* R95: stabilize the season slider's tick row so the bold "on" tick
+       doesn't push neighbors around. Tabular numerals match width. */
+    .layout-season-tick {
+      font-variant-numeric: tabular-nums;
+      min-width: 16px;
+      transition: color 0.12s ease; /* drop font-weight transition (non-anim) */
+    }
+    /* R95: palette swatches — bump min size to 28px so single-token plants
+       still hit a usable tap area, and let the row scroll horizontally
+       rather than wrap to 3 vertical rows. */
+    .layout-palette-row {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      gap: 8px; /* +2px for finger separation */
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 2px; /* space for the scrollbar */
+    }
+    .layout-palette-swatch { min-width: 28px; min-height: 28px; }
   }
 
   /* Settings */
@@ -4241,6 +4271,12 @@
   .ddash-budget-name {
     color: var(--forest);
     font-family: var(--serif);
+    /* R95: prevent emoji + Han name combos like "🪑 庭園長椅" from
+       wrapping to two lines on narrow mobile budget tables. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 0;        /* let the cell content shrink via ellipsis */
   }
   .ddash-budget-empty {
     color: var(--clay);
