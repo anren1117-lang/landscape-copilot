@@ -3736,6 +3736,56 @@
   }
   @media print { .layout-season { display: none !important; } }
 
+  /* R89: picker tabs — 🌿 Plants vs 🏗 Elements */
+  .layout-picker-tabs {
+    display: flex; gap: 4px;
+    padding: 4px;
+    background: rgba(196,210,176,0.10);
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .layout-picker-tab {
+    flex: 1;
+    background: transparent;
+    color: var(--ink-soft);
+    border: 0;
+    padding: 8px 12px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .layout-picker-tab:hover { color: var(--forest); }
+  .layout-picker-tab.on {
+    background: var(--paper);
+    color: var(--forest);
+    box-shadow: 0 1px 3px rgba(44,53,38,0.10);
+  }
+
+  /* R89: element cards in the picker — distinguish from plant cards */
+  .layout-element-card { padding: 8px 10px; }
+  .layout-element-swatch {
+    border-radius: 5px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    color: rgba(255,255,255,0.95);
+    text-shadow: 0 1px 1px rgba(0,0,0,0.30);
+    flex-shrink: 0;
+  }
+  .layout-element-cost {
+    color: var(--clay);
+    font-size: 10.5px;
+    font-family: var(--serif);
+    font-style: italic;
+    margin-left: auto;
+  }
+
+  /* R89: element tokens render as rounded-square emoji glyphs */
+  .layout-token-element { cursor: grab; }
+  .layout-token-element.dragging { cursor: grabbing; }
+
   /* R69 a11y: visually hidden but still announced by screen readers.
      Used for live regions on the layout editor (announce add/remove). */
   .visually-hidden {
@@ -8206,6 +8256,66 @@ const EXPERT_META = {
 };
 
 // ─────────────────────────────────────────────────────────────
+// R89: Landscape ELEMENTS — non-plant items the layout editor can place.
+// A real landscape isn't just plants: it's also paths, water features,
+// benches, pergolas, fences, lighting, etc. This catalog lives parallel
+// to PLANTS and feeds the picker's 🏗 Elements tab + the canvas's emoji
+// token rendering for non-plant kinds.
+//
+// Each entry is intentionally minimal (id, zh, en, category, glyph,
+// color, cost) — we don't model sun/water/bloom for furniture.
+// ─────────────────────────────────────────────────────────────
+const ELEMENTS = [
+  // 🛤 Hardscape
+  { id:"stepping_stones", zh:"石板步道", en:"Stepping stones", category:"hardscape", glyph:"▤", color:"#8C8C8C", cost:200 },
+  { id:"patio", zh:"石板露台", en:"Stone patio", category:"hardscape", glyph:"▥", color:"#8C8C8C", cost:2400 },
+  { id:"wood_deck", zh:"木甲板", en:"Wood deck", category:"hardscape", glyph:"▨", color:"#A88560", cost:3500 },
+  { id:"gravel_path", zh:"碎石步道", en:"Gravel path", category:"hardscape", glyph:"▦", color:"#A8A89E", cost:600 },
+  { id:"brick_edge", zh:"紅磚收邊", en:"Brick edging", category:"hardscape", glyph:"▭", color:"#9C5A40", cost:480 },
+
+  // 💧 Water features
+  { id:"bird_bath", zh:"鳥浴盆", en:"Bird bath", category:"water", glyph:"🪺", color:"#88B0C8", cost:800 },
+  { id:"small_pond", zh:"小水池", en:"Small pond", category:"water", glyph:"🪷", color:"#5B8FA8", cost:2800 },
+  { id:"fountain", zh:"庭園水景", en:"Fountain", category:"water", glyph:"⛲", color:"#88B0C8", cost:5200 },
+  { id:"rain_barrel", zh:"雨水回收桶", en:"Rain barrel", category:"water", glyph:"🛢", color:"#446677", cost:1400 },
+
+  // 🛋 Structures + furniture
+  { id:"garden_bench", zh:"庭園長椅", en:"Garden bench", category:"structure", glyph:"🪑", color:"#7C5440", cost:1600 },
+  { id:"pergola", zh:"藤架", en:"Pergola", category:"structure", glyph:"⛩", color:"#7C5440", cost:8500 },
+  { id:"trellis", zh:"棚架", en:"Trellis", category:"structure", glyph:"𐀢", color:"#7C5440", cost:600 },
+  { id:"arbor", zh:"拱門", en:"Arbor", category:"structure", glyph:"⌒", color:"#7C5440", cost:2500 },
+  { id:"fence_section", zh:"圍籬一段", en:"Fence section", category:"structure", glyph:"▦", color:"#7C5440", cost:900 },
+  { id:"dining_table", zh:"戶外餐桌", en:"Outdoor dining table", category:"structure", glyph:"🍽", color:"#5C4030", cost:4500 },
+  { id:"hammock", zh:"吊床", en:"Hammock", category:"structure", glyph:"🛌", color:"#A86C44", cost:1200 },
+  { id:"raised_bed", zh:"高架花壇", en:"Raised garden bed", category:"structure", glyph:"🪴", color:"#7C5440", cost:1800 },
+
+  // 💡 Lighting
+  { id:"path_light", zh:"步道地燈", en:"Path light", category:"lighting", glyph:"💡", color:"#E0C088", cost:250 },
+  { id:"garden_lantern", zh:"庭院燈籠", en:"Garden lantern", category:"lighting", glyph:"🏮", color:"#E0AC68", cost:600 },
+  { id:"string_lights", zh:"串燈", en:"String lights (one run)", category:"lighting", glyph:"✨", color:"#E0C088", cost:480 },
+
+  // 🛖 Storage
+  { id:"tool_shed", zh:"工具房", en:"Tool shed", category:"storage", glyph:"🛖", color:"#6E5C44", cost:14000 },
+  { id:"compost_bin", zh:"堆肥桶", en:"Compost bin", category:"storage", glyph:"♻", color:"#5C4830", cost:900 },
+
+  // 🦋 Wildlife habitat
+  { id:"bird_house", zh:"鳥屋", en:"Bird house", category:"wildlife", glyph:"🐦", color:"#88B068", cost:450 },
+  { id:"bee_hotel", zh:"蜂類旅館", en:"Bee hotel", category:"wildlife", glyph:"🐝", color:"#C8AC68", cost:650 },
+];
+
+const ELEMENT_BY_ID = Object.fromEntries(ELEMENTS.map(e => [e.id, e]));
+
+// Localized category labels for the picker tabs / element badges.
+const ELEMENT_CATEGORIES = {
+  hardscape: { zh:"🛤 步道與鋪面", en:"🛤 Paths & paving", color:"#8C8C8C" },
+  water:     { zh:"💧 水景",       en:"💧 Water features", color:"#5B8FA8" },
+  structure: { zh:"🛋 結構與家具", en:"🛋 Structures & furniture", color:"#7C5440" },
+  lighting:  { zh:"💡 燈光",       en:"💡 Lighting", color:"#E0C088" },
+  storage:   { zh:"🛖 收納",       en:"🛖 Storage", color:"#6E5C44" },
+  wildlife:  { zh:"🦋 野生動物棲地", en:"🦋 Wildlife habitat", color:"#88B068" },
+};
+
+// ─────────────────────────────────────────────────────────────
 // R82: Recipe pairings from《台灣島嶼植物生活圖譜 100 選》atlas.
 // Each entry maps a plant id (must match PLANTS[].id) to a single
 // pairing: title (Kinfolk-italic dish name) + body (one-line cook
@@ -8667,7 +8777,7 @@ const state = {
   //    R85: previewMonth (1-12) drives the seasonal preview slider —
   //    when set, the canvas marks plants currently in bloom/fruit.
   //    null = no preview (default current-month view in the summary).
-  layoutEditor: { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null },
+  layoutEditor: { placingPlantId: null, placingElementId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", pickerTab: "plant", showLabels: false, undoStack: [], previewMonth: null },
   lang: "zh",
 };
 
@@ -10504,7 +10614,7 @@ function render() {
       state.view = "home";
       // R67: same scrub as brand-home so the next dashboard entry starts fresh.
       state.designDashboardId = null;
-      state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
+      state.layoutEditor = { placingPlantId: null, placingElementId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", pickerTab: "plant", showLabels: false, undoStack: [], previewMonth: null };
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -11882,36 +11992,72 @@ function announceLayoutChange(msg) {
   setTimeout(() => { live.textContent = msg; }, 30);
 }
 
+// R89: token-subject resolver. Returns {kind, subject, color, glyph} for
+// either a plant or a landscape element. Backward compat: tokens without
+// a `kind` field are assumed plants (legacy schema).
+function getTokenSubject(token) {
+  if (!token) return null;
+  const kind = token.kind || (token.elementId ? "element" : "plant");
+  if (kind === "element") {
+    const el = ELEMENT_BY_ID[token.elementId || token.id];
+    if (!el) return null;
+    return { kind: "element", subject: el, color: el.color, glyph: el.glyph };
+  }
+  const plant = PLANT_BY_ID[token.plantId || token.id];
+  if (!plant) return null;
+  return { kind: "plant", subject: plant, color: plant.color || "#8A9A7B", glyph: null };
+}
+
 // R66 — Add a new token to the design's layout AND increment snap.qty.
 // snap.qty is the source-of-truth for "how many of plant X are in this
 // design" (scoring, shopping, gallery thumbnail all read it), so any
 // canvas-side add MUST mirror into qty for consistency.
 // R67: guard entry.snapshot — older designs without a saved snapshot
 // would otherwise throw on the qty mirror line.
-function addLayoutToken(designId, plantId, x, y) {
-  if (!plantId) return null;
+// R89: 3rd arg may be either (designId, plantId, x, y) or
+// (designId, { kind: "element", id }, x, y) so element placement reuses
+// the same code path. The qty mirror only applies to plants.
+function addLayoutToken(designId, subjectOrPlantId, x, y) {
+  if (!subjectOrPlantId) return null;
   const list = loadDesignList();
   const entry = list.designs.find(e => e.id === designId);
   if (!entry) return null;
   if (!entry.snapshot || typeof entry.snapshot !== "object") entry.snapshot = {};
   if (!Array.isArray(entry.layout)) entry.layout = ensureDesignLayout(entry).slice();
   if (entry.layout.length >= LAYOUT_MAX_TOKENS) return null;
+
+  // Normalize call shape. Legacy callers pass a plant id string; new
+  // element callers pass { kind: "element", id }.
+  let kind, id;
+  if (typeof subjectOrPlantId === "string") {
+    kind = "plant";
+    id = subjectOrPlantId;
+  } else {
+    kind = (subjectOrPlantId.kind === "element") ? "element" : "plant";
+    id = subjectOrPlantId.id;
+  }
   const newToken = {
     tokenId: makeTokenId(),
-    plantId,
+    kind,
     x: Math.max(0, Math.min(1, x)),
     y: Math.max(0, Math.min(1, y)),
   };
+  if (kind === "element") {
+    newToken.elementId = id;
+  } else {
+    newToken.plantId = id;
+    // Mirror into snap.qty so gallery / shopping / scoring all see the new plant.
+    if (!entry.snapshot.qty || typeof entry.snapshot.qty !== "object") entry.snapshot.qty = {};
+    entry.snapshot.qty[id] = (Number(entry.snapshot.qty[id]) || 0) + 1;
+  }
   entry.layout.push(newToken);
-  // Mirror into snap.qty so gallery / shopping / scoring all see the new plant.
-  if (!entry.snapshot.qty || typeof entry.snapshot.qty !== "object") entry.snapshot.qty = {};
-  entry.snapshot.qty[plantId] = (Number(entry.snapshot.qty[plantId]) || 0) + 1;
   saveDesignList(list);
   return newToken;
 }
 
-// R66 — Remove a token from layout AND decrement snap.qty (delete entry
-// when qty drops to 0). Keeps the qty mirror invariant intact.
+// R66 — Remove a token from layout. For plant tokens, also decrements
+// snap.qty (delete entry when qty drops to 0). For R89 element tokens,
+// the qty mirror doesn't apply — we just splice the token out.
 function removeLayoutToken(designId, tokenId) {
   if (!tokenId) return;
   const list = loadDesignList();
@@ -11921,9 +12067,11 @@ function removeLayoutToken(designId, tokenId) {
   if (!Array.isArray(entry.layout)) entry.layout = ensureDesignLayout(entry).slice();
   const idx = entry.layout.findIndex(t => t.tokenId === tokenId);
   if (idx < 0) return;
-  const plantId = entry.layout[idx].plantId;
+  const token = entry.layout[idx];
+  const kind = token.kind || (token.elementId ? "element" : "plant");
   entry.layout.splice(idx, 1);
-  if (entry.snapshot.qty && typeof entry.snapshot.qty === "object") {
+  if (kind === "plant" && entry.snapshot.qty && typeof entry.snapshot.qty === "object") {
+    const plantId = token.plantId;
     const current = Number(entry.snapshot.qty[plantId]) || 0;
     if (current <= 1) delete entry.snapshot.qty[plantId];
     else entry.snapshot.qty[plantId] = current - 1;
@@ -12020,30 +12168,104 @@ function renderLayoutPickerGrid(entry) {
     </div>`;
 }
 
+// R89: picker tabs — 🌿 Plants (existing) and 🏗 Elements (new).
+// state.layoutEditor.pickerTab ∈ {"plant", "element"}, defaults to "plant".
 function renderLayoutPickerPanel(entry) {
   if (!state.layoutEditor.pickerOpen) return "";
+  const tab = state.layoutEditor.pickerTab || "plant";
+  const searchPh = tab === "element"
+    ? (state.lang === "en" ? "Search element…" : "搜尋景觀元素…")
+    : (state.lang === "en" ? "Search plant (Chinese / English / Latin)…" : "搜尋植物中文/英文/學名…");
   return `
     <div class="layout-picker" id="layoutPickerPanel">
+      <div class="layout-picker-tabs">
+        <button type="button" class="layout-picker-tab ${tab === "plant" ? "on" : ""}"
+                data-picker-tab="plant"
+                data-zh="🌿 植物 (${PLANTS.length})"
+                data-en="🌿 Plants (${PLANTS.length})">🌿 植物 (${PLANTS.length})</button>
+        <button type="button" class="layout-picker-tab ${tab === "element" ? "on" : ""}"
+                data-picker-tab="element"
+                data-zh="🏗 景觀元素 (${ELEMENTS.length})"
+                data-en="🏗 Elements (${ELEMENTS.length})">🏗 景觀元素 (${ELEMENTS.length})</button>
+      </div>
       <div class="layout-picker-head">
         <input type="search" id="layoutPickerSearch"
                class="layout-picker-search"
                value="${escapeHtml(state.layoutEditor.pickerQuery || "")}"
-               data-zh-placeholder="搜尋植物中文/英文/學名…"
-               data-en-placeholder="Search plant (Chinese / English / Latin)…"
-               placeholder="${state.lang === "en" ? "Search plant (Chinese / English / Latin)…" : "搜尋植物中文/英文/學名…"}"
-               aria-label="${escapeHtml(t('搜尋植物', 'Search plant'))}">
+               data-zh-placeholder="${escapeHtml(tab === "element" ? "搜尋景觀元素…" : "搜尋植物中文/英文/學名…")}"
+               data-en-placeholder="${escapeHtml(tab === "element" ? "Search element…" : "Search plant (Chinese / English / Latin)…")}"
+               placeholder="${escapeHtml(searchPh)}"
+               aria-label="${escapeHtml(t(tab === "element" ? '搜尋景觀元素' : '搜尋植物', tab === "element" ? 'Search element' : 'Search plant'))}">
         <button type="button" class="layout-picker-close" id="layoutPickerCloseBtn"
-                aria-label="${escapeHtml(t('關閉植物選擇器', 'Close plant picker'))}"
-                data-zh-aria="關閉植物選擇器" data-en-aria="Close plant picker">✕</button>
+                aria-label="${escapeHtml(t('關閉選擇器', 'Close picker'))}"
+                data-zh-aria="關閉選擇器" data-en-aria="Close picker">✕</button>
       </div>
-      ${renderLayoutPickerGrid(entry)}
+      ${tab === "element" ? renderLayoutElementGrid(entry) : renderLayoutPickerGrid(entry)}
     </div>`;
 }
 
+// R89: element grid — grouped by category. Each card carries the
+// category color + emoji glyph + cost. Filter on the same pickerQuery.
+function renderLayoutElementGrid(entry) {
+  const q = (state.layoutEditor.pickerQuery || "").trim().toLowerCase();
+  const matches = (el) => {
+    if (!q) return true;
+    return (el.zh || "").includes(q)
+        || (el.en || "").toLowerCase().includes(q)
+        || (el.category || "").toLowerCase().includes(q);
+  };
+  const filtered = ELEMENTS.filter(matches);
+  // Group by category in the order ELEMENT_CATEGORIES declares.
+  const groups = {};
+  filtered.forEach(el => {
+    if (!groups[el.category]) groups[el.category] = [];
+    groups[el.category].push(el);
+  });
+  if (filtered.length === 0) {
+    return `
+      <div class="layout-picker-grid">
+        <div class="layout-picker-empty"
+             data-zh="沒有符合的景觀元素 — 試試其他關鍵字"
+             data-en="No matches — try a different search">沒有符合的景觀元素</div>
+      </div>`;
+  }
+  const card = (el) => {
+    const fmt = (n) => "NT$ " + n.toLocaleString();
+    return `
+      <button type="button" class="layout-picker-card layout-element-card"
+              data-picker-element="${escapeHtml(el.id)}"
+              aria-label="${escapeHtml(t('加入 ' + el.zh, 'Add ' + el.en))}"
+              data-zh-aria="加入 ${escapeHtml(el.zh)}"
+              data-en-aria="Add ${escapeHtml(el.en)}">
+        <span class="layout-picker-swatch layout-element-swatch"
+              style="background:${escapeHtml(el.color)};"
+              aria-hidden="true">${el.glyph || "▢"}</span>
+        <span class="layout-picker-name"
+              data-zh="${escapeHtml(el.zh)}"
+              data-en="${escapeHtml(el.en)}">${escapeHtml(el.zh)}</span>
+        <span class="layout-element-cost">${fmt(el.cost)}</span>
+      </button>`;
+  };
+  return Object.keys(ELEMENT_CATEGORIES).filter(k => groups[k] && groups[k].length).map(k => {
+    const cat = ELEMENT_CATEGORIES[k];
+    return `
+      <div class="layout-picker-section-label"
+           data-zh="${escapeHtml(cat.zh)}"
+           data-en="${escapeHtml(cat.en)}">${escapeHtml(cat.zh)}</div>
+      <div class="layout-picker-grid">
+        ${groups[k].map(card).join("")}
+      </div>`;
+  }).join("");
+}
+
 function renderLayoutPlacingBanner() {
+  // R89: placing could be a plant OR an element. Both flow through the
+  // same banner / cancel UX. state.layoutEditor.placingElementId mirrors
+  // placingPlantId for element placement.
   const plantId = state.layoutEditor.placingPlantId;
-  if (!plantId) return "";
-  const p = PLANT_BY_ID[plantId];
+  const elementId = state.layoutEditor.placingElementId;
+  if (!plantId && !elementId) return "";
+  const p = elementId ? ELEMENT_BY_ID[elementId] : PLANT_BY_ID[plantId];
   if (!p) return "";
   return `
     <div class="layout-placing-banner" role="status">
@@ -12063,21 +12285,30 @@ function renderLayoutSelectedActionBar(entry) {
   const layout = ensureDesignLayout(entry);
   const token = layout.find(t => t.tokenId === tokenId);
   if (!token) return "";
-  const p = PLANT_BY_ID[token.plantId];
-  if (!p) return "";
-  const qty = Number((entry.snapshot.qty || {})[token.plantId]) || 0;
+  // R89: handle both plant and element selections.
+  const sub = getTokenSubject(token);
+  if (!sub) return "";
+  const obj = sub.subject;
+  const isElement = sub.kind === "element";
+  const qty = isElement
+    ? 1
+    : (Number((entry.snapshot.qty || {})[token.plantId]) || 0);
+  const qtyZh = isElement ? "景觀元素" : `共 ${qty} 株`;
+  const qtyEn = isElement ? "Element" : `${qty} total`;
+  const removeZh = isElement ? "✕ 移除" : "✕ 移除這株";
+  const removeEn = "✕ Remove this";
   return `
     <div class="layout-action-bar" role="status">
-      <span class="layout-action-swatch" style="background:${escapeHtml(p.color || '#8A9A7B')};"
-            aria-hidden="true"></span>
+      <span class="layout-action-swatch" style="background:${escapeHtml(sub.color || '#8A9A7B')};"
+            aria-hidden="true">${isElement ? (sub.glyph || "") : ""}</span>
       <span class="layout-action-name"
-            data-zh="${escapeHtml(p.zh)}"
-            data-en="${escapeHtml(p.en)}">${escapeHtml(p.zh)}</span>
+            data-zh="${escapeHtml(obj.zh)}"
+            data-en="${escapeHtml(obj.en)}">${escapeHtml(obj.zh)}</span>
       <span class="layout-action-qty"
-            data-zh="共 ${qty} 株" data-en="${qty} total">共 ${qty} 株</span>
+            data-zh="${escapeHtml(qtyZh)}" data-en="${escapeHtml(qtyEn)}">${escapeHtml(qtyZh)}</span>
       <button type="button" class="layout-action-remove" id="layoutActionRemoveBtn"
-              data-zh="✕ 移除這株"
-              data-en="✕ Remove this">✕ 移除這株</button>
+              data-zh="${escapeHtml(removeZh)}"
+              data-en="${escapeHtml(removeEn)}">${escapeHtml(removeZh)}</button>
       <button type="button" class="layout-action-close" id="layoutActionCloseBtn"
               aria-label="${escapeHtml(t('關閉', 'Close'))}"
               data-zh-aria="關閉" data-en-aria="Close">↩</button>
@@ -12142,47 +12373,57 @@ function renderLayoutEditorSVG(entry) {
   const showLabels = !!(state.layoutEditor && state.layoutEditor.showLabels);
   const previewMonth = (state.layoutEditor && state.layoutEditor.previewMonth) || null;
   const tokensHtml = layout.map(token => {
-    const plant = PLANT_BY_ID[token.plantId];
-    if (!plant) return "";
+    const sub = getTokenSubject(token);
+    if (!sub) return "";
+    const isElement = sub.kind === "element";
+    const obj = sub.subject;
     const cx = rectX + token.x * rectW;
     const cy = rectY + token.y * rectH;
     const r = 9.5;
-    const color = plant.color || "#8A9A7B";
-    const isNative = !!plant.native;
+    const color = sub.color;
+    const isNative = !isElement && !!obj.native;
     const isSelected = token.tokenId === selectedTokenId;
-    // R84: optional plant-name label sits below the token. Cap to 4 chars
-    // (Chinese) or 8 chars (English) so the canvas doesn't get noisy.
+    // R84: optional name label sits below the token. Cap chars so the
+    // canvas doesn't get noisy. R89: works for both plants and elements.
     const labelText = showLabels
       ? (state.lang === "en"
-          ? (plant.en || "").slice(0, 10)
-          : (plant.zh || "").slice(0, 5))
+          ? (obj.en || "").slice(0, 10)
+          : (obj.zh || "").slice(0, 5))
       : "";
-    // R85: seasonal markers — bloom 🌸 / fruit 🍒 — when the slider is set.
-    // Small emoji glyph centered above the token. Bloom takes precedence
-    // when both happen (avoids stacking).
-    const inBloom = previewMonth && (plant.bloom || []).includes(previewMonth);
-    const inFruit = previewMonth && (plant.fruit || []).includes(previewMonth);
+    // R85: seasonal markers only apply to plants. Elements never bloom.
+    const inBloom = !isElement && previewMonth && (obj.bloom || []).includes(previewMonth);
+    const inFruit = !isElement && previewMonth && (obj.fruit || []).includes(previewMonth);
     const seasonGlyph = inBloom ? "🌸" : (inFruit ? "🍒" : "");
+    // R89 element tokens render as a centered emoji glyph instead of a
+    // colored circle so users instantly tell hardscape from plants.
+    const tokenBody = isElement
+      ? `${isSelected ? `<rect x="${(-r - 5).toFixed(1)}" y="${(-r - 5).toFixed(1)}" width="${(2*r + 10).toFixed(1)}" height="${(2*r + 10).toFixed(1)}" rx="4" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="3 2" opacity="0.85"/>` : ""}
+         <rect x="${(-r - 2).toFixed(1)}" y="${(-r - 2).toFixed(1)}" width="${(2*r + 4).toFixed(1)}" height="${(2*r + 4).toFixed(1)}" rx="3" fill="${color}" opacity="0.22"/>
+         <text text-anchor="middle" dominant-baseline="central" font-size="14">${sub.glyph || "▢"}</text>`
+      : `${isSelected ? `<circle r="${(r + 7).toFixed(1)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="3 2" opacity="0.85"/>` : ""}
+         <circle r="${(r + 3).toFixed(1)}" fill="${color}" opacity="0.22"/>
+         <circle r="${r.toFixed(1)}" fill="${color}" opacity="0.84" stroke="${color}" stroke-width="0.8"/>
+         ${isNative ? `<circle cx="${(r*0.55).toFixed(1)}" cy="${(-r*0.55).toFixed(1)}" r="2" fill="#2D8B5C"/>` : ""}`;
     return `
-      <g class="layout-token ${isSelected ? "selected" : ""}"
+      <g class="layout-token layout-token-${sub.kind} ${isSelected ? "selected" : ""}"
          data-token-id="${escapeHtml(token.tokenId)}"
-         data-plant-id="${escapeHtml(token.plantId)}"
+         data-kind="${escapeHtml(sub.kind)}"
+         ${isElement
+           ? `data-element-id="${escapeHtml(token.elementId || obj.id)}"`
+           : `data-plant-id="${escapeHtml(token.plantId || obj.id)}"`}
          transform="translate(${cx.toFixed(1)}, ${cy.toFixed(1)})"
          tabindex="0"
          role="button"
-         aria-label="${escapeHtml(t(plant.zh + ' — 拖移以移動', plant.en + ' — drag to move'))}"
-         data-zh-aria="${escapeHtml(plant.zh + ' — 拖移以移動')}"
-         data-en-aria="${escapeHtml(plant.en + ' — drag to move')}">
-        ${isSelected ? `<circle r="${(r + 7).toFixed(1)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="3 2" opacity="0.85"/>` : ""}
-        <circle r="${(r + 3).toFixed(1)}" fill="${color}" opacity="0.22"/>
-        <circle r="${r.toFixed(1)}" fill="${color}" opacity="0.84" stroke="${color}" stroke-width="0.8"/>
-        ${isNative ? `<circle cx="${(r*0.55).toFixed(1)}" cy="${(-r*0.55).toFixed(1)}" r="2" fill="#2D8B5C"/>` : ""}
+         aria-label="${escapeHtml(t(obj.zh + ' — 拖移以移動', obj.en + ' — drag to move'))}"
+         data-zh-aria="${escapeHtml(obj.zh + ' — 拖移以移動')}"
+         data-en-aria="${escapeHtml(obj.en + ' — drag to move')}">
+        ${tokenBody}
         ${seasonGlyph ? `<text class="layout-season-glyph" y="${(-r - 4).toFixed(1)}" text-anchor="middle" font-size="11">${seasonGlyph}</text>` : ""}
         ${labelText ? `<text class="layout-token-label" y="${(r + 11).toFixed(1)}" text-anchor="middle"
                             font-size="9" font-family="serif" font-style="italic"
                             fill="rgba(44,53,38,0.78)"
-                            data-zh="${escapeHtml((plant.zh || "").slice(0, 5))}"
-                            data-en="${escapeHtml((plant.en || "").slice(0, 10))}">${escapeHtml(labelText)}</text>` : ""}
+                            data-zh="${escapeHtml((obj.zh || "").slice(0, 5))}"
+                            data-en="${escapeHtml((obj.en || "").slice(0, 10))}">${escapeHtml(labelText)}</text>` : ""}
       </g>`;
   }).join("");
 
@@ -12333,22 +12574,28 @@ function wireLayoutEditor(entry) {
       const snap = entry.snapshot || {};
       const shape = (snap.shape === "L" || snap.shape === "round") ? snap.shape : "rect";
       const insideShape = pointInShape(shape, upPt.x, upPt.y, rectX, rectY, rectW, rectH);
-      if (isTap && state.layoutEditor.placingPlantId && insideShape) {
+      if (isTap && (state.layoutEditor.placingPlantId || state.layoutEditor.placingElementId) && insideShape) {
         const nx = (upPt.x - rectX) / rectW;
         const ny = (upPt.y - rectY) / rectH;
         const placedPlantId = state.layoutEditor.placingPlantId;
+        const placedElementId = state.layoutEditor.placingElementId;
         // R84: snapshot BEFORE the add so ↶ Undo can restore the prior state.
         pushLayoutUndo(entry);
-        const newToken = addLayoutToken(entry.id, placedPlantId, nx, ny);
+        // R89: route to addLayoutToken with either a string (plant) or
+        // { kind:"element", id } (element).
+        const newToken = placedElementId
+          ? addLayoutToken(entry.id, { kind: "element", id: placedElementId }, nx, ny)
+          : addLayoutToken(entry.id, placedPlantId, nx, ny);
         // After one placement, exit placing mode — user can re-open the picker
-        // for the next plant. This avoids confusing repeated-tap-adds.
+        // for the next plant/element. This avoids confusing repeated-tap-adds.
         state.layoutEditor.placingPlantId = null;
+        state.layoutEditor.placingElementId = null;
         state.layoutEditor.selectedTokenId = newToken ? newToken.tokenId : null;
         render();
         applyLanguage();
         // R69 a11y: announce the placement so SR users hear what happened.
-        const plant = PLANT_BY_ID[placedPlantId];
-        if (plant) announceLayoutChange(t(`已加入 ${plant.zh}`, `Added ${plant.en}`));
+        const placed = placedElementId ? ELEMENT_BY_ID[placedElementId] : PLANT_BY_ID[placedPlantId];
+        if (placed) announceLayoutChange(t(`已加入 ${placed.zh}`, `Added ${placed.en}`));
         return;
       } else if (isTap && state.layoutEditor.selectedTokenId) {
         // Tap-outside on a selected token clears the selection bar.
@@ -12564,6 +12811,7 @@ function wireLayoutEditor(entry) {
     btn.addEventListener("click", () => {
       const plantId = btn.getAttribute("data-picker-plant");
       state.layoutEditor.placingPlantId = plantId;
+      state.layoutEditor.placingElementId = null;
       state.layoutEditor.pickerOpen = false;
       state.layoutEditor.selectedTokenId = null;
       render();
@@ -12572,9 +12820,35 @@ function wireLayoutEditor(entry) {
       if (plant) announceLayoutChange(t(`點空間放置 ${plant.zh}`, `Tap to place ${plant.en}`));
     });
   });
+  // R89: element pick — mirrors plant pick but sets placingElementId.
+  document.querySelectorAll("[data-picker-element]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const elementId = btn.getAttribute("data-picker-element");
+      state.layoutEditor.placingElementId = elementId;
+      state.layoutEditor.placingPlantId = null;
+      state.layoutEditor.pickerOpen = false;
+      state.layoutEditor.selectedTokenId = null;
+      render();
+      applyLanguage();
+      const el = ELEMENT_BY_ID[elementId];
+      if (el) announceLayoutChange(t(`點空間放置 ${el.zh}`, `Tap to place ${el.en}`));
+    });
+  });
+  // R89: picker tab toggle — switch between 🌿 plants and 🏗 elements.
+  document.querySelectorAll("[data-picker-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.layoutEditor.pickerTab = btn.getAttribute("data-picker-tab");
+      state.layoutEditor.pickerQuery = "";
+      render();
+      applyLanguage();
+      const search = document.getElementById("layoutPickerSearch");
+      if (search) setTimeout(() => search.focus(), 30);
+    });
+  });
   const cancelPlacing = document.getElementById("layoutPlacingCancelBtn");
   if (cancelPlacing) cancelPlacing.addEventListener("click", () => {
     state.layoutEditor.placingPlantId = null;
+    state.layoutEditor.placingElementId = null;
     render();
     applyLanguage();
     announceLayoutChange(t("已取消放置", "Placement cancelled"));
@@ -13287,7 +13561,7 @@ function wireDesignDashboard(entry) {
     state.view = "home";
     state.designDashboardId = null;
     // R67: scrub transient editor state so a re-entry shows no stale picker / banner.
-    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
+    state.layoutEditor = { placingPlantId: null, placingElementId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", pickerTab: "plant", showLabels: false, undoStack: [], previewMonth: null };
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
@@ -13298,7 +13572,7 @@ function wireDesignDashboard(entry) {
     // applySnapshot. We clear designDashboardId so back-from-result lands
     // on the personal home (not bounces back to the per-design view).
     state.designDashboardId = null;
-    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
+    state.layoutEditor = { placingPlantId: null, placingElementId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", pickerTab: "plant", showLabels: false, undoStack: [], previewMonth: null };
     resumeDesignById(entry.id);
   });
 
@@ -13341,7 +13615,7 @@ function wireDesignDashboard(entry) {
     // nulled list.activeId but state.activeDesignId still points at the
     // now-deleted entry until we explicitly null it.
     if (state.activeDesignId === entry.id) state.activeDesignId = null;
-    state.layoutEditor = { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null };
+    state.layoutEditor = { placingPlantId: null, placingElementId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", pickerTab: "plant", showLabels: false, undoStack: [], previewMonth: null };
     render();
     applyLanguage();
   });
