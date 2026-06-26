@@ -3685,6 +3685,57 @@
   }
   @media print { .layout-palette { display: none !important; } }
 
+  /* R85: Seasonal preview slider */
+  .layout-season {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(196,210,176,0.10);
+    border: 1px solid rgba(110,126,96,0.18);
+    border-radius: 10px;
+  }
+  .layout-season-head {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .layout-season-label {
+    font-size: 12.5px;
+    color: var(--forest);
+    font-family: var(--serif);
+    font-weight: 500;
+  }
+  .layout-season-stats {
+    font-size: 11.5px;
+    color: var(--clay);
+    font-family: var(--serif);
+    font-style: italic;
+  }
+  .layout-season-slider {
+    width: 100%;
+    margin: 0;
+    accent-color: var(--sage-deep);
+  }
+  .layout-season-ticks {
+    display: flex; justify-content: space-between;
+    font-size: 10px;
+    color: var(--ink-soft);
+    padding: 4px 2px 0;
+    font-family: var(--serif);
+  }
+  .layout-season-tick {
+    width: 16px;
+    text-align: center;
+    transition: color 0.12s ease, font-weight 0.12s ease;
+  }
+  .layout-season-tick.on {
+    color: var(--sage-deep);
+    font-weight: 700;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .layout-season-tick { transition: none; }
+  }
+  @media print { .layout-season { display: none !important; } }
+
   /* R69 a11y: visually hidden but still announced by screen readers.
      Used for live regions on the layout editor (announce add/remove). */
   .visually-hidden {
@@ -8613,7 +8664,10 @@ const state = {
   //    `pickerOpen` controls inline picker panel visibility.
   //    R84: showLabels toggles plant-name labels under each token.
   //    undoStack holds up to 8 prior layout snapshots for ↶ undo.
-  layoutEditor: { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [] },
+  //    R85: previewMonth (1-12) drives the seasonal preview slider —
+  //    when set, the canvas marks plants currently in bloom/fruit.
+  //    null = no preview (default current-month view in the summary).
+  layoutEditor: { placingPlantId: null, selectedTokenId: null, pickerOpen: false, pickerQuery: "", showLabels: false, undoStack: [], previewMonth: null },
   lang: "zh",
 };
 
@@ -11545,6 +11599,50 @@ function saveEntryLayout(designId, layout) {
 // R69 a11y: announce layout changes (add / remove / placement mode) via the
 // hidden #layoutEditorLive aria-live region so screen-reader users hear what
 // just happened. No-op when the region isn't on the page (e.g. global home).
+// R85: Seasonal preview slider — drag through 12 months and watch the
+// canvas reveal which plants bloom/fruit when. Helps users design for
+// year-round interest instead of planting a one-season showpiece. The
+// summary chip totals bloom + fruit counts for the selected month.
+function renderSeasonalSlider(entry) {
+  const layout = (entry.layout && Array.isArray(entry.layout)) ? entry.layout : [];
+  if (!layout.length) return "";
+  const previewMonth = (state.layoutEditor && state.layoutEditor.previewMonth) || null;
+  const curMonth = new Date().getMonth() + 1;
+  const month = previewMonth || curMonth;
+  // Counts for the chip
+  let blooming = 0, fruiting = 0;
+  layout.forEach(t => {
+    const p = PLANT_BY_ID[t.plantId];
+    if (!p) return;
+    if ((p.bloom || []).includes(month)) blooming++;
+    else if ((p.fruit || []).includes(month)) fruiting++;
+  });
+  const monthLabelsZh = ["", "1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+  const monthLabelsEn = ["", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const labelZh = monthLabelsZh[month] + (previewMonth ? "" : " · 本月");
+  const labelEn = monthLabelsEn[month] + (previewMonth ? "" : " · this month");
+  return `
+    <div class="layout-season">
+      <div class="layout-season-head">
+        <span class="layout-season-label"
+              data-zh="📅 季節預覽 · ${labelZh}"
+              data-en="📅 Seasonal preview · ${labelEn}">📅 季節預覽 · ${labelZh}</span>
+        <span class="layout-season-stats"
+              data-zh="🌸 ${blooming} 種開花 · 🍒 ${fruiting} 種結果"
+              data-en="🌸 ${blooming} blooming · 🍒 ${fruiting} fruiting">🌸 ${blooming} 種開花 · 🍒 ${fruiting} 種結果</span>
+      </div>
+      <input type="range" class="layout-season-slider" id="layoutSeasonSlider"
+             min="1" max="12" step="1" value="${month}"
+             aria-label="${escapeHtml(t('季節預覽月份 1-12', 'Preview month 1-12'))}"
+             data-zh-aria="季節預覽月份 1-12" data-en-aria="Preview month 1-12">
+      <div class="layout-season-ticks" aria-hidden="true">
+        ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m =>
+          `<span class="layout-season-tick ${m === month ? "on" : ""}">${m}</span>`
+        ).join("")}
+      </div>
+    </div>`;
+}
+
 // R84: Color palette swatch row — shows every unique plant species in
 // the design as a colored chip. Helps users read the overall palette at
 // a glance and decide if they need a contrast plant. Tap a swatch to
@@ -11870,6 +11968,7 @@ function renderLayoutEditorSVG(entry) {
 
   const selectedTokenId = state.layoutEditor && state.layoutEditor.selectedTokenId;
   const showLabels = !!(state.layoutEditor && state.layoutEditor.showLabels);
+  const previewMonth = (state.layoutEditor && state.layoutEditor.previewMonth) || null;
   const tokensHtml = layout.map(token => {
     const plant = PLANT_BY_ID[token.plantId];
     if (!plant) return "";
@@ -11886,6 +11985,12 @@ function renderLayoutEditorSVG(entry) {
           ? (plant.en || "").slice(0, 10)
           : (plant.zh || "").slice(0, 5))
       : "";
+    // R85: seasonal markers — bloom 🌸 / fruit 🍒 — when the slider is set.
+    // Small emoji glyph centered above the token. Bloom takes precedence
+    // when both happen (avoids stacking).
+    const inBloom = previewMonth && (plant.bloom || []).includes(previewMonth);
+    const inFruit = previewMonth && (plant.fruit || []).includes(previewMonth);
+    const seasonGlyph = inBloom ? "🌸" : (inFruit ? "🍒" : "");
     return `
       <g class="layout-token ${isSelected ? "selected" : ""}"
          data-token-id="${escapeHtml(token.tokenId)}"
@@ -11900,6 +12005,7 @@ function renderLayoutEditorSVG(entry) {
         <circle r="${(r + 3).toFixed(1)}" fill="${color}" opacity="0.22"/>
         <circle r="${r.toFixed(1)}" fill="${color}" opacity="0.84" stroke="${color}" stroke-width="0.8"/>
         ${isNative ? `<circle cx="${(r*0.55).toFixed(1)}" cy="${(-r*0.55).toFixed(1)}" r="2" fill="#2D8B5C"/>` : ""}
+        ${seasonGlyph ? `<text class="layout-season-glyph" y="${(-r - 4).toFixed(1)}" text-anchor="middle" font-size="11">${seasonGlyph}</text>` : ""}
         ${labelText ? `<text class="layout-token-label" y="${(r + 11).toFixed(1)}" text-anchor="middle"
                             font-size="9" font-family="serif" font-style="italic"
                             fill="rgba(44,53,38,0.78)"
@@ -12127,6 +12233,86 @@ function wireLayoutEditor(entry) {
       if (id && typeof openDrawer === "function") openDrawer(id);
     });
   });
+  // R85: seasonal slider — bind input event so the user gets live feedback
+  // while dragging the thumb. We re-render only the layout section's SVG
+  // tokens + the season chip stats, not the whole dashboard, so drag is
+  // smooth even at 60fps and the slider doesn't lose its focus.
+  // R85 slider — drag through 12 months. We update state on every input
+  // event but coalesce DOM work to one repaint per animation frame so the
+  // slider feels smooth even at 200+ events/sec. In-place DOM patches keep
+  // the slider node itself (and its current value) untouched while the
+  // user is mid-drag.
+  const seasonSlider = document.getElementById("layoutSeasonSlider");
+  if (seasonSlider) {
+    let rafPending = false;
+    seasonSlider.addEventListener("input", (e) => {
+      const m = parseInt(e.target.value, 10);
+      if (!m || m < 1 || m > 12) return;
+      state.layoutEditor.previewMonth = m;
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        const month = state.layoutEditor.previewMonth || 1;
+        const svgHost = document.querySelector(".ddash-layout-wrap");
+        if (!svgHost) return;
+        // 1) Patch each visible token: add/remove the 🌸/🍒 glyph based on
+        //    the current month vs the plant's bloom/fruit arrays.
+        svgHost.querySelectorAll(".layout-token").forEach(g => {
+          const plantId = g.getAttribute("data-plant-id");
+          const plant = PLANT_BY_ID[plantId];
+          if (!plant) return;
+          const inBloom = (plant.bloom || []).includes(month);
+          const inFruit = (plant.fruit || []).includes(month);
+          const glyph = inBloom ? "🌸" : (inFruit ? "🍒" : "");
+          let existing = g.querySelector("text.layout-season-glyph");
+          if (glyph) {
+            if (existing) {
+              existing.textContent = glyph;
+            } else {
+              const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+              t.setAttribute("class", "layout-season-glyph");
+              t.setAttribute("y", "-13.5");
+              t.setAttribute("text-anchor", "middle");
+              t.setAttribute("font-size", "11");
+              t.textContent = glyph;
+              g.appendChild(t);
+            }
+          } else if (existing) {
+            existing.remove();
+          }
+        });
+        // 2) Patch the season chip's stats + tick indicator in place —
+        //    do NOT touch the slider DOM (user is mid-drag).
+        let blooming = 0, fruiting = 0;
+        (entry.layout || []).forEach(t => {
+          const p = PLANT_BY_ID[t.plantId];
+          if (!p) return;
+          if ((p.bloom || []).includes(month)) blooming++;
+          else if ((p.fruit || []).includes(month)) fruiting++;
+        });
+        const monthZh = ["", "1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"][month];
+        const monthEn = ["", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month];
+        const labelEl = svgHost.querySelector(".layout-season-label");
+        if (labelEl) {
+          labelEl.setAttribute("data-zh", `📅 季節預覽 · ${monthZh}`);
+          labelEl.setAttribute("data-en", `📅 Seasonal preview · ${monthEn}`);
+          labelEl.textContent = state.lang === "en" ? `📅 Seasonal preview · ${monthEn}` : `📅 季節預覽 · ${monthZh}`;
+        }
+        const statsEl = svgHost.querySelector(".layout-season-stats");
+        if (statsEl) {
+          const zh = `🌸 ${blooming} 種開花 · 🍒 ${fruiting} 種結果`;
+          const en = `🌸 ${blooming} blooming · 🍒 ${fruiting} fruiting`;
+          statsEl.setAttribute("data-zh", zh);
+          statsEl.setAttribute("data-en", en);
+          statsEl.textContent = state.lang === "en" ? en : zh;
+        }
+        svgHost.querySelectorAll(".layout-season-tick").forEach((tick, i) => {
+          tick.classList.toggle("on", (i + 1) === month);
+        });
+      });
+    });
+  }
 
   // R66 toolbar + picker + placing/action bar wiring.
   const addBtn = document.getElementById("layoutEditorAddBtn");
@@ -12693,6 +12879,7 @@ function renderDesignDashboard() {
                   data-zh="↺ 自動排版"
                   data-en="↺ Auto-layout">↺ 自動排版</button>
         </div>
+        ${renderSeasonalSlider(entry)}
         ${renderColorPalette(entry)}
         ${renderLayoutPickerPanel(entry)}
       </div>
