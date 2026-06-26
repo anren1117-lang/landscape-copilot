@@ -8338,6 +8338,7 @@ const state = {
   dictCoastalOnly: false,// used by "耐鹽風" quick tool
   dictThisMonth: false,  // used by "本月可種" — show plants blooming/fruiting this month
   dictSeason: "all",     // all | spring (3-5) | summer (6-8) | autumn (9-11) | winter (12,1,2) — bloom/fruit-month overlap
+  dictIndigenousOnly: false, // R81: 🏹 原住民傳統 — plants whose supports_zh includes "原住民食用"
   // ── Dictionary pagination (R52 perf) ──
   // Render plants in pages of dictPageSize to keep mobile DOM light.
   // dictShown resets to dictPageSize whenever any filter changes (rerenderDict()).
@@ -14276,6 +14277,7 @@ function applyQuickFilter(kind) {
   state.dictCoastalOnly = false;
   state.dictThisMonth = false;
   state.dictSeason = "all";
+  state.dictIndigenousOnly = false;
 
   switch (kind) {
     case "thisMonth": state.dictThisMonth = true; break;
@@ -19596,6 +19598,14 @@ function renderDictionary() {
       const overlaps = (arr) => (arr || []).some(m => months.includes(m));
       if (!overlaps(p.bloom) && !overlaps(p.fruit)) return false;
     }
+    if (state.dictIndigenousOnly) {
+      // R81: surface plants tagged 原住民食用 in supports_zh (R79+R80 atlas import).
+      // Match on supports_zh OR type_zh containing "原住民" so future entries with the
+      // designation in either place are caught.
+      const supports = (p.supports_zh || []).join(" ");
+      const typeText = (p.type_zh || "") + " " + (p.type_en || "");
+      if (!/原住民/.test(supports) && !/原住民|indigenous/i.test(typeText)) return false;
+    }
     if (q) {
       const hay = [p.zh, p.en, p.lt, p.role_zh, p.role_en, p.origin_zh, p.origin_en, p.type_zh, p.type_en].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
@@ -19647,6 +19657,7 @@ function renderDictionary() {
       <span style="width:1px; background: var(--line); margin: 0 4px;"></span>
       <button class="dict-chip ${state.dictFragOnly ? "on" : ""}" data-flag="frag">🌸 <span data-zh="芳香" data-en="Fragrant">芳香</span></button>
       <button class="dict-chip ${state.dictPetSafeOnly ? "on" : ""}" data-flag="petsafe">🐾 <span data-zh="寵物安全" data-en="Pet-safe">寵物安全</span></button>
+      <button class="dict-chip ${state.dictIndigenousOnly ? "on" : ""}" data-flag="indigenous">🏹 <span data-zh="原住民傳統" data-en="Indigenous tradition">原住民傳統</span></button>
       <span style="width:1px; background: var(--line); margin: 0 4px;"></span>
       <button class="dict-chip ${state.dictSeason === "all"    ? "on" : ""}" data-season="all"><span data-zh="四季" data-en="All seasons">四季</span></button>
       <button class="dict-chip ${state.dictSeason === "spring" ? "on" : ""}" data-season="spring">🌸 <span data-zh="春" data-en="Spring">春</span></button>
@@ -19762,6 +19773,7 @@ function wireDictionary() {
     el.addEventListener("click", () => {
       if (el.dataset.flag === "frag") state.dictFragOnly = !state.dictFragOnly;
       if (el.dataset.flag === "petsafe") state.dictPetSafeOnly = !state.dictPetSafeOnly;
+      if (el.dataset.flag === "indigenous") state.dictIndigenousOnly = !state.dictIndigenousOnly;
       rerenderDict();
     });
   });
@@ -19804,6 +19816,7 @@ function wireDictionary() {
     state.dictCoastalOnly = false;
     state.dictThisMonth = false;
     state.dictSeason = "all";
+    state.dictIndigenousOnly = false;
     rerenderDict();
   });
 }
