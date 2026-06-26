@@ -12546,6 +12546,12 @@ function renderLayoutEditorSVG(entry) {
          aria-label="${escapeHtml(t(obj.zh + ' — 拖移以移動', obj.en + ' — drag to move'))}"
          data-zh-aria="${escapeHtml(obj.zh + ' — 拖移以移動')}"
          data-en-aria="${escapeHtml(obj.en + ' — drag to move')}">
+        <!-- R97: transparent 32×32 svg-unit hit rect — roughly 24-28px on
+             a 360px viewport — so tap-select feels less fiddly without
+             cannibalizing tap-place precision (a larger rect would mean
+             every nearby canvas tap hits the rect instead of empty space).
+             Visible body still draws normally on top. -->
+        <rect x="-16" y="-16" width="32" height="32" fill="transparent" pointer-events="all"/>
         ${tokenBody}
         ${seasonGlyph ? `<text class="layout-season-glyph" y="${(-r - 4).toFixed(1)}" text-anchor="middle" font-size="11">${seasonGlyph}</text>` : ""}
         ${labelText ? `<text class="layout-token-label" y="${(r + 11).toFixed(1)}" text-anchor="middle"
