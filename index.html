@@ -11248,17 +11248,32 @@ function renderDesignMiniSVG(snap, layoutOverride) {
   // a per-call suffix; collision odds across N cards on one render are
   // vanishing for any reasonable N.
   const gridId = "mini-grid-" + Math.round(w * 1000 + d) + "-" + Math.random().toString(36).slice(2, 7);
+  // R86: shape comes from snap.shape; gallery cards thumbnail honors it too.
+  const miniShape = (snap.shape === "L" || snap.shape === "round") ? snap.shape : "rect";
+  const clipId = "mini-clip-" + Math.round(w * 1000 + d) + "-" + Math.random().toString(36).slice(2, 7);
   return `
     <svg viewBox="0 0 ${vbW} ${vbH}" class="design-mini-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <defs>
         <pattern id="${gridId}" width="18" height="18" patternUnits="userSpaceOnUse">
           <path d="M 18 0 L 0 0 0 18" fill="none" stroke="rgba(110,126,96,0.10)" stroke-width="0.5"/>
         </pattern>
+        <clipPath id="${clipId}">
+          ${miniShape === "round"
+            ? `<circle cx="${(rectX + rectW/2).toFixed(1)}" cy="${(rectY + rectH/2).toFixed(1)}" r="${(Math.min(rectW, rectH)/2).toFixed(1)}"/>`
+            : miniShape === "L"
+              ? (() => {
+                  const cutW = rectW * 0.4, cutH = rectH * 0.4;
+                  const x0 = rectX, y0 = rectY, x1 = rectX + rectW, y1 = rectY + rectH;
+                  return `<path d="M ${x0} ${y0} H ${x1 - cutW} V ${y0 + cutH} H ${x1} V ${y1} H ${x0} Z" fill-rule="evenodd"/>`;
+                })()
+              : `<rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}" width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}" rx="4"/>`}
+        </clipPath>
       </defs>
       <rect x="0" y="0" width="${vbW}" height="${vbH}" fill="${bgTint}" rx="8"/>
       <rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}" width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}"
             fill="url(#${gridId})"
-            stroke="rgba(110,126,96,0.50)" stroke-width="1" rx="4"/>
+            clip-path="url(#${clipId})"/>
+      ${shapeOutlineSVG(miniShape, rectX, rectY, rectW, rectH, { stroke: "rgba(110,126,96,0.50)", strokeWidth: 1 })}
       ${plantsHtml}
       ${emptyStateHtml}
       <g class="mini-compass" transform="translate(${cmpX}, ${cmpY})">
@@ -11715,6 +11730,52 @@ function popLayoutUndo(designId) {
   return true;
 }
 
+// R86: Non-rectangular space outlines. Real gardens are often L-shaped
+// (corner plots), round (rooftop planters), or otherwise irregular. We
+// support three shapes today via entry.snapshot.shape:
+//   "rect"  — default; the existing widthM × depthM box
+//   "L"     — L-shape with a 40%×40% cutout from the upper-right corner
+//   "round" — circle inscribed in the bounding box
+//
+// Returns SVG path/element strings suited for either the editor canvas
+// or the gallery thumbnail. The fill / stroke / corner-radius are passed
+// in by the caller so we stay theme-agnostic.
+function shapeOutlineSVG(shape, rectX, rectY, rectW, rectH, opts) {
+  const fill = (opts && opts.fill) || "none";
+  const stroke = (opts && opts.stroke) || "rgba(110,126,96,0.50)";
+  const strokeWidth = (opts && opts.strokeWidth) || 1;
+  const radius = (opts && opts.radius) || 4;
+  if (shape === "round") {
+    const cx = rectX + rectW / 2;
+    const cy = rectY + rectH / 2;
+    const r = Math.min(rectW, rectH) / 2;
+    return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}"
+                    fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+  }
+  if (shape === "L") {
+    // L-shape — full bounding box minus a 40%×40% cutout from upper-right.
+    // Walk perimeter: TL → TR_cut → cut-in → mid-right → BR → BL → close.
+    const cutW = rectW * 0.4;
+    const cutH = rectH * 0.4;
+    const x0 = rectX, y0 = rectY;
+    const x1 = rectX + rectW, y1 = rectY + rectH;
+    const xCut = x1 - cutW, yCut = y0 + cutH;
+    const d = `M ${x0} ${y0}
+               H ${xCut}
+               V ${yCut}
+               H ${x1}
+               V ${y1}
+               H ${x0}
+               Z`;
+    return `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"
+                  stroke-linejoin="round" fill-rule="evenodd"/>`;
+  }
+  // default: rect
+  return `<rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}"
+                width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}"
+                fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" rx="${radius}"/>`;
+}
+
 function announceLayoutChange(msg) {
   if (!msg) return;
   const live = document.getElementById("layoutEditorLive");
@@ -11961,6 +12022,11 @@ function renderLayoutEditorSVG(entry) {
   if (snap.sun === "shade") bgTint = "rgba(70,90,80,0.14)";
   if (snap.sun === "full")  bgTint = "rgba(245,210,140,0.18)";
 
+  // R86: non-rectangular shape. Defaults to "rect" so every existing
+  // design keeps its current outline. "L" and "round" reshape both the
+  // outline and the grid clip.
+  const shape = (snap.shape === "L" || snap.shape === "round") ? snap.shape : "rect";
+
   // R76: opt into persistence — the SVG's tokenIds must match what
   // wireLayoutEditor reads next for the first drag to work. Other (read-
   // only) callers leave the default and don't write to localStorage.
@@ -12027,13 +12093,26 @@ function renderLayoutEditorSVG(entry) {
         <pattern id="layout-grid-${Math.round(w * 1000 + d)}" width="20" height="20" patternUnits="userSpaceOnUse">
           <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(110,126,96,0.10)" stroke-width="0.5"/>
         </pattern>
+        <clipPath id="layout-shape-clip-${Math.round(w * 1000 + d)}">
+          ${shape === "round"
+            ? `<circle cx="${(rectX + rectW/2).toFixed(1)}" cy="${(rectY + rectH/2).toFixed(1)}" r="${(Math.min(rectW, rectH)/2).toFixed(1)}"/>`
+            : shape === "L"
+              ? (() => {
+                  const cutW = rectW * 0.4, cutH = rectH * 0.4;
+                  const x0 = rectX, y0 = rectY, x1 = rectX + rectW, y1 = rectY + rectH;
+                  return `<path d="M ${x0} ${y0} H ${x1 - cutW} V ${y0 + cutH} H ${x1} V ${y1} H ${x0} Z" fill-rule="evenodd"/>`;
+                })()
+              : `<rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}" width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}" rx="4"/>`}
+        </clipPath>
       </defs>
       <rect x="0" y="0" width="${vbW}" height="${vbH}" fill="${bgTint}" rx="10"/>
+      <!-- Grid fill clipped to the design's shape -->
       <rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}"
             width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}"
             fill="url(#layout-grid-${Math.round(w * 1000 + d)})"
-            stroke="rgba(110,126,96,0.50)" stroke-width="1" rx="4"
-            id="layoutEditorRect"/>
+            clip-path="url(#layout-shape-clip-${Math.round(w * 1000 + d)})"/>
+      <!-- Shape outline on top of the clipped grid -->
+      ${shapeOutlineSVG(shape, rectX, rectY, rectW, rectH, { stroke: "rgba(110,126,96,0.50)", strokeWidth: 1 })}
       ${tokensHtml}
       <g class="mini-compass" transform="translate(${(vbW - 28).toFixed(1)}, 28)">
         <circle r="12" fill="rgba(255,255,255,0.78)" stroke="rgba(110,126,96,0.40)" stroke-width="0.8"/>
@@ -21444,6 +21523,22 @@ function openDesignEditor(designId) {
                data-zh="目標（可複選）" data-en="Goals (multiple)">目標（可複選）</div>
           <div class="design-edit-chips">${goalChips}</div>
         </div>
+        <div class="design-edit-section">
+          <div class="design-edit-section-label"
+               data-zh="空間形狀（不是長方形也可以）" data-en="Space shape (it's OK if it's not a rectangle)">空間形狀（不是長方形也可以）</div>
+          <div class="design-edit-chips">
+            ${["rect","L","round"].map(s => {
+              const on = (snap.shape || "rect") === s;
+              const labelZh = s === "L" ? "⌐ L 型" : (s === "round" ? "⊙ 圓形" : "▭ 長方形");
+              const labelEn = s === "L" ? "⌐ L-shape" : (s === "round" ? "⊙ Round" : "▭ Rectangle");
+              return `
+                <label class="design-edit-chip ${on ? "on" : ""}">
+                  <input type="radio" name="designEditShape" data-edit-shape="${s}" ${on ? "checked" : ""}>
+                  <span data-zh="${labelZh}" data-en="${labelEn}">${labelZh}</span>
+                </label>`;
+            }).join("")}
+          </div>
+        </div>
         <div class="design-edit-actions">
           <button type="button" class="btn ghost" id="designEditCancelBtn"
                   data-zh="取消" data-en="Cancel">取消</button>
@@ -21464,6 +21559,16 @@ function openDesignEditor(designId) {
   overlay.querySelectorAll("[data-edit-goal]").forEach(cb => {
     cb.addEventListener("change", (e) => {
       e.target.closest(".design-edit-chip").classList.toggle("on", e.target.checked);
+    });
+  });
+  // R86: shape radio buttons — toggle the .on class across the radio group
+  // when one is selected (single-choice, unlike the goal checkboxes).
+  overlay.querySelectorAll("[data-edit-shape]").forEach(rb => {
+    rb.addEventListener("change", () => {
+      overlay.querySelectorAll("[data-edit-shape]").forEach(other => {
+        const chip = other.closest(".design-edit-chip");
+        if (chip) chip.classList.toggle("on", other.checked);
+      });
     });
   });
   document.addEventListener("keydown", designEditorEscHandler);
@@ -21495,6 +21600,11 @@ function saveDesignEditorChanges(designId, alsoOpen) {
   snap.depthM  = Math.max(0.5, Math.min(200, readNum("depthM")));
   snap.coastal = readBool("coastal");
   snap.goals   = Array.from(form.querySelectorAll("[data-edit-goal]:checked")).map(cb => cb.dataset.editGoal);
+  // R86: persist the chosen space shape. Whitelist the value so a hand-
+  // crafted form submit can't smuggle in a junk string.
+  const shapeEl = form.querySelector("[data-edit-shape]:checked");
+  const chosenShape = shapeEl ? shapeEl.getAttribute("data-edit-shape") : "rect";
+  snap.shape = (chosenShape === "L" || chosenShape === "round") ? chosenShape : "rect";
   // Persist. Don't change savedAt — preserves the original "first saved" date
   // so the dashboard's "Saved N ago" stays meaningful for the original creation.
   saveDesignList(list);
