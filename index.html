@@ -11882,7 +11882,11 @@ function renderSeasonalSlider(entry) {
       <input type="range" class="layout-season-slider" id="layoutSeasonSlider"
              min="1" max="12" step="1" value="${month}"
              aria-label="${escapeHtml(t('季節預覽月份 1-12', 'Preview month 1-12'))}"
-             data-zh-aria="季節預覽月份 1-12" data-en-aria="Preview month 1-12">
+             data-zh-aria="季節預覽月份 1-12" data-en-aria="Preview month 1-12"
+             aria-valuetext="${escapeHtml(t(
+               `${labelZh} — ${blooming} 種開花，${fruiting} 種結果`,
+               `${labelEn} — ${blooming} blooming, ${fruiting} fruiting`
+             ))}">
       <div class="layout-season-ticks" aria-hidden="true">
         ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m =>
           `<span class="layout-season-tick ${m === month ? "on" : ""}">${m}</span>`
@@ -12307,12 +12311,23 @@ function renderLayoutPickerPanel(entry) {
     : (state.lang === "en" ? "Search plant (Chinese / English / Latin)…" : "搜尋植物中文/英文/學名…");
   return `
     <div class="layout-picker" id="layoutPickerPanel">
-      <div class="layout-picker-tabs">
+      <div class="layout-picker-tabs" role="tablist"
+           aria-label="${escapeHtml(t('選擇要加入的類型', 'Pick category to add'))}">
         <button type="button" class="layout-picker-tab ${tab === "plant" ? "on" : ""}"
+                role="tab"
+                id="layoutPickerTab-plant"
+                aria-selected="${tab === "plant" ? "true" : "false"}"
+                aria-controls="layoutPickerTabpanel"
+                tabindex="${tab === "plant" ? "0" : "-1"}"
                 data-picker-tab="plant"
                 data-zh="🌿 植物 (${PLANTS.length})"
                 data-en="🌿 Plants (${PLANTS.length})">🌿 植物 (${PLANTS.length})</button>
         <button type="button" class="layout-picker-tab ${tab === "element" ? "on" : ""}"
+                role="tab"
+                id="layoutPickerTab-element"
+                aria-selected="${tab === "element" ? "true" : "false"}"
+                aria-controls="layoutPickerTabpanel"
+                tabindex="${tab === "element" ? "0" : "-1"}"
                 data-picker-tab="element"
                 data-zh="🏗 景觀元素 (${ELEMENTS.length})"
                 data-en="🏗 Elements (${ELEMENTS.length})">🏗 景觀元素 (${ELEMENTS.length})</button>
@@ -12329,7 +12344,10 @@ function renderLayoutPickerPanel(entry) {
                 aria-label="${escapeHtml(t('關閉選擇器', 'Close picker'))}"
                 data-zh-aria="關閉選擇器" data-en-aria="Close picker">✕</button>
       </div>
-      ${tab === "element" ? renderLayoutElementGrid(entry) : renderLayoutPickerGrid(entry)}
+      <div id="layoutPickerTabpanel" role="tabpanel"
+           aria-labelledby="layoutPickerTab-${tab}">
+        ${tab === "element" ? renderLayoutElementGrid(entry) : renderLayoutPickerGrid(entry)}
+      </div>
     </div>`;
 }
 
@@ -12900,6 +12918,16 @@ function wireLayoutEditor(entry) {
         svgHost.querySelectorAll(".layout-season-tick").forEach((tick, i) => {
           tick.classList.toggle("on", (i + 1) === month);
         });
+        // R98 a11y: refresh the slider's aria-valuetext so each rAF tick
+        // announces a sentence like "August — 3 species blooming, 1 fruiting"
+        // instead of just the bare number "8".
+        const sliderEl = document.getElementById("layoutSeasonSlider");
+        if (sliderEl) {
+          const valTxt = state.lang === "en"
+            ? `${monthEn} — ${blooming} blooming, ${fruiting} fruiting`
+            : `${monthZh} — ${blooming} 種開花，${fruiting} 種結果`;
+          sliderEl.setAttribute("aria-valuetext", valTxt);
+        }
       });
     });
   }
@@ -13014,6 +13042,19 @@ function wireLayoutEditor(entry) {
       applyLanguage();
       const search = document.getElementById("layoutPickerSearch");
       if (search) setTimeout(() => search.focus(), 30);
+    });
+    // R98 a11y: arrow-key tab navigation per WAI-ARIA tablist pattern.
+    btn.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") return;
+      e.preventDefault();
+      const tabs = Array.from(document.querySelectorAll("[data-picker-tab]"));
+      const idx = tabs.indexOf(btn);
+      let nextIdx = idx;
+      if (e.key === "ArrowLeft") nextIdx = (idx - 1 + tabs.length) % tabs.length;
+      if (e.key === "ArrowRight") nextIdx = (idx + 1) % tabs.length;
+      if (e.key === "Home") nextIdx = 0;
+      if (e.key === "End") nextIdx = tabs.length - 1;
+      if (tabs[nextIdx]) tabs[nextIdx].click();
     });
   });
   const cancelPlacing = document.getElementById("layoutPlacingCancelBtn");
