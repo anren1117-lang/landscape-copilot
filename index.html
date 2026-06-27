@@ -8996,6 +8996,86 @@ function scorePlants(opts) {
     }
     if (goals.includes("easy") && p.water === "low") { score += 14; reasons_zh.push("低維護"); reasons_en.push("Low maintenance"); }
 
+    // ── R100: design preferences (R99) feed scoring as auditable nudges.
+    //    Each contributes a reason string so the rec-card explains itself.
+    const style = state.style || "any";
+    const nativeTarget = state.nativeTarget || "any";
+    const maintenance = state.maintenance || "medium";
+    const wildlifeFocus = state.wildlifeFocus || "any";
+
+    // 🟢 Native ratio target — extra weight on natives when the user has
+    // committed to a higher target. Magnitude scales with target tier.
+    if (nativeTarget !== "any" && p.native) {
+      const tierBoost = nativeTarget === "100" ? 22 : (nativeTarget === "75" ? 14 : 8);
+      score += tierBoost;
+      reasons_zh.push("原生種 (符合目標)"); reasons_en.push("Native (matches target)");
+    } else if (nativeTarget === "100" && !p.native) {
+      // Hard penalty in the strict 100% mode — non-natives shouldn't make
+      // the top recs unless they're pinned.
+      score -= 20;
+    }
+
+    // 🛠 Maintenance level — water tier is the strongest signal we have
+    // for actual maintenance effort.
+    if (maintenance === "low") {
+      if (p.water === "low") { score += 12; reasons_zh.push("低水分照顧"); reasons_en.push("Low watering"); }
+      if (p.water === "high") { score -= 14; }
+    } else if (maintenance === "intensive") {
+      // Intensive gardeners can handle thirsty / fussy specimens — give them a small lift.
+      if (p.water === "high") { score += 6; }
+    }
+
+    // 🦋 Wildlife focus — boost plants whose supports_zh names the focused taxon.
+    if (wildlifeFocus !== "any" && Array.isArray(p.supports_zh)) {
+      const supportsStr = p.supports_zh.join(" ");
+      const focusPattern = wildlifeFocus === "butterfly" ? /蝶/
+                         : wildlifeFocus === "bird" ? /鳥/
+                         : wildlifeFocus === "bee" ? /蜂|蜜|授粉/
+                         : wildlifeFocus === "mixed" ? /蜂|蝶|鳥|蜜|授粉|食草/
+                         : null;
+      if (focusPattern && focusPattern.test(supportsStr)) {
+        const boost = wildlifeFocus === "mixed" ? 10 : 16;
+        score += boost;
+        const labelZh = { butterfly: "蝴蝶友善", bird: "誘鳥", bee: "蜜蜂友善", mixed: "野生動物友善" }[wildlifeFocus];
+        const labelEn = { butterfly: "Butterfly-friendly", bird: "Bird-attracting", bee: "Bee-friendly", mixed: "Wildlife-friendly" }[wildlifeFocus];
+        reasons_zh.push(labelZh); reasons_en.push(labelEn);
+      }
+    }
+
+    // 🎨 Aesthetic style — heuristics over existing plant fields. We don't have
+    // per-plant style tags, but type / role / tier carry enough signal for first-
+    // pass nudges. Magnitudes are kept modest so style is a tiebreaker, not a hard
+    // filter (user can still pin anything to override).
+    if (style === "kinfolk") {
+      // Restraint: muted-tone foliage, fragrant single-stem shrubs, native preference.
+      if (p.native) score += 5;
+      if (p.fragrance >= 2) score += 6;
+      if (p.tier === "T") score -= 3; // big tropical canopy clashes with Kinfolk minimalism
+    } else if (style === "wild") {
+      // Wild meadow: prefer self-seeders, low-tier, native.
+      if (p.native) score += 8;
+      if (p.tier === "H" || p.tier === "G") score += 5;
+    } else if (style === "cottage") {
+      // Cottage: dense bloom, fragrance, herbaceous layers.
+      if ((p.bloom || []).length >= 4) score += 6;
+      if (p.fragrance >= 2) score += 5;
+    } else if (style === "formal") {
+      // Formal symmetric: prefer clip-tolerant, evergreen, single-form shrubs.
+      const role = (p.role_zh || "") + " " + (p.role_en || "");
+      if (/綠籬|hedge/.test(role)) score += 8;
+      if (p.tier === "S") score += 4;
+    } else if (style === "tropical") {
+      // Tropical jungle: bold-leaf shrubs and small trees with year-round canopy.
+      if (p.tier === "T" || p.tier === "S") score += 5;
+      const typ = (p.type_zh || "") + " " + (p.type_en || "");
+      if (/熱帶|tropical|蕨/.test(typ)) score += 7;
+    } else if (style === "japanese") {
+      // Japanese zen: restrained palette, evergreen ground, moss-feel.
+      const role = (p.role_zh || "") + " " + (p.role_en || "");
+      if (/地被|ground|蕨|fern/.test(role)) score += 6;
+      if (p.water === "med" && p.sun.includes("shade")) score += 4;
+    }
+
     // Small diversity bonus — keeps borderline candidates on the list
     score += 4;
 
@@ -9309,6 +9389,13 @@ function snapshotState() {
     address: state.address, detected: state.detected,
     widthM: state.widthM, depthM: state.depthM, orientation: state.orientation,
     qty: state.qty, nativeOnly: state.nativeOnly,
+    // R100: persist R99 preferences as part of the snapshot — they travel
+    // with shared links + the saved-design entry. applySnapshot whitelists
+    // these on read; saveDesignEditorChanges whitelists on edit.
+    style: state.style || "any",
+    nativeTarget: state.nativeTarget || "any",
+    maintenance: state.maintenance || "medium",
+    wildlifeFocus: state.wildlifeFocus || "any",
     // Per-design 👍/👎/📌 — travels with the snapshot so balcony prefs ≠ yard prefs,
     // shared links carry the user's preferences (including pinned must-haves),
     // and "我的設計" entries each remember their own taste.
@@ -9367,6 +9454,17 @@ function applySnapshot(snap) {
   // entry.layout (token count) and entry.snapshot.qty (mirror).
   state.qty = (snap.qty && typeof snap.qty === "object") ? { ...snap.qty } : {};
   state.nativeOnly = !!snap.nativeOnly;
+  // R100: hydrate R99 preferences so scorePlants() reads them after applySnapshot.
+  // Whitelist enforced at write-time (saveDesignEditorChanges) but defensive
+  // read-side defaults guard against hand-crafted #d= URLs.
+  const STYLE_OK = new Set(["any","kinfolk","wild","cottage","formal","tropical","japanese"]);
+  const NAT_OK = new Set(["any","50","75","100"]);
+  const MAINT_OK = new Set(["low","medium","intensive"]);
+  const WILD_OK = new Set(["any","butterfly","bird","bee","mixed"]);
+  state.style          = STYLE_OK.has(snap.style)          ? snap.style          : "any";
+  state.nativeTarget   = NAT_OK.has(snap.nativeTarget)     ? snap.nativeTarget   : "any";
+  state.maintenance    = MAINT_OK.has(snap.maintenance)    ? snap.maintenance    : "medium";
+  state.wildlifeFocus  = WILD_OK.has(snap.wildlifeFocus)   ? snap.wildlifeFocus  : "any";
   // Restore per-design 👍/👎/📌. Older snapshots without `prefs.pinned` load empty.
   state.prefs = {
     liked:    (snap.prefs && snap.prefs.liked    && typeof snap.prefs.liked    === "object") ? { ...snap.prefs.liked }    : {},
