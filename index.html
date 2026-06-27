@@ -17113,7 +17113,7 @@ function renderNav() {
     navFooter.innerHTML = `
       <button class="nav-btn" id="navReset">↺ <span data-zh="重新開始" data-en="Start over">重新開始</span></button>
       <button class="save-design-btn" id="navSaveDesign">💾 <span data-zh="另存為新設計" data-en="Save as new design">另存為新設計</span></button>
-      <span class="foot-note" data-zh="共 ${recsCount} 種候選 · AI 依你的微氣候生成" data-en="${recsCount} candidates · generated from your microclimate">共 ${recsCount} 種候選 · AI 依你的微氣候生成</span>`;
+      <span class="foot-note" data-zh="共 ${recsCount} 種候選 · AI 依你的微氣候生成 · <a href=\"#\" onclick=\"openAboutModal();return false;\" style=\"color:var(--sage-deep);\">📊 評分依據</a>" data-en="${recsCount} candidates · generated from your microclimate · <a href=\"#\" onclick=\"openAboutModal();return false;\" style=\"color:var(--sage-deep);\">📊 Scoring rationale</a>">共 ${recsCount} 種候選 · AI 依你的微氣候生成 · <a href="#" onclick="openAboutModal();return false;" style="color:var(--sage-deep);">📊 評分依據</a></span>`;
     document.getElementById("navSaveDesign")?.addEventListener("click", () => {
       const defaultName = defaultDesignName(snapshotState());
       const name = prompt(t("為這個設計命名：", "Name this design:"), defaultName);
@@ -22233,6 +22233,13 @@ window.openAboutModal = function () {
           <div style="margin-bottom:4px;">• <b>售價</b>：<b>所有售價皆為估算</b>。植物以台北地區一般苗圃 2025 年常見售價估算，元素以線上零售平均估算。實際價格依規格、苗圃、季節、地區而異 — 建議向當地苗圃或廠商實際詢價。</div>
           <div style="margin-bottom:4px;">• <b>花期與結果期</b>：台灣平地一般時間範圍，高山或寒流年份會偏移 ±1 個月。</div>
           <div style="margin-bottom:4px;">• <b>養護日曆</b>：以台灣平地氣候為基準，與實際微氣候可能有差異。</div>
+          <div style="margin-bottom:4px;">• <b>氣候區判定 (北/中/南/東/離島)</b>：以中央氣象局氣候資料為基礎；地址查詢時依縣市對應氣候區。</div>
+          <div style="margin-bottom:4px;">• <b>每年固碳 (CO₂ kg/yr) 與每週用水量 (L/wk)</b>：依植物樹型、葉面積、台灣文獻範圍粗估，不適用嚴格碳足跡計算 — 僅供相對比較。</div>
+          <div style="margin-bottom:4px;">• <b>每月養護工時</b>：以一般家庭園藝步驟（修剪/施肥/除草/澆水）依季節估算，個人工作習慣會有差異。</div>
+          <div style="margin-bottom:4px;">• <b>植物推薦評分</b>：每張卡片右下角顯示分數，並列出每項加減分原因（例如「光照相符 +32」「蝴蝶友善 +16」）。所有權重為作者依「日照/水分/空間 = 主導 → 偏好 = 微調」原則手動設定，非統計學習結果；可在卡片上直接看到每一項貢獻。</div>
+          <div style="margin-bottom:4px;">• <b>設計偏好 (風格/本土比例/維護強度/野生動物焦點)</b>：作為評分微調項目，magnitudes 為 ±5 至 ±22 分，弱於 👍/👎/📌 的硬性使用者偏好。</div>
+          <div style="margin-bottom:4px;">• <b>無圖植物的色盤色塊</b>：當植物資料缺乏「實際花色」欄位時，色盤以植物 id 進行雜湊運算（djb2 hash）合成代表色，方便視覺辨識；該顏色<b>不代表實際花色或葉色</b>。</div>
+          <div style="margin-bottom:4px;">• <b>形狀感知配置 (L 型 / 圓形)</b>：植物 token 在 SVG 座標被限制於形狀內；橢圓計算採 (x-c)²/rx² + (y-c)²/ry² ≤ 1。</div>
           <div style="margin-bottom:4px;">• <b>AI 諮詢與植物醫生</b>：由 Pollinations.ai 提供（開放 API，無內建出處），答案僅供參考，重要決策請諮詢專業園藝師或農業改良場。</div>
           <div style="margin-bottom:4px;">• <b>地址查詢</b>：OpenStreetMap Nominatim 地理編碼服務（免費）。</div>
           <div style="margin-bottom:4px;">• <b>QR 圖示</b>：qrserver.com 即時產生（外部服務）。</div>
@@ -22240,11 +22247,18 @@ window.openAboutModal = function () {
         </div>`,
       en: `<b>Sources & methodology</b>:
         <div style="margin-top:6px;line-height:1.65;font-size:13px;">
-          <div style="margin-bottom:4px;">• <b>Plant species data</b>: aggregated from Taiwan vascular plant references, the Forestry Research Institute publications, and TaiBIF; many entries are general botanical knowledge with no single citation.</div>
+          <div style="margin-bottom:4px;">• <b>Plant species data</b>: aggregated from Taiwan vascular plant references, Forestry Research Institute publications, and TaiBIF; many entries are general botanical knowledge with no single citation.</div>
           <div style="margin-bottom:4px;">• <b>Indigenous tradition + culinary applications</b>: 《Taiwan Island Plant Life Atlas 100 Selections》— individual entries are cited inline in the plant drawer's "🍽 At the table" section. Other cultural notes (EXPERT_META.cultural_zh) name the tribe or region of origin (Atayal, Bunun, Paiwan, Hakka, Hokkien); where no clear origin exists, it's general folk knowledge.</div>
           <div style="margin-bottom:4px;">• <b>Prices</b>: <b>all prices are estimates</b>. Plants are estimated from typical Taipei-area 2025 nursery quotes; elements from average online retail. Real prices vary by specimen, vendor, season, and region — verify with local nurseries or suppliers.</div>
           <div style="margin-bottom:4px;">• <b>Bloom + fruit months</b>: general timing for Taiwan lowlands; shifts ±1 month at altitude or in cold-snap years.</div>
           <div style="margin-bottom:4px;">• <b>Care calendar</b>: tuned to Taiwan lowland climate; may differ from your local microclimate.</div>
+          <div style="margin-bottom:4px;">• <b>Climate zone classification (N/C/S/E/island)</b>: based on Central Weather Administration climate data; address lookups map county → zone.</div>
+          <div style="margin-bottom:4px;">• <b>Annual CO₂ capture (kg/yr) and weekly water use (L/wk)</b>: rough estimates from tree form, leaf area, and Taiwan literature ranges — not a rigorous carbon footprint; useful only for relative comparison.</div>
+          <div style="margin-bottom:4px;">• <b>Monthly maintenance hours</b>: estimated from typical household gardening tasks (prune / fertilize / weed / water) varied by season; personal pace will differ.</div>
+          <div style="margin-bottom:4px;">• <b>Plant recommendation scoring</b>: each rec card's score (bottom right) lists every contribution (e.g. "Sun match +32", "Butterfly-friendly +16"). All weights were hand-set by the author following a "sun/water/space dominate → preferences fine-tune" rule, not learned statistically. Each component is visible on the card.</div>
+          <div style="margin-bottom:4px;">• <b>Design preferences (style / native target / maintenance / wildlife focus)</b>: feed scoring as fine-tune nudges with magnitudes between ±5 and ±22; weaker than the hard user prefs (👍 / 👎 / 📌 pin).</div>
+          <div style="margin-bottom:4px;">• <b>Palette swatch colors for data-less plants</b>: when a plant lacks an explicit "flower color" field, the palette swatch is synthesized via a djb2 hash of the plant id (mapped to HSL). This is for visual distinction only — <b>it does NOT represent the plant's actual flower or leaf color</b>.</div>
+          <div style="margin-bottom:4px;">• <b>Shape-aware placement (L / round)</b>: tokens are constrained to the shape interior in SVG coordinates; the ellipse test is (x-c)²/rx² + (y-c)²/ry² ≤ 1.</div>
           <div style="margin-bottom:4px;">• <b>AI Q&A + Plant Doctor</b>: provided by Pollinations.ai (open API, no built-in sourcing). Treat answers as advisory; verify with a horticulturist or agricultural research station for major decisions.</div>
           <div style="margin-bottom:4px;">• <b>Address lookup</b>: OpenStreetMap Nominatim geocoding (free).</div>
           <div style="margin-bottom:4px;">• <b>QR codes</b>: generated on demand by qrserver.com (external).</div>
