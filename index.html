@@ -11218,7 +11218,16 @@ function buildDashQAContext() {
     const snap = focus.snapshot || {};
     const topPlantNames = (sum?.topPlants || []).slice(0, 6).map(p => `${p.zh} (${p.en})`).join(", ");
     const area = (Number(snap.widthM) * Number(snap.depthM) || 0).toFixed(1);
-    lines.push(`Primary design (focus): "${focus.name}" — ${area}m² ${snap.space || "?"}, sun=${snap.sun || "?"}, water=${snap.water || "?"}, plants: ${topPlantNames || "none yet"}.`);
+    // R99: include the user's stated design preferences so the AI's
+    // suggestions actually match the intent (e.g. "I want it Japanese
+    // zen" → don't suggest tropical jungle plants).
+    const prefs = [];
+    if (snap.style && snap.style !== "any") prefs.push(`style=${snap.style}`);
+    if (snap.nativeTarget && snap.nativeTarget !== "any") prefs.push(`native target ≥${snap.nativeTarget}%`);
+    if (snap.maintenance) prefs.push(`maintenance=${snap.maintenance}`);
+    if (snap.wildlifeFocus && snap.wildlifeFocus !== "any") prefs.push(`wildlife focus=${snap.wildlifeFocus}`);
+    const prefStr = prefs.length ? ` · prefs: ${prefs.join(", ")}` : "";
+    lines.push(`Primary design (focus): "${focus.name}" — ${area}m² ${snap.space || "?"}, sun=${snap.sun || "?"}, water=${snap.water || "?"}${prefStr}, plants: ${topPlantNames || "none yet"}.`);
     const others = list.designs.filter(e => e.id !== focusId).slice(0, 3);
     if (others.length) {
       lines.push("Also has: " + others.map(o => `"${o.name}"`).join(", "));
@@ -13520,6 +13529,42 @@ function renderDesignDashboard() {
         <span class="design-dash-chip native"
               data-zh="🟢 ${nativePct}% 本土"
               data-en="🟢 ${nativePct}% native">🟢 ${nativePct}% 本土</span>
+        ${(() => {
+          // R99: surface design-preference chips when the user has set them.
+          // "any" means no preference, so we skip those.
+          const out = [];
+          const STYLE_LABELS = {
+            kinfolk:   ["🪵 Kinfolk", "🪵 Kinfolk"],
+            wild:      ["🌾 野放生態", "🌾 Wild meadow"],
+            cottage:   ["🌸 鄉村花園", "🌸 Cottage"],
+            formal:    ["🪞 對稱整形", "🪞 Formal"],
+            tropical:  ["🌴 熱帶", "🌴 Tropical"],
+            japanese:  ["🪨 日式", "🪨 Japanese zen"],
+          };
+          const sty = STYLE_LABELS[snap.style];
+          if (sty) out.push(`<span class="design-dash-chip" data-zh="${sty[0]}" data-en="${sty[1]}">${sty[0]}</span>`);
+          if (snap.nativeTarget && snap.nativeTarget !== "any") {
+            const label = snap.nativeTarget === "100" ? "🎯 全本土" : `🎯 ≥ ${snap.nativeTarget}% 本土`;
+            const labelEn = snap.nativeTarget === "100" ? "🎯 All native" : `🎯 ≥ ${snap.nativeTarget}% native`;
+            out.push(`<span class="design-dash-chip" data-zh="${label}" data-en="${labelEn}">${label}</span>`);
+          }
+          const MAINT_LABELS = {
+            low:       ["🌵 低維護", "🌵 Low care"],
+            intensive: ["🌹 高維護", "🌹 Intensive"],
+            // medium = default, no chip
+          };
+          const mnt = MAINT_LABELS[snap.maintenance];
+          if (mnt) out.push(`<span class="design-dash-chip" data-zh="${mnt[0]}" data-en="${mnt[1]}">${mnt[0]}</span>`);
+          const WILD_LABELS = {
+            butterfly: ["🦋 蝴蝶焦點", "🦋 Butterflies"],
+            bird:      ["🐦 鳥類焦點", "🐦 Birds"],
+            bee:       ["🐝 蜜蜂焦點", "🐝 Pollinators"],
+            mixed:     ["🌍 全方位", "🌍 All wildlife"],
+          };
+          const wld = WILD_LABELS[snap.wildlifeFocus];
+          if (wld) out.push(`<span class="design-dash-chip" data-zh="${wld[0]}" data-en="${wld[1]}">${wld[0]}</span>`);
+          return out.join("");
+        })()}
       </div>
     </div>`;
 
@@ -22239,6 +22284,86 @@ function openDesignEditor(designId) {
             }).join("")}
           </div>
         </div>
+        <div class="design-edit-section">
+          <div class="design-edit-section-label"
+               data-zh="🎨 美學風格" data-en="🎨 Aesthetic style">🎨 美學風格</div>
+          <div class="design-edit-chips">
+            ${[
+              ["any",     "—",          "—"],
+              ["kinfolk", "🪵 Kinfolk 自然", "🪵 Kinfolk natural"],
+              ["wild",    "🌾 野放生態",     "🌾 Wild meadow"],
+              ["cottage", "🌸 鄉村花園",     "🌸 Cottage garden"],
+              ["formal",  "🪞 對稱整形",     "🪞 Formal symmetric"],
+              ["tropical","🌴 熱帶叢林",     "🌴 Tropical jungle"],
+              ["japanese","🪨 日式枯山水",   "🪨 Japanese zen"],
+            ].map(([s, lz, le]) => {
+              const on = (snap.style || "any") === s;
+              return `
+                <label class="design-edit-chip ${on ? "on" : ""}">
+                  <input type="radio" name="designEditStyle" data-edit-style="${s}" ${on ? "checked" : ""}>
+                  <span data-zh="${lz}" data-en="${le}">${lz}</span>
+                </label>`;
+            }).join("")}
+          </div>
+        </div>
+        <div class="design-edit-section">
+          <div class="design-edit-section-label"
+               data-zh="🟢 本土比例目標" data-en="🟢 Native ratio target">🟢 本土比例目標</div>
+          <div class="design-edit-chips">
+            ${[
+              ["any", "不指定 / Any"],
+              ["50",  "≥ 50%"],
+              ["75",  "≥ 75%"],
+              ["100", "100%（全本土）"],
+            ].map(([v, label]) => {
+              const on = (snap.nativeTarget || "any") === v;
+              const labelEn = v === "any" ? "Any" : (v === "100" ? "100% (all native)" : "≥ " + v + "%");
+              return `
+                <label class="design-edit-chip ${on ? "on" : ""}">
+                  <input type="radio" name="designEditNative" data-edit-native-target="${v}" ${on ? "checked" : ""}>
+                  <span data-zh="${label}" data-en="${labelEn}">${label}</span>
+                </label>`;
+            }).join("")}
+          </div>
+        </div>
+        <div class="design-edit-section">
+          <div class="design-edit-section-label"
+               data-zh="🛠 維護強度（你願意花多少時間）" data-en="🛠 Maintenance level (time you'll invest)">🛠 維護強度</div>
+          <div class="design-edit-chips">
+            ${[
+              ["low",       "🌵 低（一週看一次）",  "🌵 Low (weekly check-in)"],
+              ["medium",    "🌿 中（規律照顧）",    "🌿 Medium (regular care)"],
+              ["intensive", "🌹 高（每天動手）",    "🌹 Intensive (daily work)"],
+            ].map(([v, lz, le]) => {
+              const on = (snap.maintenance || "medium") === v;
+              return `
+                <label class="design-edit-chip ${on ? "on" : ""}">
+                  <input type="radio" name="designEditMaint" data-edit-maintenance="${v}" ${on ? "checked" : ""}>
+                  <span data-zh="${lz}" data-en="${le}">${lz}</span>
+                </label>`;
+            }).join("")}
+          </div>
+        </div>
+        <div class="design-edit-section">
+          <div class="design-edit-section-label"
+               data-zh="🦋 野生動物焦點" data-en="🦋 Wildlife focus">🦋 野生動物焦點</div>
+          <div class="design-edit-chips">
+            ${[
+              ["any",        "—",         "—"],
+              ["butterfly",  "🦋 蝴蝶",   "🦋 Butterflies"],
+              ["bird",       "🐦 鳥類",   "🐦 Birds"],
+              ["bee",        "🐝 蜜蜂",   "🐝 Bees / pollinators"],
+              ["mixed",      "🌍 全方位", "🌍 All wildlife"],
+            ].map(([v, lz, le]) => {
+              const on = (snap.wildlifeFocus || "any") === v;
+              return `
+                <label class="design-edit-chip ${on ? "on" : ""}">
+                  <input type="radio" name="designEditWildlife" data-edit-wildlife="${v}" ${on ? "checked" : ""}>
+                  <span data-zh="${lz}" data-en="${le}">${lz}</span>
+                </label>`;
+            }).join("")}
+          </div>
+        </div>
         <div class="design-edit-actions">
           <button type="button" class="btn ghost" id="designEditCancelBtn"
                   data-zh="取消" data-en="Cancel">取消</button>
@@ -22261,13 +22386,18 @@ function openDesignEditor(designId) {
       e.target.closest(".design-edit-chip").classList.toggle("on", e.target.checked);
     });
   });
-  // R86: shape radio buttons — toggle the .on class across the radio group
-  // when one is selected (single-choice, unlike the goal checkboxes).
-  overlay.querySelectorAll("[data-edit-shape]").forEach(rb => {
-    rb.addEventListener("change", () => {
-      overlay.querySelectorAll("[data-edit-shape]").forEach(other => {
-        const chip = other.closest(".design-edit-chip");
-        if (chip) chip.classList.toggle("on", other.checked);
+  // R86 + R99: radio groups — toggle the .on class within each group when
+  // one is selected. Factored out so adding new preference groups is a one-
+  // line addition instead of copy-pasted handlers.
+  ["data-edit-shape", "data-edit-style", "data-edit-native-target",
+   "data-edit-maintenance", "data-edit-wildlife"].forEach(attr => {
+    const sel = "[" + attr + "]";
+    overlay.querySelectorAll(sel).forEach(rb => {
+      rb.addEventListener("change", () => {
+        overlay.querySelectorAll(sel).forEach(other => {
+          const chip = other.closest(".design-edit-chip");
+          if (chip) chip.classList.toggle("on", other.checked);
+        });
       });
     });
   });
@@ -22305,6 +22435,29 @@ function saveDesignEditorChanges(designId, alsoOpen) {
   const shapeEl = form.querySelector("[data-edit-shape]:checked");
   const chosenShape = shapeEl ? shapeEl.getAttribute("data-edit-shape") : "rect";
   snap.shape = (chosenShape === "L" || chosenShape === "round") ? chosenShape : "rect";
+
+  // R99: persist new design preferences with explicit whitelists. None of
+  // these change scoring yet — they shape the user's intent statement on
+  // the workspace + share link, and future scoring rounds can read them.
+  const styleEl = form.querySelector("[data-edit-style]:checked");
+  const chosenStyle = styleEl ? styleEl.getAttribute("data-edit-style") : "any";
+  const STYLE_OK = new Set(["any","kinfolk","wild","cottage","formal","tropical","japanese"]);
+  snap.style = STYLE_OK.has(chosenStyle) ? chosenStyle : "any";
+
+  const natEl = form.querySelector("[data-edit-native-target]:checked");
+  const chosenNative = natEl ? natEl.getAttribute("data-edit-native-target") : "any";
+  const NAT_OK = new Set(["any","50","75","100"]);
+  snap.nativeTarget = NAT_OK.has(chosenNative) ? chosenNative : "any";
+
+  const maintEl = form.querySelector("[data-edit-maintenance]:checked");
+  const chosenMaint = maintEl ? maintEl.getAttribute("data-edit-maintenance") : "medium";
+  const MAINT_OK = new Set(["low","medium","intensive"]);
+  snap.maintenance = MAINT_OK.has(chosenMaint) ? chosenMaint : "medium";
+
+  const wildEl = form.querySelector("[data-edit-wildlife]:checked");
+  const chosenWild = wildEl ? wildEl.getAttribute("data-edit-wildlife") : "any";
+  const WILD_OK = new Set(["any","butterfly","bird","bee","mixed"]);
+  snap.wildlifeFocus = WILD_OK.has(chosenWild) ? chosenWild : "any";
   // Persist. Don't change savedAt — preserves the original "first saved" date
   // so the dashboard's "Saved N ago" stays meaningful for the original creation.
   saveDesignList(list);
