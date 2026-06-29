@@ -8852,6 +8852,10 @@ const state = {
   household:          { kidsUnder6: false, pets: false, fragranceAllergy: false },
   budgetTier:         "any", // any | low | mid | high
   privacy:            false, // boosts hedge/screen plants when true
+  // R105 (critic #1): persist disclosure open/closed across re-renders so
+  // clicking a chip doesn't snap it shut. UI-only — never persisted to
+  // snapshot or localStorage (cleared on refresh).
+  r103ExtraOpen:      false,
   // Per-design plant preferences — EXPLICIT 👍/👎/📌 the user has tapped.
   // Mutually exclusive between liked/disliked (setting one clears the other).
   // 📌 pinned is INDEPENDENT — a pinned plant is GUARANTEED into the design
@@ -9013,6 +9017,15 @@ const EXISTING_STRUCT_KEYS = ["path","shed","planter","pond","fence","wall","com
 const BUDGET_OK = new Set(["any","low","mid","high"]);
 const EXISTING_PLANT_OK = new Set(EXISTING_PLANT_KEYS);
 const EXISTING_STRUCT_OK = new Set(EXISTING_STRUCT_KEYS);
+// R105 (critic #3): wizard-chip → plant.id substring map for the duplicate
+// suppression in scorePlants. Hoisted so renderDesignLogicPanel can filter
+// the "Avoided N duplicates" count by what's actually in this map — herbs
+// and unknown_tree have no clean id-substring match, so picking them never
+// triggers a deduction. Reporting them as "deducted" was misleading.
+const DUP_MAP_R103 = {
+  mango: "mango", longan: "longan", banana: "banana", papaya: "papaya",
+  guava: "guava", lime: "lime", passion: "passion", betel: "betel",
+};
 
 // Taiwan climate zones, keyed by county/city name (matches both forms users type).
 // N=North (cool/wet), C=Central (moderate), S=South (hot/dry), E=East (very wet, low pollution)
@@ -9255,15 +9268,15 @@ function scorePlants(opts) {
     // already has. Penalty is small (so the plant can still surface if it's
     // a perfect fit for some other reason), but the reason string makes the
     // dedup transparent.
+    // R105 (critic #3): the dupMap deliberately covers only the 8 chips with
+    // a stable plant.id substring. herbs/unknown_tree have no clean match,
+    // so they're intentionally absent. R104's "Avoided N existing plants"
+    // panel now filters its count by what's actually in DUP_MAP_R103 so it
+    // doesn't claim a deduction it never made.
     const existPlants = Array.isArray(state.existingPlants) ? state.existingPlants : [];
     if (existPlants.length > 0) {
-      // Map our wizard chips to plant.id substrings — best-effort, conservative.
-      const dupMap = {
-        mango: "mango", longan: "longan", banana: "banana", papaya: "papaya",
-        guava: "guava", lime: "lime", passion: "passion", betel: "betel",
-      };
       for (const ek of existPlants) {
-        const substr = dupMap[ek];
+        const substr = DUP_MAP_R103[ek];
         if (substr && p.id && p.id.toLowerCase().includes(substr)) {
           score -= 12;
           reasons_zh.push("你已經有了"); reasons_en.push("You already have one");
@@ -9297,15 +9310,34 @@ function scorePlants(opts) {
     // fragranceAllergy avoids strong scents. None of these hard-filter
     // (pinned plants can still surface), but the negative is firm enough
     // that toxic plants drop out of the top-8 by default.
+    //
+    // R105 (critic #2): pet_safe is `false` for ~184 plants with explicit
+    // toxicity data, but ~49 plants have no PLANT_META entry so pet_safe
+    // is `undefined`. Treating undefined as "safe" silently broke the
+    // "avoid toxic" promise — a plant with no verified toxicity data could
+    // still land at the top. Now: explicit-toxic gets the full penalty +
+    // strong reason; undefined ("unverified") gets a smaller penalty + a
+    // softer reason so the user knows safety wasn't confirmed.
     const hh = state.household || {};
-    if (hh.pets && p.pet_safe === false) {
-      score -= 18;
-      reasons_zh.push("⚠ 對寵物有毒"); reasons_en.push("⚠ Toxic for pets");
+    const petConfirmedToxic = p.pet_safe === false;
+    const petUnverified     = p.pet_safe == null;   // null or undefined
+    if (hh.pets) {
+      if (petConfirmedToxic) {
+        score -= 18;
+        reasons_zh.push("⚠ 對寵物有毒"); reasons_en.push("⚠ Toxic for pets");
+      } else if (petUnverified) {
+        score -= 7;
+        reasons_zh.push("⚠ 寵物安全未驗證"); reasons_en.push("⚠ Pet safety unverified");
+      }
     }
-    if (hh.kidsUnder6 && p.pet_safe === false) {
-      // pet_safe=false is the cleanest toxicity proxy we have today.
-      score -= 14;
-      reasons_zh.push("⚠ 有小孩需注意"); reasons_en.push("⚠ Caution with young kids");
+    if (hh.kidsUnder6) {
+      if (petConfirmedToxic) {
+        score -= 14;
+        reasons_zh.push("⚠ 有小孩需注意"); reasons_en.push("⚠ Caution with young kids");
+      } else if (petUnverified) {
+        score -= 6;
+        reasons_zh.push("⚠ 毒性未驗證"); reasons_en.push("⚠ Toxicity unverified");
+      }
     }
     if (hh.fragranceAllergy && p.fragrance >= 2) {
       score -= 10;
@@ -13919,9 +13951,21 @@ function topReasonsForSnap(snap, topN) {
     state.maintenance   = MAINT_OK.has(snap.maintenance) ? snap.maintenance : "medium";
     state.wildlifeFocus = WILDLIFE_FOCUS_OK.has(snap.wildlifeFocus) ? snap.wildlifeFocus : "any";
     state.prefs = snap.prefs || { liked: {}, disliked: {}, pinned: {} };
-    state.existingPlants     = Array.isArray(snap.existingPlants)     ? snap.existingPlants     : [];
-    state.existingStructures = Array.isArray(snap.existingStructures) ? snap.existingStructures : [];
-    state.household          = snap.household || { kidsUnder6: false, pets: false, fragranceAllergy: false };
+    // R105 (critic #4): mirror applySnapshot's whitelist defense here.
+    // topReasonsForSnap is called on every per-design dashboard open and a
+    // hand-crafted snap could otherwise smuggle unknown chip keys into the
+    // scoring path. Same shape as applySnapshot lines ~9486–9498.
+    state.existingPlants     = Array.isArray(snap.existingPlants)
+      ? snap.existingPlants.filter(k => EXISTING_PLANT_OK.has(k))
+      : [];
+    state.existingStructures = Array.isArray(snap.existingStructures)
+      ? snap.existingStructures.filter(k => EXISTING_STRUCT_OK.has(k))
+      : [];
+    state.household = {
+      kidsUnder6:       !!(snap.household && snap.household.kidsUnder6),
+      pets:             !!(snap.household && snap.household.pets),
+      fragranceAllergy: !!(snap.household && snap.household.fragranceAllergy),
+    };
     state.budgetTier         = BUDGET_OK.has(snap.budgetTier) ? snap.budgetTier : "any";
     state.privacy            = !!snap.privacy;
     const scored = scorePlants();
@@ -14004,10 +14048,22 @@ function renderDesignLogicPanel(entry) {
   // actually toggled — blank section if the user skipped all advanced fields.
   const constraints = [];
   const existPlants = Array.isArray(snap.existingPlants) ? snap.existingPlants : [];
-  if (existPlants.length > 0) {
+  // R105 (critic #3): only count chips that DUP_MAP_R103 actually maps to a
+  // plant.id substring. herbs / unknown_tree are intentionally absent from
+  // the map, so picking them should never claim "avoided N duplicates".
+  const dedupedCount = existPlants.filter(k => k in DUP_MAP_R103).length;
+  const otherCount   = existPlants.length - dedupedCount;
+  if (dedupedCount > 0) {
     constraints.push({
-      zh: `🌳 已迴避你已有的：${existPlants.length} 項既有植物`,
-      en: `🌳 Avoided duplicates of your ${existPlants.length} existing plant${existPlants.length === 1 ? "" : "s"}`,
+      zh: `🌳 已迴避你已有的：${dedupedCount} 項既有植物`,
+      en: `🌳 Avoided duplicates of your ${dedupedCount} existing plant${dedupedCount === 1 ? "" : "s"}`,
+    });
+  }
+  if (otherCount > 0) {
+    // Tell the user we noted the chip but had no clean way to dedup against it.
+    constraints.push({
+      zh: `🌳 已記錄 ${otherCount} 項其他既有植物 (無法精確比對)`,
+      en: `🌳 Noted ${otherCount} other existing plant${otherCount === 1 ? "" : "s"} (no exact match in DB)`,
     });
   }
   const existStruct = Array.isArray(snap.existingStructures) ? snap.existingStructures : [];
@@ -17143,7 +17199,9 @@ const EXISTING_PLANT_OPTIONS = [
   { key: "mango",         zh: "🥭 芒果樹",      en: "🥭 Mango" },
   { key: "longan",        zh: "🌰 龍眼",        en: "🌰 Longan" },
   { key: "banana",        zh: "🍌 香蕉",        en: "🍌 Banana" },
-  { key: "papaya",        zh: "🥭 木瓜",        en: "🥭 Papaya" },
+  // R105 (critic #7): papaya was sharing 🥭 with mango. Use a distinct icon
+  // so the row doesn't visually duplicate.
+  { key: "papaya",        zh: "🌳 木瓜",        en: "🌳 Papaya" },
   { key: "guava",         zh: "🍈 芭樂",        en: "🍈 Guava" },
   { key: "lime",          zh: "🍋 柑橘 / 檸檬", en: "🍋 Citrus / Lime" },
   { key: "passion",       zh: "🍇 百香果",      en: "🍇 Passion fruit" },
@@ -17188,8 +17246,8 @@ function renderGoals() {
   const budgetSel = state.budgetTier || "any";
   const hh = state.household || {};
   const extendedHTML = `
-    <details class="r103-extra" id="r103Extra">
-      <summary class="r103-extra-summary">
+    <details class="r103-extra" id="r103Extra" ${state.r103ExtraOpen ? "open" : ""}>
+      <summary class="r103-extra-summary" id="r103ExtraSummary">
         <span data-zh="🔧 進階選項（讓推薦更貼近你的實際狀況）"
               data-en="🔧 Advanced (optional — make recommendations match your reality)">🔧 進階選項（讓推薦更貼近你的實際狀況）</span>
       </summary>
@@ -17287,7 +17345,39 @@ function renderGoals() {
 // R103: click handlers for the extended-criteria chips. Re-renders the
 // Goals step on each toggle so the aria-checked / .on class stay in sync
 // with state — same pattern as wireOptCards.
+//
+// R105 (critic #1, #6): the original implementation re-rendered renderGoals()
+// on every chip click, which collapsed the <details> disclosure AND dropped
+// keyboard focus. Fix: (a) track disclosure open/closed in state, (b) on
+// every re-render restore focus to the freshly-rendered element that matches
+// the data-* identity of the clicked one. Mirrors R102's wireLayoutEditor
+// tab-keynav focus-restoration pattern.
+function _r103Rerender(focusSelector) {
+  saveToLocal();
+  renderGoals();
+  applyLanguage();
+  if (focusSelector) {
+    // The <details> open attribute is rendered from state.r103ExtraOpen,
+    // so the disclosure is already in the correct visual state. Defer focus
+    // to next tick so the browser has fully painted before we move focus.
+    setTimeout(() => {
+      const el = document.querySelector(focusSelector);
+      if (el) el.focus();
+    }, 0);
+  }
+}
+
 function wireR103ExtraChips() {
+  // Toggle the disclosure open state when the user clicks the summary.
+  // <details> normally toggles itself, but our re-renders re-emit the
+  // element so we read the toggled state and persist it.
+  const disclosure = document.getElementById("r103Extra");
+  if (disclosure) {
+    disclosure.addEventListener("toggle", () => {
+      state.r103ExtraOpen = disclosure.open;
+    });
+  }
+
   document.querySelectorAll('[data-r103-chip]').forEach(btn => {
     btn.addEventListener("click", () => {
       const section = btn.getAttribute("data-r103-chip");
@@ -17299,9 +17389,8 @@ function wireR103ExtraChips() {
       const idx = arr.indexOf(key);
       if (idx >= 0) arr.splice(idx, 1);
       else arr.push(key);
-      saveToLocal();
-      renderGoals();
-      applyLanguage();
+      state.r103ExtraOpen = true;
+      _r103Rerender(`[data-r103-chip="${section}"][data-key="${key}"]`);
     });
   });
   document.querySelectorAll('[data-r103-toggle]').forEach(btn => {
@@ -17313,9 +17402,8 @@ function wireR103ExtraChips() {
         state.household = state.household || { kidsUnder6: false, pets: false, fragranceAllergy: false };
         state.household[field] = !state.household[field];
       }
-      saveToLocal();
-      renderGoals();
-      applyLanguage();
+      state.r103ExtraOpen = true;
+      _r103Rerender(`[data-r103-toggle="${field}"]`);
     });
   });
   document.querySelectorAll('[data-r103-budget]').forEach(btn => {
@@ -17323,9 +17411,8 @@ function wireR103ExtraChips() {
       const tier = btn.getAttribute("data-r103-budget");
       if (!BUDGET_OK.has(tier)) return;
       state.budgetTier = tier;
-      saveToLocal();
-      renderGoals();
-      applyLanguage();
+      state.r103ExtraOpen = true;
+      _r103Rerender(`[data-r103-budget="${tier}"]`);
     });
   });
 }
@@ -17814,6 +17901,22 @@ function renderNav() {
         sun:null, water:null, goals:[],
         resultTab:"plan", selectedPlantId:null, qty:{},
         wizardPhotoSuggest:{}, wizardPhotoSuggestActed:{},
+        // R105 (critic #5): Start over must wipe R103 extended criteria too —
+        // otherwise yesterday's "have pets + low budget" leaks silently into
+        // today's fresh wizard. applyDesignPreset already does this; the
+        // navReset block was missed when R103 shipped.
+        existingPlants: [],
+        existingStructures: [],
+        household: { kidsUnder6: false, pets: false, fragranceAllergy: false },
+        budgetTier: "any",
+        privacy: false,
+        // R105: also clear the R99 design prefs that were exposed to the
+        // wizard in R103. Same reasoning — Start over should land on
+        // factory-fresh defaults.
+        style: "any",
+        nativeTarget: "any",
+        maintenance: "medium",
+        wildlifeFocus: "any",
       });
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
