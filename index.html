@@ -263,6 +263,79 @@
     letter-spacing: 0.02em;
   }
 
+  /* R103 — extended optional criteria under the Goals step. Sits inside a
+     <details> disclosure so the form stays uncluttered for first-timers but
+     deeper criteria are one tap away. */
+  .r103-extra {
+    margin-top: 28px;
+    padding: 18px 18px 6px;
+    background: rgba(255,255,255,0.45);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .r103-extra-summary {
+    list-style: none;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-weight: 600;
+    color: var(--forest);
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    padding: 4px 0;
+  }
+  .r103-extra-summary::-webkit-details-marker { display: none; }
+  .r103-extra-summary::before {
+    content: "▸ ";
+    transition: transform .2s;
+    display: inline-block;
+    margin-right: 4px;
+  }
+  .r103-extra[open] > .r103-extra-summary::before { content: "▾ "; }
+  .r103-extra-body { padding-top: 12px; }
+  .r103-section { margin-bottom: 18px; }
+  .r103-section:last-child { margin-bottom: 6px; }
+  .r103-section-title {
+    font-family: var(--sans);
+    font-weight: 600;
+    color: var(--forest);
+    font-size: 13.5px;
+    margin-bottom: 4px;
+  }
+  .r103-section-hint {
+    color: var(--ink-soft);
+    font-size: 12px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .r103-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .r103-chip {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,0.55);
+    color: var(--forest);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-family: var(--sans);
+    font-size: 13px;
+    cursor: pointer;
+    min-height: 36px;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .r103-chip:hover { background: rgba(255,255,255,0.85); }
+  .r103-chip.on {
+    background: var(--sage-deep);
+    color: #fff;
+    border-color: var(--sage-deep);
+  }
+  .r103-chip:focus-visible {
+    outline: 2px solid var(--sage);
+    outline-offset: 2px;
+  }
+
   /* DETAILS step — text + numeric inputs, orientation picker */
   .detail-grid { display: grid; grid-template-columns: 1fr; gap: 22px; margin-top: 32px; }
   .field { display: flex; flex-direction: column; gap: 8px; }
@@ -8710,6 +8783,15 @@ const state = {
   nativeTarget:  "any",
   maintenance:   "medium",
   wildlifeFocus: "any",
+  // R103: extended onboarding criteria — what's already in the garden, who
+  // lives there, what they can spend, and whether they need privacy. All
+  // arrays/booleans/strings default to "no signal" so the existing scoring
+  // is unchanged until the user actually checks something.
+  existingPlants:     [],    // ids from EXISTING_PLANT_KEYS
+  existingStructures: [],    // ids from EXISTING_STRUCT_KEYS
+  household:          { kidsUnder6: false, pets: false, fragranceAllergy: false },
+  budgetTier:         "any", // any | low | mid | high
+  privacy:            false, // boosts hedge/screen plants when true
   // Per-design plant preferences — EXPLICIT 👍/👎/📌 the user has tapped.
   // Mutually exclusive between liked/disliked (setting one clears the other).
   // 📌 pinned is INDEPENDENT — a pinned plant is GUARANTEED into the design
@@ -8862,6 +8944,15 @@ const STYLE_OK = new Set(["any","kinfolk","wild","cottage","formal","tropical","
 const NATIVE_TARGET_OK = new Set(["any","50","75","100"]);
 const MAINT_OK = new Set(["low","medium","intensive"]);
 const WILDLIFE_FOCUS_OK = new Set(["any","butterfly","bird","bee","mixed"]);
+// R103: extended onboarding criteria — let the user tell us what's already
+// there and a few household constraints so the recommendations land closer
+// to their reality. All optional (per feedback_optional_fields memory) so
+// the wizard never gates on these — blanks mean "don't apply this filter".
+const EXISTING_PLANT_KEYS = ["mango","longan","banana","papaya","guava","lime","passion","betel","herbs","unknown_tree"];
+const EXISTING_STRUCT_KEYS = ["path","shed","planter","pond","fence","wall","compost"];
+const BUDGET_OK = new Set(["any","low","mid","high"]);
+const EXISTING_PLANT_OK = new Set(EXISTING_PLANT_KEYS);
+const EXISTING_STRUCT_OK = new Set(EXISTING_STRUCT_KEYS);
 
 // Taiwan climate zones, keyed by county/city name (matches both forms users type).
 // N=North (cool/wet), C=Central (moderate), S=South (hot/dry), E=East (very wet, low pollution)
@@ -9093,6 +9184,92 @@ function scorePlants(opts) {
       const role = (p.role_zh || "") + " " + (p.role_en || "");
       if (/地被|ground|蕨|fern/.test(role)) score += 4;
       if (p.water === "med" && p.sun.includes("shade")) score += 3;
+    }
+
+    // ── R103: extended onboarding criteria — only fire when the user has
+    //    actually committed to a signal. Default arrays are empty / "any" /
+    //    false, so every check below is a no-op until something is filled in.
+    //    Magnitudes stay tie-breaker-sized (≤+8) per the R102 saturation lesson.
+
+    // 🌳 Existing plants — don't recommend duplicates of what the customer
+    // already has. Penalty is small (so the plant can still surface if it's
+    // a perfect fit for some other reason), but the reason string makes the
+    // dedup transparent.
+    const existPlants = Array.isArray(state.existingPlants) ? state.existingPlants : [];
+    if (existPlants.length > 0) {
+      // Map our wizard chips to plant.id substrings — best-effort, conservative.
+      const dupMap = {
+        mango: "mango", longan: "longan", banana: "banana", papaya: "papaya",
+        guava: "guava", lime: "lime", passion: "passion", betel: "betel",
+      };
+      for (const ek of existPlants) {
+        const substr = dupMap[ek];
+        if (substr && p.id && p.id.toLowerCase().includes(substr)) {
+          score -= 12;
+          reasons_zh.push("你已經有了"); reasons_en.push("You already have one");
+          break;
+        }
+      }
+    }
+
+    // 🧱 Existing structures — wall/fence boosts climbers; pond boosts
+    // moisture-loving + bog-tolerant plants; a built planter favours small
+    // shrubs / herbaceous fillers.
+    const existStruct = Array.isArray(state.existingStructures) ? state.existingStructures : [];
+    if (existStruct.length > 0) {
+      const role = (p.role_zh || "") + " " + (p.role_en || "");
+      const typ  = (p.type_zh || "") + " " + (p.type_en || "");
+      if ((existStruct.includes("wall") || existStruct.includes("fence")) &&
+          (/climber|藤|攀緣|蔓/.test(role + " " + typ) || p.tier === "C")) {
+        score += 8;
+        reasons_zh.push("適合牆面/圍籬"); reasons_en.push("Fits your wall/fence");
+      }
+      if (existStruct.includes("pond") && p.water === "high") {
+        score += 6;
+        reasons_zh.push("水池旁喜濕"); reasons_en.push("Loves moisture near pond");
+      }
+      if (existStruct.includes("planter") && (p.tier === "S" || p.tier === "H" || p.tier === "G")) {
+        score += 3;
+      }
+    }
+
+    // 👨‍👩‍👧 Household — kids & pets push toxic plants off the top.
+    // fragranceAllergy avoids strong scents. None of these hard-filter
+    // (pinned plants can still surface), but the negative is firm enough
+    // that toxic plants drop out of the top-8 by default.
+    const hh = state.household || {};
+    if (hh.pets && p.pet_safe === false) {
+      score -= 18;
+      reasons_zh.push("⚠ 對寵物有毒"); reasons_en.push("⚠ Toxic for pets");
+    }
+    if (hh.kidsUnder6 && p.pet_safe === false) {
+      // pet_safe=false is the cleanest toxicity proxy we have today.
+      score -= 14;
+      reasons_zh.push("⚠ 有小孩需注意"); reasons_en.push("⚠ Caution with young kids");
+    }
+    if (hh.fragranceAllergy && p.fragrance >= 2) {
+      score -= 10;
+      reasons_zh.push("⚠ 香味較濃"); reasons_en.push("⚠ Strong fragrance");
+    }
+
+    // 💰 Budget — cap the per-plant cost relative to tier. Plants without
+    // a declared cost are treated as mid-priced (no boost or penalty).
+    const budget = state.budgetTier || "any";
+    if (budget !== "any" && p.cost && Number(p.cost) > 0) {
+      const c = Number(p.cost);
+      if (budget === "low" && c > 200) { score -= 6; }
+      else if (budget === "low" && c <= 80) { score += 4; reasons_zh.push("經濟實惠"); reasons_en.push("Budget-friendly"); }
+      else if (budget === "high" && c > 500) { score += 3; }
+    }
+
+    // 🛡 Privacy — when the user marked privacy as a need, boost
+    // hedge/screen-role plants alongside the existing "screen" goal block.
+    if (state.privacy) {
+      const role = (p.role_zh || "") + " " + (p.role_en || "");
+      if (/綠籬|屏障|圍籬|hedge|screen/.test(role) || p.tier === "T" || p.tier === "S") {
+        score += 6;
+        reasons_zh.push("私密遮蔽"); reasons_en.push("Privacy screen");
+      }
     }
 
     // Small diversity bonus — keeps borderline candidates on the list
@@ -9415,6 +9592,17 @@ function snapshotState() {
     nativeTarget: state.nativeTarget || "any",
     maintenance: state.maintenance || "medium",
     wildlifeFocus: state.wildlifeFocus || "any",
+    // R103: extended onboarding criteria — persist + travel with shared links.
+    // Whitelisted on read in applySnapshot to guard against hand-crafted #d= URLs.
+    existingPlants:     Array.isArray(state.existingPlants)     ? [...state.existingPlants]     : [],
+    existingStructures: Array.isArray(state.existingStructures) ? [...state.existingStructures] : [],
+    household: {
+      kidsUnder6:        !!(state.household && state.household.kidsUnder6),
+      pets:              !!(state.household && state.household.pets),
+      fragranceAllergy:  !!(state.household && state.household.fragranceAllergy),
+    },
+    budgetTier: state.budgetTier || "any",
+    privacy:    !!state.privacy,
     // Per-design 👍/👎/📌 — travels with the snapshot so balcony prefs ≠ yard prefs,
     // shared links carry the user's preferences (including pinned must-haves),
     // and "我的設計" entries each remember their own taste.
@@ -9480,6 +9668,22 @@ function applySnapshot(snap) {
   state.nativeTarget   = NATIVE_TARGET_OK.has(snap.nativeTarget) ? snap.nativeTarget : "any";
   state.maintenance    = MAINT_OK.has(snap.maintenance)         ? snap.maintenance    : "medium";
   state.wildlifeFocus  = WILDLIFE_FOCUS_OK.has(snap.wildlifeFocus) ? snap.wildlifeFocus : "any";
+  // R103: hydrate extended onboarding criteria. Whitelist each id so a
+  // hand-crafted #d= URL can't smuggle in a chip the wizard never offered
+  // (filter() drops unknown ids silently — same defensive shape as goals).
+  state.existingPlants     = Array.isArray(snap.existingPlants)
+    ? snap.existingPlants.filter(k => EXISTING_PLANT_OK.has(k))
+    : [];
+  state.existingStructures = Array.isArray(snap.existingStructures)
+    ? snap.existingStructures.filter(k => EXISTING_STRUCT_OK.has(k))
+    : [];
+  state.household = {
+    kidsUnder6:       !!(snap.household && snap.household.kidsUnder6),
+    pets:             !!(snap.household && snap.household.pets),
+    fragranceAllergy: !!(snap.household && snap.household.fragranceAllergy),
+  };
+  state.budgetTier = BUDGET_OK.has(snap.budgetTier) ? snap.budgetTier : "any";
+  state.privacy    = !!snap.privacy;
   // Restore per-design 👍/👎/📌. Older snapshots without `prefs.pinned` load empty.
   state.prefs = {
     liked:    (snap.prefs && snap.prefs.liked    && typeof snap.prefs.liked    === "object") ? { ...snap.prefs.liked }    : {},
@@ -15628,6 +15832,14 @@ function applyDesignPreset(presetId) {
   state.detected = preset.detected ? { ...preset.detected } : null;
   state.qty = {};
   state.prefs = { liked: {}, disliked: {}, pinned: {} };
+  // R103: presets define a coherent design identity, so wipe the extended
+  // criteria too — otherwise yesterday's "kids + pets + low budget" leaks
+  // onto today's preset choice.
+  state.existingPlants = [];
+  state.existingStructures = [];
+  state.household = { kidsUnder6: false, pets: false, fragranceAllergy: false };
+  state.budgetTier = "any";
+  state.privacy = false;
   // R54 — applying a preset wipes prefs; the swap-suggest memory belongs to
   // the old design so reset it too (otherwise dismissed plants stay silent).
   resetSwapSuggestState();
@@ -16655,11 +16867,138 @@ function renderWater() {
   wireWizardTip("water");
 }
 
+// R103: chip option lists for the extended-criteria section of the Goals step.
+// All optional — leaving them blank means "no signal" so the existing scoring
+// behaviour is identical to pre-R103. Keys mirror EXISTING_PLANT_KEYS /
+// EXISTING_STRUCT_KEYS / BUDGET_OK so applySnapshot + scorePlants() can read
+// them safely without an extra translation table.
+const EXISTING_PLANT_OPTIONS = [
+  { key: "mango",         zh: "🥭 芒果樹",      en: "🥭 Mango" },
+  { key: "longan",        zh: "🌰 龍眼",        en: "🌰 Longan" },
+  { key: "banana",        zh: "🍌 香蕉",        en: "🍌 Banana" },
+  { key: "papaya",        zh: "🥭 木瓜",        en: "🥭 Papaya" },
+  { key: "guava",         zh: "🍈 芭樂",        en: "🍈 Guava" },
+  { key: "lime",          zh: "🍋 柑橘 / 檸檬", en: "🍋 Citrus / Lime" },
+  { key: "passion",       zh: "🍇 百香果",      en: "🍇 Passion fruit" },
+  { key: "betel",         zh: "🌴 檳榔",        en: "🌴 Betel palm" },
+  { key: "herbs",         zh: "🌿 香草藥用",    en: "🌿 Herbs" },
+  { key: "unknown_tree",  zh: "🌳 一棵不知名大樹", en: "🌳 An unknown big tree" },
+];
+const EXISTING_STRUCT_OPTIONS = [
+  { key: "path",     zh: "🪨 既有步道",   en: "🪨 Existing path" },
+  { key: "shed",     zh: "🏠 棚屋 / 倉庫", en: "🏠 Shed / store" },
+  { key: "planter",  zh: "🪴 砌好的花壇", en: "🪴 Built planter bed" },
+  { key: "pond",     zh: "💧 水池 / 水景", en: "💧 Pond / water" },
+  { key: "fence",    zh: "🚧 圍籬",       en: "🚧 Fence" },
+  { key: "wall",     zh: "🧱 牆面",       en: "🧱 Wall" },
+  { key: "compost",  zh: "♻️ 堆肥區",     en: "♻️ Compost area" },
+];
+const BUDGET_OPTIONS = [
+  { key: "low",  zh: "🌱 ＜ NT$ 5,000",          en: "🌱 < NT$ 5,000" },
+  { key: "mid",  zh: "🌿 NT$ 5,000 – 20,000",    en: "🌿 NT$ 5,000 – 20,000" },
+  { key: "high", zh: "🌳 ＞ NT$ 20,000",         en: "🌳 > NT$ 20,000" },
+];
+
+function r103ChipsHTML(opts, selectedSet, sectionKey) {
+  return opts.map(o => {
+    const active = selectedSet.has(o.key);
+    return `
+      <button type="button" class="r103-chip ${active ? "on" : ""}"
+              data-r103-chip="${sectionKey}" data-key="${o.key}"
+              role="checkbox" aria-checked="${active ? "true" : "false"}"
+              data-zh="${o.zh}" data-en="${o.en}">${o.zh}</button>`;
+  }).join("");
+}
+
 function renderGoals() {
   const n = state.goals.length;
   const counterHTML = n > 0
     ? `<div class="goals-counter" data-zh="✓ 已選 ${n} 個願望" data-en="✓ ${n} ${n === 1 ? "wish" : "wishes"} selected">✓ 已選 ${n} 個願望</div>`
     : "";
+  // R103 — extended optional criteria. Each section defaults to "no signal".
+  const existPlantSet = new Set(state.existingPlants || []);
+  const existStructSet = new Set(state.existingStructures || []);
+  const budgetSel = state.budgetTier || "any";
+  const hh = state.household || {};
+  const extendedHTML = `
+    <details class="r103-extra" id="r103Extra">
+      <summary class="r103-extra-summary">
+        <span data-zh="🔧 進階選項（讓推薦更貼近你的實際狀況）"
+              data-en="🔧 Advanced (optional — make recommendations match your reality)">🔧 進階選項（讓推薦更貼近你的實際狀況）</span>
+      </summary>
+      <div class="r103-extra-body">
+        <div class="r103-section">
+          <div class="r103-section-title"
+               data-zh="🌳 你已經有什麼植物？"
+               data-en="🌳 What plants do you already have?">🌳 你已經有什麼植物？</div>
+          <div class="r103-section-hint"
+               data-zh="我們會把推薦的植物搭在這些既有植物旁邊，而不是重複建議同一棵。"
+               data-en="Recommendations will pair with these instead of suggesting duplicates.">我們會把推薦的植物搭在這些既有植物旁邊，而不是重複建議同一棵。</div>
+          <div class="r103-chip-row">${r103ChipsHTML(EXISTING_PLANT_OPTIONS, existPlantSet, "existingPlants")}</div>
+        </div>
+        <div class="r103-section">
+          <div class="r103-section-title"
+               data-zh="🧱 既有設施"
+               data-en="🧱 Existing structures">🧱 既有設施</div>
+          <div class="r103-section-hint"
+               data-zh="排版會避開這些區域；牆面或圍籬旁會推薦攀緣植物。"
+               data-en="Layout avoids these. Walls and fences trigger climber suggestions.">排版會避開這些區域；牆面或圍籬旁會推薦攀緣植物。</div>
+          <div class="r103-chip-row">${r103ChipsHTML(EXISTING_STRUCT_OPTIONS, existStructSet, "existingStructures")}</div>
+        </div>
+        <div class="r103-section">
+          <div class="r103-section-title"
+               data-zh="👨‍👩‍👧 家中狀況"
+               data-en="👨‍👩‍👧 Household">👨‍👩‍👧 家中狀況</div>
+          <div class="r103-chip-row">
+            <button type="button" class="r103-chip ${hh.kidsUnder6 ? "on" : ""}"
+                    data-r103-toggle="kidsUnder6"
+                    role="checkbox" aria-checked="${hh.kidsUnder6 ? "true" : "false"}"
+                    data-zh="👶 有 6 歲以下小孩"
+                    data-en="👶 Kids under 6">👶 有 6 歲以下小孩</button>
+            <button type="button" class="r103-chip ${hh.pets ? "on" : ""}"
+                    data-r103-toggle="pets"
+                    role="checkbox" aria-checked="${hh.pets ? "true" : "false"}"
+                    data-zh="🐾 養寵物 (避開有毒植物)"
+                    data-en="🐾 Pets (avoid toxic plants)">🐾 養寵物 (避開有毒植物)</button>
+            <button type="button" class="r103-chip ${hh.fragranceAllergy ? "on" : ""}"
+                    data-r103-toggle="fragranceAllergy"
+                    role="checkbox" aria-checked="${hh.fragranceAllergy ? "true" : "false"}"
+                    data-zh="🤧 對香味 / 花粉敏感"
+                    data-en="🤧 Fragrance / pollen sensitive">🤧 對香味 / 花粉敏感</button>
+          </div>
+        </div>
+        <div class="r103-section">
+          <div class="r103-section-title"
+               data-zh="💰 預算"
+               data-en="💰 Budget">💰 預算</div>
+          <div class="r103-chip-row">
+            <button type="button" class="r103-chip ${budgetSel === "any" ? "on" : ""}"
+                    data-r103-budget="any"
+                    role="radio" aria-checked="${budgetSel === "any" ? "true" : "false"}"
+                    data-zh="不限"
+                    data-en="No limit">不限</button>
+            ${BUDGET_OPTIONS.map(b => `
+              <button type="button" class="r103-chip ${budgetSel === b.key ? "on" : ""}"
+                      data-r103-budget="${b.key}"
+                      role="radio" aria-checked="${budgetSel === b.key ? "true" : "false"}"
+                      data-zh="${b.zh}" data-en="${b.en}">${b.zh}</button>
+            `).join("")}
+          </div>
+        </div>
+        <div class="r103-section">
+          <div class="r103-section-title"
+               data-zh="🛡 私密性"
+               data-en="🛡 Privacy">🛡 私密性</div>
+          <div class="r103-chip-row">
+            <button type="button" class="r103-chip ${state.privacy ? "on" : ""}"
+                    data-r103-toggle="privacy"
+                    role="checkbox" aria-checked="${state.privacy ? "true" : "false"}"
+                    data-zh="🏡 需要遮蔽鄰居視線 (推薦綠籬/屏障)"
+                    data-en="🏡 Screen from neighbors (boost hedges)">🏡 需要遮蔽鄰居視線 (推薦綠籬/屏障)</button>
+          </div>
+        </div>
+      </div>
+    </details>`;
   app.innerHTML = `
     <div class="fade-up">
       <div class="kicker" data-zh="第 5 題（最後一題，可複選）" data-en="Question 5 of 5 (multi-select)">第 5 題（最後一題，可複選）</div>
@@ -16670,10 +17009,58 @@ function renderGoals() {
       <div class="grid cols-2">
         ${GOAL_OPTIONS.map(o => optCard(o, state.goals.includes(o.key), null, true)).join("")}
       </div>
+      ${extendedHTML}
       ${wizardTipHTML("goals")}
     </div>`;
   wireOptCards("goals", true);
+  wireR103ExtraChips();
   wireWizardTip("goals");
+}
+
+// R103: click handlers for the extended-criteria chips. Re-renders the
+// Goals step on each toggle so the aria-checked / .on class stay in sync
+// with state — same pattern as wireOptCards.
+function wireR103ExtraChips() {
+  document.querySelectorAll('[data-r103-chip]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const section = btn.getAttribute("data-r103-chip");
+      const key = btn.getAttribute("data-key");
+      if (!section || !key) return;
+      const arr = (section === "existingPlants")
+        ? (state.existingPlants = state.existingPlants || [])
+        : (state.existingStructures = state.existingStructures || []);
+      const idx = arr.indexOf(key);
+      if (idx >= 0) arr.splice(idx, 1);
+      else arr.push(key);
+      saveToLocal();
+      renderGoals();
+      applyLanguage();
+    });
+  });
+  document.querySelectorAll('[data-r103-toggle]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const field = btn.getAttribute("data-r103-toggle");
+      if (field === "privacy") {
+        state.privacy = !state.privacy;
+      } else {
+        state.household = state.household || { kidsUnder6: false, pets: false, fragranceAllergy: false };
+        state.household[field] = !state.household[field];
+      }
+      saveToLocal();
+      renderGoals();
+      applyLanguage();
+    });
+  });
+  document.querySelectorAll('[data-r103-budget]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tier = btn.getAttribute("data-r103-budget");
+      if (!BUDGET_OK.has(tier)) return;
+      state.budgetTier = tier;
+      saveToLocal();
+      renderGoals();
+      applyLanguage();
+    });
+  });
 }
 
 function optCard(opt, active, iconHtml, checkable) {
