@@ -13057,6 +13057,76 @@ function renderLayoutEditorSVG(entry) {
 // code path works for mouse, touch, and pen. Stores working state in
 // closure variables so a single drag doesn't write to localStorage on
 // every move event — only on pointerup.
+// R106: hoisted from renderDesignDashboard so we can re-emit just the layout
+// editor's inner DOM without rebuilding the whole dashboard. Same template
+// the dashboard used inline pre-R106 — the only behaviour change is that
+// renderLayoutInPlace() can now patch this slot in isolation, skipping the
+// today list / logic panel / budget editor / share / settings / journal /
+// doctor / Q&A rebuild cost on every drag-end + label-toggle + tap-select.
+function buildLayoutWrapInner(entry) {
+  return `
+        ${renderLayoutEditorSVG(entry)}
+        ${renderLayoutPlacingBanner()}
+        ${renderLayoutSelectedActionBar(entry)}
+        <div id="layoutEditorLive" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+        <div class="layout-editor-toolbar">
+          <button type="button" class="layout-editor-add" id="layoutEditorAddBtn"
+                  data-zh="＋ 加入植物"
+                  data-en="＋ Add plant">＋ 加入植物</button>
+          <button type="button" class="layout-editor-chip ${state.layoutEditor.showLabels ? "on" : ""}" id="layoutEditorLabelsBtn"
+                  aria-pressed="${state.layoutEditor.showLabels ? "true" : "false"}"
+                  data-zh="📋 ${state.layoutEditor.showLabels ? "隱藏名稱" : "顯示植物名"}"
+                  data-en="📋 ${state.layoutEditor.showLabels ? "Hide labels" : "Show labels"}">📋 ${state.layoutEditor.showLabels ? "隱藏名稱" : "顯示植物名"}</button>
+          <button type="button" class="layout-editor-chip" id="layoutEditorUndoBtn"
+                  ${(state.layoutEditor.undoStack || []).length === 0 ? "disabled" : ""}
+                  aria-label="${escapeHtml(t('還原上一步 / Undo', 'Undo'))}"
+                  data-zh-aria="還原上一步" data-en-aria="Undo"
+                  data-zh="↶ 還原"
+                  data-en="↶ Undo">↶ 還原</button>
+          <button type="button" class="layout-editor-reset" id="layoutEditorResetBtn"
+                  data-zh="↺ 自動排版"
+                  data-en="↺ Auto-layout">↺ 自動排版</button>
+        </div>
+        ${renderSeasonalSlider(entry)}
+        ${renderColorPalette(entry)}
+        ${renderLayoutPickerPanel(entry)}
+      `;
+}
+
+// R106: in-place re-render of the layout editor surface. Replaces
+// `.ddash-layout-wrap` innerHTML, re-applies bilingual text inside that
+// subtree, and re-wires the layout editor handlers. Skips the rest of
+// the dashboard — today list, design logic panel, budget, share, doctor,
+// Q&A all keep their existing DOM and bound listeners.
+//
+// Use when the change affects only the layout editor's visual state:
+// drag-end, tap-empty, tap-select, labels toggle, reset. Stay with full
+// render() when snap.qty changes (tap-place, undo) so the budget total
+// + design logic panel re-derive from the new qty.
+function renderLayoutInPlace(entry) {
+  const wrap = document.querySelector(".ddash-layout-wrap");
+  if (!wrap) {
+    // Wrapper missing — fall back to full render so we don't drop state.
+    render();
+    return;
+  }
+  wrap.innerHTML = buildLayoutWrapInner(entry);
+  // Scoped bilingual swap on the freshly-set subtree only — applyLanguage's
+  // global roots include #app so calling it would walk the whole page.
+  wrap.querySelectorAll("[data-zh][data-en]").forEach((el) => {
+    el.innerHTML = el.dataset[state.lang];
+  });
+  wrap.querySelectorAll("[data-zh-placeholder][data-en-placeholder]").forEach((el) => {
+    const v = state.lang === "zh" ? el.dataset.zhPlaceholder : el.dataset.enPlaceholder;
+    if (v != null) el.setAttribute("placeholder", v);
+  });
+  wrap.querySelectorAll("[data-zh-aria][data-en-aria]").forEach((el) => {
+    const v = state.lang === "zh" ? el.dataset.zhAria : el.dataset.enAria;
+    if (v != null) el.setAttribute("aria-label", v);
+  });
+  wireLayoutEditor(entry);
+}
+
 function wireLayoutEditor(entry) {
   const svg = document.getElementById("layoutEditorSvg");
   if (!svg) return;
@@ -13183,8 +13253,9 @@ function wireLayoutEditor(entry) {
       } else if (isTap && state.layoutEditor.selectedTokenId) {
         // Tap-outside on a selected token clears the selection bar.
         state.layoutEditor.selectedTokenId = null;
-        render();
-        applyLanguage();
+        // R106 perf: only the action bar in the layout wrap changes —
+        // no qty mutation, no budget/logic-panel impact. Partial render.
+        renderLayoutInPlace(entry);
         return;
       }
       downAtPoint = null;
@@ -13203,6 +13274,12 @@ function wireLayoutEditor(entry) {
       // R84: snapshot BEFORE we save the new position so ↶ Undo restores it.
       pushLayoutUndo(entry);
       saveEntryLayout(entry.id, workingLayout);
+      // R106 perf: drag-end doesn't change snap.qty (only x/y of an
+      // existing token) and the token's translate is already updated in
+      // the DOM by onPointerMove — but we still need to re-render the
+      // wrap so the undo button enables on the next render cycle. Partial
+      // render avoids the whole-dashboard rebuild that ran pre-R106.
+      renderLayoutInPlace(entry);
     } else {
       // Tap (no drag) on an existing token → select it, surface the action bar.
       // R93 B4: clear element placement too — otherwise the placing banner
@@ -13210,8 +13287,8 @@ function wireLayoutEditor(entry) {
       state.layoutEditor.selectedTokenId = tokenId;
       state.layoutEditor.placingPlantId = null;
       state.layoutEditor.placingElementId = null;
-      render();
-      applyLanguage();
+      // R106 perf: only the action bar surfaces — partial render.
+      renderLayoutInPlace(entry);
     }
   }
 
@@ -13239,8 +13316,9 @@ function wireLayoutEditor(entry) {
   const labelsBtn = document.getElementById("layoutEditorLabelsBtn");
   if (labelsBtn) labelsBtn.addEventListener("click", () => {
     state.layoutEditor.showLabels = !state.layoutEditor.showLabels;
-    render();
-    applyLanguage();
+    // R106 perf: labels toggle only touches per-token text inside the
+    // SVG + the chip's own pressed state — partial render is exact.
+    renderLayoutInPlace(entry);
     announceLayoutChange(t(
       state.layoutEditor.showLabels ? "已顯示植物名" : "已隱藏植物名",
       state.layoutEditor.showLabels ? "Labels shown" : "Labels hidden"
@@ -13605,8 +13683,12 @@ function wireLayoutEditor(entry) {
       const list = loadDesignList();
       const e2 = list.designs.find(e => e.id === entry.id);
       if (e2) { e2.layout = []; saveDesignList(list); }
-      render();
-      applyLanguage();
+      // R106 perf: reset wipes layout but ensureDesignLayout re-seeds from
+      // snap.qty (unchanged) — so budget total + logic panel are stable.
+      // Refresh the entry from disk so renderLayoutInPlace's
+      // ensureDesignLayout call sees the cleared layout.
+      const fresh = loadDesignById(entry.id) || entry;
+      renderLayoutInPlace(fresh);
     });
   }
 }
@@ -14266,33 +14348,7 @@ function renderDesignDashboard() {
               data-zh="拖移調整 · 點植物可移除 · 加入新植物"
               data-en="drag to rearrange · tap a plant to remove · add new plants">拖移調整 · 點植物可移除 · 加入新植物</span>
       </h2>
-      <div class="ddash-layout-wrap">
-        ${renderLayoutEditorSVG(entry)}
-        ${renderLayoutPlacingBanner()}
-        ${renderLayoutSelectedActionBar(entry)}
-        <div id="layoutEditorLive" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
-        <div class="layout-editor-toolbar">
-          <button type="button" class="layout-editor-add" id="layoutEditorAddBtn"
-                  data-zh="＋ 加入植物"
-                  data-en="＋ Add plant">＋ 加入植物</button>
-          <button type="button" class="layout-editor-chip ${state.layoutEditor.showLabels ? "on" : ""}" id="layoutEditorLabelsBtn"
-                  aria-pressed="${state.layoutEditor.showLabels ? "true" : "false"}"
-                  data-zh="📋 ${state.layoutEditor.showLabels ? "隱藏名稱" : "顯示植物名"}"
-                  data-en="📋 ${state.layoutEditor.showLabels ? "Hide labels" : "Show labels"}">📋 ${state.layoutEditor.showLabels ? "隱藏名稱" : "顯示植物名"}</button>
-          <button type="button" class="layout-editor-chip" id="layoutEditorUndoBtn"
-                  ${(state.layoutEditor.undoStack || []).length === 0 ? "disabled" : ""}
-                  aria-label="${escapeHtml(t('還原上一步 / Undo', 'Undo'))}"
-                  data-zh-aria="還原上一步" data-en-aria="Undo"
-                  data-zh="↶ 還原"
-                  data-en="↶ Undo">↶ 還原</button>
-          <button type="button" class="layout-editor-reset" id="layoutEditorResetBtn"
-                  data-zh="↺ 自動排版"
-                  data-en="↺ Auto-layout">↺ 自動排版</button>
-        </div>
-        ${renderSeasonalSlider(entry)}
-        ${renderColorPalette(entry)}
-        ${renderLayoutPickerPanel(entry)}
-      </div>
+      <div class="ddash-layout-wrap">${buildLayoutWrapInner(entry)}</div>
     </section>`;
 
   // R72: Share this design — builds a URL with the design's snapshot
