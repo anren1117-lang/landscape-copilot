@@ -14243,6 +14243,32 @@ function renderDesignLogicPanel(entry) {
     zh: "🌳 垂直分層：T 高木 → S 灌木 → H 草本 → G 地被",
     en: "🌳 Vertical zonation: T canopy → S shrub → H herb → G ground cover",
   });
+  // R109: surface the R108 drift-planting pattern with concrete numbers
+  // from the actual design. Counts species per tier band so the user sees
+  // "Drifts in 4 tier bands · canopy: 2 species, herbs: 5 species" — the
+  // panel quantifies the layout's structure instead of stating generic
+  // principles. Skip when snap.qty is empty (design has no plants yet).
+  const qtyMap = (snap.qty && typeof snap.qty === "object") ? snap.qty : {};
+  const tierCounts = {};
+  Object.keys(qtyMap).forEach(id => {
+    if (!(Number(qtyMap[id]) > 0)) return;
+    const p = PLANT_BY_ID[id];
+    if (!p) return;
+    const t = p.tier || "H";
+    tierCounts[t] = (tierCounts[t] || 0) + 1;
+  });
+  const tierLabelsZh = { T: "高木", C: "攀緣", S: "灌木", V: "藤本", H: "草本", W: "水生", G: "地被" };
+  const tierLabelsEn = { T: "canopy", C: "climbers", S: "shrubs", V: "vines",  H: "herbs",  W: "water",  G: "ground" };
+  const tierOrder = ["T", "C", "S", "V", "H", "W", "G"];
+  const presentTiers = tierOrder.filter(t => tierCounts[t] > 0);
+  if (presentTiers.length > 0) {
+    const partsZh = presentTiers.map(t => `${tierLabelsZh[t]} ${tierCounts[t]}`).join(" · ");
+    const partsEn = presentTiers.map(t => `${tierLabelsEn[t]} ${tierCounts[t]}`).join(" · ");
+    rules.push({
+      zh: `🎨 群落種植：同種圍著焦點中心 (${partsZh})`,
+      en: `🎨 Drift planting: same species clustered around a focal center (${partsEn})`,
+    });
+  }
   if (snap.nativeTarget && snap.nativeTarget !== "any") {
     rules.push({
       zh: `🟢 本土比例目標：${snap.nativeTarget === "100" ? "100%" : "≥ " + snap.nativeTarget + "%"}`,
