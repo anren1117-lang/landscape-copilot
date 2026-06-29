@@ -10270,8 +10270,18 @@ function humanizeTimeAgo(ts) {
 // snapshot WITHOUT re-running scorePlants. snap.qty already holds the
 // top-8 plant ids the user committed to (initShoppingQty filled it when
 // the design was first rendered), so we just look those ids up in PLANTS.
+//
+// R105 perf: WeakMap-memoized by snap object reference. Same snap passed
+// repeatedly inside one render (gallery + dashboard + comparator) hits
+// cache; fresh snap from a re-parsed loadDesignList JSON is a different
+// object → cache miss → recompute (correct semantics on edit). The cache
+// is GC'd automatically when the snap goes out of scope — no manual
+// invalidation needed. Removes a per-render walk of expert(plant) ×
+// gallery-card-count from the home page hot path.
+const _designSummaryCache = new WeakMap();
 function designSummary(snap) {
   if (!snap) return null;
+  if (_designSummaryCache.has(snap)) return _designSummaryCache.get(snap);
   const w = Number(snap.widthM || 0), d = Number(snap.depthM || 0);
   const area = (w * d) || 0;
   // Plant ids the design committed to. Stored as a qty map; treat any
@@ -10294,7 +10304,7 @@ function designSummary(snap) {
     totalWater += (e.water_l_wk || 0) * qty;
     totalCost  += (Number(plant.cost) || 0) * qty;
   });
-  return {
+  const out = {
     space: snap.space || null,
     sun: snap.sun || null,
     water: snap.water || null,
@@ -10309,6 +10319,8 @@ function designSummary(snap) {
     water_l_wk: Math.round(totalWater),
     cost: Math.round(totalCost),
   };
+  _designSummaryCache.set(snap, out);
+  return out;
 }
 
 // R38: thisMonthCareForSnapshot(snap, monthIdx)
