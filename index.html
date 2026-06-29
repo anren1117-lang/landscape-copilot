@@ -12184,6 +12184,13 @@ function setBudgetTarget(designId, target) {
 // has touched anything the editor view matches the gallery card.
 // ─────────────────────────────────────────────────────────────
 const LAYOUT_MAX_TOKENS = 60;
+// R109 critic B2: bump when ensureDesignLayout's placement algorithm
+// changes meaningfully. Lets future migration code detect legacy layouts
+// (saved with the broken pre-R108 NaN-yFraction scatter) and offer a
+// rebuild without trampling user drag positions silently.
+//   108 — R108 introduced TIER_Y string-keyed bands + drift clusters.
+//   109 — R109 critic fix B1+B6 (L-shape x range, centered focal slot).
+const LAYOUT_VERSION = 109;
 
 function makeTokenId() {
   return "tk_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
@@ -12317,6 +12324,20 @@ function ensureDesignLayout(entry, opts) {
   //     small radius of the cluster center → "drift of plants" feel.
   const TIER_Y = { T: 0.18, C: 0.22, S: 0.40, V: 0.45, H: 0.58, W: 0.70, G: 0.82 };
 
+  // R109 critic B1: for L-shape, the upper-right quadrant (x>0.6 AND y<0.4) is
+  // cutout, so the back-band tiers (T canopy at y=0.18, C climbers at y=0.22)
+  // only have x in [0.06, 0.55] available. Without this, the rightmost canopy
+  // cluster's 8-attempt loop fails (every (cx+dx, cy+dy) lands in cutout),
+  // fallback dumps the cluster in the lower-left herb area, and canopy trees
+  // visually disappear from the back wall. Constrain cluster centers to the
+  // shape's actual x range per tier.
+  const xRangeForTier = (tier) => {
+    if (shape === "L" && (tier === "T" || tier === "C")) {
+      return { min: 0.06, max: 0.55 };
+    }
+    return { min: 0.06, max: 0.94 };
+  };
+
   // Group by tier so we can lay clusters out left-to-right inside each band.
   const byTier = {};
   for (const e of plantEntries) {
@@ -12324,11 +12345,37 @@ function ensureDesignLayout(entry, opts) {
     if (!byTier[tier]) byTier[tier] = [];
     byTier[tier].push(e);
   }
-  // Within a tier, highest qty first → that species claims the most central
-  // cluster slot (focal positioning: the biggest drift becomes the visual
-  // anchor of its tier band).
+  // Within a tier, highest qty first → focal positioning. R109 critic B6:
+  // pre-R109 we naively sorted desc and assigned idx 0..n-1 to slots
+  // cx=1/(n+1)..n/(n+1), which put the highest-qty species at cx=0.17
+  // (left edge!), not the visual center. Now: sort desc, then interleave so
+  // the biggest drift gets the middle slot, the next two flank it
+  // symmetrically, etc. Largest cluster becomes the anchor of its band.
   for (const tier in byTier) {
     byTier[tier].sort((a, b) => b.qty - a.qty);
+    const sorted = byTier[tier];
+    const reordered = new Array(sorted.length);
+    let leftIdx, rightIdx;
+    if (sorted.length % 2 === 1) {
+      // Odd: largest goes to dead center, then alternate outward.
+      const mid = Math.floor(sorted.length / 2);
+      reordered[mid] = sorted[0];
+      leftIdx = mid - 1; rightIdx = mid + 1;
+      for (let i = 1; i < sorted.length; i++) {
+        if (i % 2 === 1) { reordered[rightIdx++] = sorted[i]; }
+        else             { reordered[leftIdx--]  = sorted[i]; }
+      }
+    } else {
+      // Even: largest goes to the right-of-center slot, then alternate.
+      const mid = sorted.length / 2;
+      reordered[mid] = sorted[0];
+      leftIdx = mid - 1; rightIdx = mid + 1;
+      for (let i = 1; i < sorted.length; i++) {
+        if (i % 2 === 1) { reordered[leftIdx--]  = sorted[i]; }
+        else             { reordered[rightIdx++] = sorted[i]; }
+      }
+    }
+    byTier[tier] = reordered;
   }
   // Tier order from back of design to front. Tokens go in the layout array
   // in this order; the SVG renderer already draws later tokens on top, so
@@ -12340,17 +12387,19 @@ function ensureDesignLayout(entry, opts) {
     if (!list || list.length === 0) continue;
     const baseY = TIER_Y[tier];
     const n = list.length;
-    // Cluster centers spaced evenly across x. For 1 species: cx=0.5.
-    // For 2: 0.33, 0.67. For 3: 0.25, 0.50, 0.75 — etc.
+    const xRange = xRangeForTier(tier);
+    const xSpan = xRange.max - xRange.min;
+    // Cluster centers spaced evenly across the tier's x range. For 1 species:
+    // cx at the midpoint. For 2: 1/3 and 2/3 of the span. For 3: 1/4, 1/2, 3/4.
     list.forEach((e, idx) => {
       if (layout.length >= LAYOUT_MAX_TOKENS) return;
-      const cx = (idx + 1) / (n + 1);
+      const cx = xRange.min + xSpan * (idx + 1) / (n + 1);
       const cy = baseY;
       const qty = Math.min(e.qty, 8);   // per-species token cap for readability
       // Cluster radius scales with qty so a drift of 7 spreads a bit more
       // than a drift of 3 — but capped so clusters never overflow into
-      // neighboring species' territory (~0.5/n per side).
-      const radiusX = Math.min(0.06 + qty * 0.012, 0.45 / Math.max(2, n));
+      // neighboring species' territory (~0.5/n per side, scaled by xSpan).
+      const radiusX = Math.min(0.06 + qty * 0.012, (xSpan * 0.45) / Math.max(2, n));
       const radiusY = 0.06;
       for (let i = 0; i < qty; i++) {
         if (layout.length >= LAYOUT_MAX_TOKENS) break;
@@ -12363,16 +12412,29 @@ function ensureDesignLayout(entry, opts) {
           if (inUnitShape(x, y)) { ok = true; break; }
         }
         if (!ok) {
-          // R88 B1: shape fallback — guaranteed-in-shape placement instead
-          // of shipping the last-attempt (possibly out-of-shape) coords.
+          // R109 critic B1+B5: shape fallback is now cluster-aware (keep
+          // the cluster's tier band) and adds jitter so multiple rejects
+          // don't pile up at the same point.
+          const j = (rand() - 0.5) * 2 * radiusX * 0.5;
+          const jy = (rand() - 0.5) * 2 * radiusY * 0.5;
           if (shape === "round") {
-            // Pull toward the round's center; stays inside by definition.
-            x = 0.5 + (cx - 0.5) * 0.4;
-            y = 0.5 + (cy - 0.5) * 0.4;
+            // Pull toward the round's center, preserving cluster direction.
+            const t = 0.4 + rand() * 0.2;
+            x = 0.5 + (cx - 0.5) * t + j;
+            y = 0.5 + (cy - 0.5) * t + jy;
           } else if (shape === "L") {
-            // The lower-left quadrant is always inside the L.
-            x = 0.25 + rand() * 0.20;
-            y = 0.55 + rand() * 0.30;
+            // L cutout is x>0.6 AND y<0.4. xRangeForTier already kept the
+            // back-band clusters to x ≤ 0.55, so we shouldn't normally reach
+            // here for canopy/climbers. For mid-front tiers with cy ≥ 0.4
+            // the whole x range is open, so we just keep the original cy
+            // and re-pick x along the span with jitter.
+            if (cy < 0.4) {
+              x = 0.06 + rand() * (0.55 - 0.06);
+              y = Math.max(0.06, Math.min(0.39, cy + jy));
+            } else {
+              x = 0.06 + rand() * 0.88;
+              y = Math.max(0.4, Math.min(0.94, cy + jy));
+            }
           }
         }
         layout.push({ tokenId: makeTokenId(), plantId: e.id, x, y });
@@ -12382,13 +12444,21 @@ function ensureDesignLayout(entry, opts) {
   // Persist only when the caller asked for it AND the entry has an id we can
   // find on the list. Read-only callers leave persist=false and get the
   // in-memory layout without touching localStorage.
+  //
+  // R109 critic B2: stamp `layoutVersion` so a future migration round can
+  // detect pre-R108 layouts (saved with the broken NaN-yFraction scatter)
+  // and either auto-rebuild on user consent or flag them in the UI. We
+  // don't force-migrate here — users who customized their pre-R108 layout
+  // would lose drag positions if we silently re-init.
   if (persist && entry.id && layout.length > 0) {
     try {
       entry.layout = layout;
+      entry.layoutVersion = LAYOUT_VERSION;
       const list = loadDesignList();
       const persisted = list.designs.find(e => e.id === entry.id);
       if (persisted) {
         persisted.layout = layout;
+        persisted.layoutVersion = LAYOUT_VERSION;
         saveDesignList(list);
       }
     } catch (_) { /* non-fatal — in-memory copy still works for this render */ }
