@@ -2924,6 +2924,66 @@
     font-weight: 400;
   }
 
+  /* R104 — design logic panel: structural rules, focal-plant rationale,
+     R103 constraints. Sits between the layout canvas and budget on the
+     per-design dashboard. */
+  .design-logic-panel .design-logic-body {
+    background: var(--paper);
+    border: 1px solid rgba(110,126,96,0.22);
+    border-radius: 12px;
+    padding: 14px 16px 10px;
+    display: grid;
+    gap: 16px;
+  }
+  .design-logic-panel .logic-block-title {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--forest);
+    letter-spacing: 0.02em;
+    margin-bottom: 6px;
+  }
+  .design-logic-panel .logic-rule-list,
+  .design-logic-panel .logic-focal-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .design-logic-panel .logic-rule-list li {
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.55;
+    padding: 4px 0;
+  }
+  .design-logic-panel .logic-focal-item {
+    padding: 8px 0;
+    border-top: 1px dashed rgba(110,126,96,0.18);
+  }
+  .design-logic-panel .logic-focal-item:first-child { border-top: none; }
+  .design-logic-panel .logic-focal-name {
+    font-family: var(--serif);
+    font-size: 14.5px;
+    color: var(--forest);
+    margin-bottom: 4px;
+  }
+  .design-logic-panel .logic-focal-chips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .design-logic-panel .logic-reason-chip {
+    background: rgba(122,138,93,0.12);
+    color: var(--forest);
+    border-radius: 999px;
+    font-family: var(--sans);
+    font-size: 11.5px;
+    padding: 2px 9px;
+    line-height: 1.5;
+  }
+  .design-logic-panel .logic-reason-chip.muted {
+    background: rgba(110,126,96,0.10);
+    color: var(--clay);
+    font-style: italic;
+  }
+
   /* This-month combined care list */
   .dash-care-card {
     background: var(--paper);
@@ -13816,6 +13876,195 @@ function rerenderBudgetTotals(entry) {
 }
 
 // Top-level renderer mounted by render() when state.view === "designDashboard".
+// R104: design logic panel — explain WHY this design looks the way it does.
+// Three blocks: (1) global structural rules applied, (2) focal-plant rationale
+// for the top 3 chosen species (reason strings come straight from scorePlants
+// so the panel stays in sync with scoring), (3) constraint chips driven by
+// R103 criteria (existing items, household, budget, privacy).
+//
+// scorePlants reads module-level `state`, so we temporarily hydrate state from
+// the snap, call scorePlants, then restore. Synchronous, no async hazards.
+function topReasonsForSnap(snap, topN) {
+  if (!snap) return [];
+  // Snapshot of the fields scorePlants reads, so we can restore exactly.
+  const saved = {
+    sun: state.sun, water: state.water, goals: state.goals, space: state.space,
+    detected: state.detected,
+    style: state.style, nativeTarget: state.nativeTarget,
+    maintenance: state.maintenance, wildlifeFocus: state.wildlifeFocus,
+    prefs: state.prefs,
+    existingPlants: state.existingPlants, existingStructures: state.existingStructures,
+    household: state.household, budgetTier: state.budgetTier, privacy: state.privacy,
+  };
+  try {
+    state.sun           = snap.sun || "part";
+    state.water         = snap.water || "med";
+    state.goals         = Array.isArray(snap.goals) ? snap.goals : [];
+    state.space         = snap.space;
+    state.detected      = snap.detected || null;
+    state.style         = STYLE_OK.has(snap.style) ? snap.style : "any";
+    state.nativeTarget  = NATIVE_TARGET_OK.has(snap.nativeTarget) ? snap.nativeTarget : "any";
+    state.maintenance   = MAINT_OK.has(snap.maintenance) ? snap.maintenance : "medium";
+    state.wildlifeFocus = WILDLIFE_FOCUS_OK.has(snap.wildlifeFocus) ? snap.wildlifeFocus : "any";
+    state.prefs = snap.prefs || { liked: {}, disliked: {}, pinned: {} };
+    state.existingPlants     = Array.isArray(snap.existingPlants)     ? snap.existingPlants     : [];
+    state.existingStructures = Array.isArray(snap.existingStructures) ? snap.existingStructures : [];
+    state.household          = snap.household || { kidsUnder6: false, pets: false, fragranceAllergy: false };
+    state.budgetTier         = BUDGET_OK.has(snap.budgetTier) ? snap.budgetTier : "any";
+    state.privacy            = !!snap.privacy;
+    const scored = scorePlants();
+    const qtyIds = new Set(Object.keys(snap.qty || {}).filter(id => Number(snap.qty[id]) > 0));
+    // Prefer plants actually in this design's qty; fall back to top-scored if
+    // qty is empty (e.g. legacy / minimal snapshots).
+    const inDesign = scored.filter(p => qtyIds.has(p.id));
+    const list = inDesign.length > 0 ? inDesign : scored;
+    return list.slice(0, topN || 3);
+  } finally {
+    Object.assign(state, saved);
+  }
+}
+
+function renderDesignLogicPanel(entry) {
+  if (!entry || !entry.snapshot) return "";
+  const snap = entry.snapshot;
+  const lang = state.lang || "zh";
+  const top = topReasonsForSnap(snap, 3);
+
+  // Block 1 — global structural / preference rules applied. We surface only
+  // the rules that are non-default; the default "any" pref tells us nothing
+  // about the design's identity.
+  const rules = [];
+  rules.push({
+    zh: "🌳 垂直分層：T 高木 → S 灌木 → H 草本 → G 地被",
+    en: "🌳 Vertical zonation: T canopy → S shrub → H herb → G ground cover",
+  });
+  if (snap.nativeTarget && snap.nativeTarget !== "any") {
+    rules.push({
+      zh: `🟢 本土比例目標：${snap.nativeTarget === "100" ? "100%" : "≥ " + snap.nativeTarget + "%"}`,
+      en: `🟢 Native ratio target: ${snap.nativeTarget === "100" ? "100%" : "≥ " + snap.nativeTarget + "%"}`,
+    });
+  }
+  if (snap.maintenance && snap.maintenance !== "medium") {
+    rules.push({
+      zh: snap.maintenance === "low" ? "🌵 低維護優先 (耐旱)" : "🌹 高維護可接受 (喜濕亦可)",
+      en: snap.maintenance === "low" ? "🌵 Low maintenance (drought-tolerant)" : "🌹 Intensive care OK (thirsty plants welcome)",
+    });
+  }
+  if (snap.wildlifeFocus && snap.wildlifeFocus !== "any") {
+    const WLD = {
+      butterfly: { zh: "🦋 蝴蝶焦點 (含食草+蜜源)", en: "🦋 Butterfly focus (host + nectar)" },
+      bird:      { zh: "🐦 誘鳥焦點 (結果+巢材)",   en: "🐦 Bird focus (fruit + nesting)" },
+      bee:       { zh: "🐝 蜜蜂焦點 (花粉+蜜源)",   en: "🐝 Bee focus (pollen + nectar)" },
+      mixed:     { zh: "🌍 全方位野生動物友善",     en: "🌍 All-wildlife friendly" },
+    }[snap.wildlifeFocus];
+    if (WLD) rules.push(WLD);
+  }
+  if (snap.style && snap.style !== "any") {
+    const STY = {
+      kinfolk:  { zh: "🪵 Kinfolk 極簡 (低彩+香氣單品)", en: "🪵 Kinfolk minimal (muted, fragrant accents)" },
+      wild:     { zh: "🌾 野放生態 (草本層+原生)",      en: "🌾 Wild meadow (herbs + natives)" },
+      cottage:  { zh: "🌸 鄉村花園 (多花期)",           en: "🌸 Cottage (long bloom)" },
+      formal:   { zh: "🪞 對稱整形 (綠籬+規則)",        en: "🪞 Formal symmetric (hedges + structure)" },
+      tropical: { zh: "🌴 熱帶 (大葉+全年綠)",          en: "🌴 Tropical (big leaves + year-round green)" },
+      japanese: { zh: "🪨 日式禪意 (地被+蕨類)",        en: "🪨 Japanese zen (ground cover + ferns)" },
+    }[snap.style];
+    if (STY) rules.push(STY);
+  }
+  if (Array.isArray(snap.goals) && snap.goals.includes("screen")) {
+    rules.push({ zh: "🛡 遮蔽屏障作為主軸", en: "🛡 Screening as a structural goal" });
+  }
+
+  // Block 2 — focal plant choices. Use the existing reason strings so the
+  // narrative stays one source of truth with the rec cards.
+  const focalHTML = top.map(p => {
+    const name = (lang === "en" ? (p.en || p.zh) : p.zh) || p.id;
+    const reasons = (lang === "en" ? p.reasons_en : p.reasons_zh) || [];
+    // Top 3 reasons per plant — anything more is noise on this surface.
+    const chips = reasons.slice(0, 3).map(r => `<span class="logic-reason-chip">${escapeHtml(r)}</span>`).join("");
+    return `
+      <li class="logic-focal-item">
+        <div class="logic-focal-name">${escapeHtml(name)}</div>
+        <div class="logic-focal-chips">${chips || `<span class="logic-reason-chip muted" data-zh="符合基本條件" data-en="Meets basic criteria">符合基本條件</span>`}</div>
+      </li>`;
+  }).join("");
+
+  // Block 3 — constraint chips driven by R103 criteria. Only show what's
+  // actually toggled — blank section if the user skipped all advanced fields.
+  const constraints = [];
+  const existPlants = Array.isArray(snap.existingPlants) ? snap.existingPlants : [];
+  if (existPlants.length > 0) {
+    constraints.push({
+      zh: `🌳 已迴避你已有的：${existPlants.length} 項既有植物`,
+      en: `🌳 Avoided duplicates of your ${existPlants.length} existing plant${existPlants.length === 1 ? "" : "s"}`,
+    });
+  }
+  const existStruct = Array.isArray(snap.existingStructures) ? snap.existingStructures : [];
+  if (existStruct.includes("wall") || existStruct.includes("fence")) {
+    constraints.push({ zh: "🧱 牆面/圍籬旁推薦攀緣植物", en: "🧱 Climbers boosted for your wall/fence" });
+  }
+  if (existStruct.includes("pond")) {
+    constraints.push({ zh: "💧 水池旁推薦喜濕植物", en: "💧 Moisture-lovers boosted near your pond" });
+  }
+  const hh = snap.household || {};
+  if (hh.pets) constraints.push({ zh: "🐾 已避開對寵物有毒植物", en: "🐾 Pet-toxic plants suppressed" });
+  if (hh.kidsUnder6) constraints.push({ zh: "👶 已避開有毒植物 (有小孩)", en: "👶 Toxic plants suppressed (young kids)" });
+  if (hh.fragranceAllergy) constraints.push({ zh: "🤧 已降低高香味植物權重", en: "🤧 Strong-fragrance plants suppressed" });
+  if (snap.budgetTier && snap.budgetTier !== "any") {
+    const B = {
+      low:  { zh: "💰 預算 < NT$ 5k：經濟實惠優先",         en: "💰 Budget < NT$ 5k: budget-friendly first" },
+      mid:  { zh: "💰 預算 NT$ 5k–20k",                    en: "💰 Budget NT$ 5k–20k" },
+      high: { zh: "💰 預算 > NT$ 20k：可選名貴標本",        en: "💰 Budget > NT$ 20k: feature specimens OK" },
+    }[snap.budgetTier];
+    if (B) constraints.push(B);
+  }
+  if (snap.privacy) {
+    constraints.push({ zh: "🏡 私密遮蔽需求：綠籬+大型木本加權", en: "🏡 Privacy screening: hedges + tall plants boosted" });
+  }
+
+  // Empty state: when nothing has been set beyond defaults we still surface
+  // block 1 + 2 so the user always sees something. Only block 3 (constraints)
+  // hides when there are zero entries.
+  return `
+    <section class="dash-section design-logic-panel" aria-labelledby="ddashLogicHead">
+      <h2 id="ddashLogicHead">
+        <span data-zh="🧠 為什麼這樣設計" data-en="🧠 Why this design">🧠 為什麼這樣設計</span>
+        <span class="dash-section-sub"
+              data-zh="從你的輸入推導出來的規則 · 點 📊 完整結果頁 看每株植物的細節"
+              data-en="rules derived from your inputs · tap 📊 Full result view for per-plant detail">
+          從你的輸入推導出來的規則 · 點 📊 完整結果頁 看每株植物的細節
+        </span>
+      </h2>
+      <div class="design-logic-body">
+        <div class="logic-block">
+          <div class="logic-block-title"
+               data-zh="📐 結構規則"
+               data-en="📐 Structural rules">📐 結構規則</div>
+          <ul class="logic-rule-list">
+            ${rules.map(r => `<li data-zh="${escapeHtml(r.zh)}" data-en="${escapeHtml(r.en)}">${escapeHtml(r.zh)}</li>`).join("")}
+          </ul>
+        </div>
+        ${top.length > 0 ? `
+          <div class="logic-block">
+            <div class="logic-block-title"
+                 data-zh="🌟 焦點植物 (前 3 名)"
+                 data-en="🌟 Focal plants (top 3)">🌟 焦點植物 (前 3 名)</div>
+            <ul class="logic-focal-list">${focalHTML}</ul>
+          </div>
+        ` : ""}
+        ${constraints.length > 0 ? `
+          <div class="logic-block">
+            <div class="logic-block-title"
+                 data-zh="🛡 你的限制條件"
+                 data-en="🛡 Your constraints">🛡 你的限制條件</div>
+            <ul class="logic-rule-list">
+              ${constraints.map(r => `<li data-zh="${escapeHtml(r.zh)}" data-en="${escapeHtml(r.en)}">${escapeHtml(r.zh)}</li>`).join("")}
+            </ul>
+          </div>
+        ` : ""}
+      </div>
+    </section>`;
+}
+
 function renderDesignDashboard() {
   const designId = state.designDashboardId;
   const entry = designId ? loadDesignById(designId) : null;
@@ -14080,11 +14329,17 @@ function renderDesignDashboard() {
   // with the global home dashboard. renderPersonalDashboardInPlace (Doctor handlers,
   // etc) used getElementById("personalDashboard") and replaceWith global-home HTML,
   // stomping the workspace contents mid-interaction. Distinct id = workspace stays.
+  // R104: design logic panel — explains WHY the design looks the way it does.
+  // Sits right after the layout so the user sees the rationale immediately
+  // adjacent to the canvas it's explaining.
+  const logicCard = renderDesignLogicPanel(entry);
+
   app.innerHTML = `
     <div class="fade-up personal-dashboard" id="designDashboardRoot">
       ${header}
       ${todayCard}
       ${layoutCard}
+      ${logicCard}
       ${budgetCard}
       ${shareCard}
       ${settingsCard}
