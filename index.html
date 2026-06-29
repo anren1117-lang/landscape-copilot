@@ -12189,6 +12189,70 @@ function makeTokenId() {
   return "tk_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
 }
 
+// R107: mirror of initShoppingQty's top-8 scaling, but reads from a snap
+// instead of mutating state. Safe to call repeatedly: it temporarily swaps
+// the state fields scorePlants() reads, computes, and restores in finally —
+// same save/swap/restore pattern as topReasonsForSnap (R104).
+//
+// Used by ensureDesignLayout's empty-qty fallback: legacy designs / shared
+// links without snap.qty currently render an empty canvas. After this fix,
+// they get a tier-scaled top-8 seed and the canvas + budget + design logic
+// panel all reflect a coherent design instead of nothing.
+function _seedQtyFromSnap(snap) {
+  if (!snap || !snap.space) return {};
+  const saved = {
+    sun: state.sun, water: state.water, goals: state.goals, space: state.space,
+    detected: state.detected, nativeOnly: state.nativeOnly,
+    style: state.style, nativeTarget: state.nativeTarget,
+    maintenance: state.maintenance, wildlifeFocus: state.wildlifeFocus,
+    prefs: state.prefs,
+    existingPlants: state.existingPlants, existingStructures: state.existingStructures,
+    household: state.household, budgetTier: state.budgetTier, privacy: state.privacy,
+    widthM: state.widthM, depthM: state.depthM,
+  };
+  const out = {};
+  try {
+    state.sun           = snap.sun || "part";
+    state.water         = snap.water || "med";
+    state.goals         = Array.isArray(snap.goals) ? snap.goals : [];
+    state.space         = snap.space;
+    state.detected      = snap.detected || null;
+    state.nativeOnly    = !!snap.nativeOnly;
+    state.style         = STYLE_OK.has(snap.style) ? snap.style : "any";
+    state.nativeTarget  = NATIVE_TARGET_OK.has(snap.nativeTarget) ? snap.nativeTarget : "any";
+    state.maintenance   = MAINT_OK.has(snap.maintenance) ? snap.maintenance : "medium";
+    state.wildlifeFocus = WILDLIFE_FOCUS_OK.has(snap.wildlifeFocus) ? snap.wildlifeFocus : "any";
+    state.prefs         = snap.prefs || { liked: {}, disliked: {}, pinned: {} };
+    state.existingPlants     = Array.isArray(snap.existingPlants)     ? snap.existingPlants.filter(k => EXISTING_PLANT_OK.has(k))     : [];
+    state.existingStructures = Array.isArray(snap.existingStructures) ? snap.existingStructures.filter(k => EXISTING_STRUCT_OK.has(k)) : [];
+    state.household          = snap.household || { kidsUnder6: false, pets: false, fragranceAllergy: false };
+    state.budgetTier         = BUDGET_OK.has(snap.budgetTier) ? snap.budgetTier : "any";
+    state.privacy            = !!snap.privacy;
+    state.widthM = Number(snap.widthM) || SPACE_DEFAULTS[snap.space].w;
+    state.depthM = Number(snap.depthM) || SPACE_DEFAULTS[snap.space].d;
+
+    const scored = scorePlants();
+    let compatible = scored.filter(p => p.score >= 30);
+    if (state.nativeOnly) compatible = compatible.filter(p => p.native);
+    compatible = compatible.slice(0, 8);
+    const area = state.widthM * state.depthM;
+    const tierQty = (tier) => {
+      switch (tier) {
+        case "T": return Math.max(1, Math.round(area / 8));
+        case "S": return Math.max(1, Math.round(area / 2));
+        case "G": return Math.max(2, Math.round(area * 2));
+        case "W": return 2;
+        case "C": return Math.max(1, Math.round(area / 6));
+        default:  return 1;
+      }
+    };
+    compatible.forEach(p => { out[p.id] = tierQty(p.tier); });
+  } finally {
+    Object.assign(state, saved);
+  }
+  return out;
+}
+
 // R76: explicit `persist` parameter. Default false so any future caller is
 // safe — only the workspace render + wire path needs persistence (so the
 // SVG and the drag handler share the same tokenIds). Read-only callers
@@ -12201,7 +12265,25 @@ function ensureDesignLayout(entry, opts) {
   // wireLayoutEditor() see identical tokenIds (without that, the first drag
   // silently fails).
   const snap = entry.snapshot || {};
-  const qtyMap = snap.qty || {};
+  let qtyMap = snap.qty || {};
+  // R107: empty-qty fallback. Designs from before initShoppingQty was reliably
+  // called (legacy localStorage) or shared #d= links from before snap.qty
+  // existed land here with an empty qty map → empty layout → blank canvas.
+  // Reconstruct a "would have been" qty using the same logic initShoppingQty
+  // uses on the result page, against THIS design's snap inputs. Saved to the
+  // snap when persist=true so subsequent renders + budget + design logic
+  // panel all read a consistent qty.
+  const qtyHasAny = Object.keys(qtyMap).some(id => Number(qtyMap[id]) > 0);
+  if (!qtyHasAny) {
+    const seeded = _seedQtyFromSnap(snap);
+    if (Object.keys(seeded).length > 0) {
+      qtyMap = seeded;
+      if (persist) {
+        if (!entry.snapshot || typeof entry.snapshot !== "object") entry.snapshot = {};
+        entry.snapshot.qty = { ...seeded };
+      }
+    }
+  }
   const w = Number(snap.widthM || 1), d = Number(snap.depthM || 1);
   const plantEntries = Object.keys(qtyMap)
     .filter(id => Number(qtyMap[id]) > 0)
