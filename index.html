@@ -8701,6 +8701,15 @@ const state = {
   selectedPlantId: null,
   qty: {},
   nativeOnly: false,     // filter recommendations to native plants only
+  // R102 B7: explicit defaults for R99 design preferences. Without these
+  // the fresh wizard flow had state.style/etc. = undefined, and although
+  // scorePlants() defensively does `state.style || "any"`, having the
+  // defaults set explicitly here matches the snapshot shape and makes
+  // future code paths (e.g. exposing prefs in the wizard) easier to wire.
+  style:         "any",
+  nativeTarget:  "any",
+  maintenance:   "medium",
+  wildlifeFocus: "any",
   // Per-design plant preferences — EXPLICIT 👍/👎/📌 the user has tapped.
   // Mutually exclusive between liked/disliked (setting one clears the other).
   // 📌 pinned is INDEPENDENT — a pinned plant is GUARANTEED into the design
@@ -8845,6 +8854,14 @@ const SPACE_DEFAULTS = {
   yard:    { w: 6.0, d: 5.0 },
   indoor:  { w: 1.5, d: 0.5 },
 };
+
+// R102 (B6): hoisted from saveDesignEditorChanges + applySnapshot so
+// future preference additions only touch one source of truth and
+// scoring/persistence can't drift apart.
+const STYLE_OK = new Set(["any","kinfolk","wild","cottage","formal","tropical","japanese"]);
+const NATIVE_TARGET_OK = new Set(["any","50","75","100"]);
+const MAINT_OK = new Set(["low","medium","intensive"]);
+const WILDLIFE_FOCUS_OK = new Set(["any","butterfly","bird","bee","mixed"]);
 
 // Taiwan climate zones, keyed by county/city name (matches both forms users type).
 // N=North (cool/wet), C=Central (moderate), S=South (hot/dry), E=East (very wet, low pollution)
@@ -9003,26 +9020,32 @@ function scorePlants(opts) {
     const maintenance = state.maintenance || "medium";
     const wildlifeFocus = state.wildlifeFocus || "any";
 
+    // R102 B4: scoring boosts dialed down to keep them tie-breakers, not
+    // ranking dominators. Pre-R102 a single ideal plant could collect +51
+    // from prefs alone, saturating against the score=99 ceiling and
+    // flattening the top-N order. New caps: native target ≤+12, wildlife
+    // ≤+10, style ≤+8 — sun/water/space (32/26/20) still dominate.
+
     // 🟢 Native ratio target — extra weight on natives when the user has
     // committed to a higher target. Magnitude scales with target tier.
     if (nativeTarget !== "any" && p.native) {
-      const tierBoost = nativeTarget === "100" ? 22 : (nativeTarget === "75" ? 14 : 8);
+      const tierBoost = nativeTarget === "100" ? 12 : (nativeTarget === "75" ? 8 : 5);
       score += tierBoost;
       reasons_zh.push("原生種 (符合目標)"); reasons_en.push("Native (matches target)");
     } else if (nativeTarget === "100" && !p.native) {
       // Hard penalty in the strict 100% mode — non-natives shouldn't make
       // the top recs unless they're pinned.
-      score -= 20;
+      score -= 18;
     }
 
     // 🛠 Maintenance level — water tier is the strongest signal we have
     // for actual maintenance effort.
     if (maintenance === "low") {
-      if (p.water === "low") { score += 12; reasons_zh.push("低水分照顧"); reasons_en.push("Low watering"); }
-      if (p.water === "high") { score -= 14; }
+      if (p.water === "low") { score += 10; reasons_zh.push("低水分照顧"); reasons_en.push("Low watering"); }
+      if (p.water === "high") { score -= 12; }
     } else if (maintenance === "intensive") {
       // Intensive gardeners can handle thirsty / fussy specimens — give them a small lift.
-      if (p.water === "high") { score += 6; }
+      if (p.water === "high") { score += 5; }
     }
 
     // 🦋 Wildlife focus — boost plants whose supports_zh names the focused taxon.
@@ -9034,7 +9057,7 @@ function scorePlants(opts) {
                          : wildlifeFocus === "mixed" ? /蜂|蝶|鳥|蜜|授粉|食草/
                          : null;
       if (focusPattern && focusPattern.test(supportsStr)) {
-        const boost = wildlifeFocus === "mixed" ? 10 : 16;
+        const boost = wildlifeFocus === "mixed" ? 7 : 10;
         score += boost;
         const labelZh = { butterfly: "蝴蝶友善", bird: "誘鳥", bee: "蜜蜂友善", mixed: "野生動物友善" }[wildlifeFocus];
         const labelEn = { butterfly: "Butterfly-friendly", bird: "Bird-attracting", bee: "Bee-friendly", mixed: "Wildlife-friendly" }[wildlifeFocus];
@@ -9047,33 +9070,29 @@ function scorePlants(opts) {
     // pass nudges. Magnitudes are kept modest so style is a tiebreaker, not a hard
     // filter (user can still pin anything to override).
     if (style === "kinfolk") {
-      // Restraint: muted-tone foliage, fragrant single-stem shrubs, native preference.
-      if (p.native) score += 5;
-      if (p.fragrance >= 2) score += 6;
-      if (p.tier === "T") score -= 3; // big tropical canopy clashes with Kinfolk minimalism
+      if (p.native) score += 3;
+      if (p.fragrance >= 2) score += 4;
+      if (p.tier === "T") score -= 2;
     } else if (style === "wild") {
-      // Wild meadow: prefer self-seeders, low-tier, native.
-      if (p.native) score += 8;
-      if (p.tier === "H" || p.tier === "G") score += 5;
+      if (p.native) score += 5;
+      if (p.tier === "H" || p.tier === "G") score += 3;
     } else if (style === "cottage") {
-      // Cottage: dense bloom, fragrance, herbaceous layers.
-      if ((p.bloom || []).length >= 4) score += 6;
-      if (p.fragrance >= 2) score += 5;
+      if ((p.bloom || []).length >= 4) score += 4;
+      if (p.fragrance >= 2) score += 3;
     } else if (style === "formal") {
-      // Formal symmetric: prefer clip-tolerant, evergreen, single-form shrubs.
+      // R102 B5: broaden the hedge-role regex to match the same vocab the
+      // existing "screen" goal block (line ~8991) uses — 屏障 / 圍籬 / 綠籬.
       const role = (p.role_zh || "") + " " + (p.role_en || "");
-      if (/綠籬|hedge/.test(role)) score += 8;
-      if (p.tier === "S") score += 4;
+      if (/綠籬|屏障|圍籬|hedge|screen/.test(role)) score += 6;
+      if (p.tier === "S") score += 3;
     } else if (style === "tropical") {
-      // Tropical jungle: bold-leaf shrubs and small trees with year-round canopy.
-      if (p.tier === "T" || p.tier === "S") score += 5;
+      if (p.tier === "T" || p.tier === "S") score += 3;
       const typ = (p.type_zh || "") + " " + (p.type_en || "");
-      if (/熱帶|tropical|蕨/.test(typ)) score += 7;
+      if (/熱帶|tropical|蕨/.test(typ)) score += 5;
     } else if (style === "japanese") {
-      // Japanese zen: restrained palette, evergreen ground, moss-feel.
       const role = (p.role_zh || "") + " " + (p.role_en || "");
-      if (/地被|ground|蕨|fern/.test(role)) score += 6;
-      if (p.water === "med" && p.sun.includes("shade")) score += 4;
+      if (/地被|ground|蕨|fern/.test(role)) score += 4;
+      if (p.water === "med" && p.sun.includes("shade")) score += 3;
     }
 
     // Small diversity bonus — keeps borderline candidates on the list
@@ -9455,16 +9474,12 @@ function applySnapshot(snap) {
   state.qty = (snap.qty && typeof snap.qty === "object") ? { ...snap.qty } : {};
   state.nativeOnly = !!snap.nativeOnly;
   // R100: hydrate R99 preferences so scorePlants() reads them after applySnapshot.
-  // Whitelist enforced at write-time (saveDesignEditorChanges) but defensive
-  // read-side defaults guard against hand-crafted #d= URLs.
-  const STYLE_OK = new Set(["any","kinfolk","wild","cottage","formal","tropical","japanese"]);
-  const NAT_OK = new Set(["any","50","75","100"]);
-  const MAINT_OK = new Set(["low","medium","intensive"]);
-  const WILD_OK = new Set(["any","butterfly","bird","bee","mixed"]);
-  state.style          = STYLE_OK.has(snap.style)          ? snap.style          : "any";
-  state.nativeTarget   = NAT_OK.has(snap.nativeTarget)     ? snap.nativeTarget   : "any";
-  state.maintenance    = MAINT_OK.has(snap.maintenance)    ? snap.maintenance    : "medium";
-  state.wildlifeFocus  = WILD_OK.has(snap.wildlifeFocus)   ? snap.wildlifeFocus  : "any";
+  // Whitelists live at module-level (R102 B6) so persist + score never drift.
+  // Defensive read-side defaults still guard against hand-crafted #d= URLs.
+  state.style          = STYLE_OK.has(snap.style)              ? snap.style          : "any";
+  state.nativeTarget   = NATIVE_TARGET_OK.has(snap.nativeTarget) ? snap.nativeTarget : "any";
+  state.maintenance    = MAINT_OK.has(snap.maintenance)         ? snap.maintenance    : "medium";
+  state.wildlifeFocus  = WILDLIFE_FOCUS_OK.has(snap.wildlifeFocus) ? snap.wildlifeFocus : "any";
   // Restore per-design 👍/👎/📌. Older snapshots without `prefs.pinned` load empty.
   state.prefs = {
     liked:    (snap.prefs && snap.prefs.liked    && typeof snap.prefs.liked    === "object") ? { ...snap.prefs.liked }    : {},
@@ -12424,7 +12439,7 @@ function renderLayoutPickerPanel(entry) {
                 role="tab"
                 id="layoutPickerTab-plant"
                 aria-selected="${tab === "plant" ? "true" : "false"}"
-                aria-controls="layoutPickerTabpanel"
+                ${tab === "plant" ? `aria-controls="layoutPickerTabpanel"` : ""}
                 tabindex="${tab === "plant" ? "0" : "-1"}"
                 data-picker-tab="plant"
                 data-zh="🌿 植物 (${PLANTS.length})"
@@ -12433,7 +12448,7 @@ function renderLayoutPickerPanel(entry) {
                 role="tab"
                 id="layoutPickerTab-element"
                 aria-selected="${tab === "element" ? "true" : "false"}"
-                aria-controls="layoutPickerTabpanel"
+                ${tab === "element" ? `aria-controls="layoutPickerTabpanel"` : ""}
                 tabindex="${tab === "element" ? "0" : "-1"}"
                 data-picker-tab="element"
                 data-zh="🏗 景觀元素 (${ELEMENTS.length})"
@@ -13151,6 +13166,11 @@ function wireLayoutEditor(entry) {
       if (search) setTimeout(() => search.focus(), 30);
     });
     // R98 a11y: arrow-key tab navigation per WAI-ARIA tablist pattern.
+    // R102 B2: tabs[nextIdx].click() triggers render() which rebuilds the
+    // picker DOM, detaching the clicked tab from the document — focus
+    // dropped to <body> and the screen reader never announced the new tab.
+    // Fix: capture the target tab's id before click, then re-locate that
+    // id in the post-render DOM and focus it.
     btn.addEventListener("keydown", (e) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") return;
       e.preventDefault();
@@ -13161,7 +13181,15 @@ function wireLayoutEditor(entry) {
       if (e.key === "ArrowRight") nextIdx = (idx + 1) % tabs.length;
       if (e.key === "Home") nextIdx = 0;
       if (e.key === "End") nextIdx = tabs.length - 1;
-      if (tabs[nextIdx]) tabs[nextIdx].click();
+      const nextTab = tabs[nextIdx];
+      if (!nextTab) return;
+      const targetId = nextTab.id;
+      nextTab.click();
+      // After render(), re-locate the same id and move focus there.
+      setTimeout(() => {
+        const refocused = document.getElementById(targetId);
+        if (refocused) refocused.focus();
+      }, 30);
     });
   });
   const cancelPlacing = document.getElementById("layoutPlacingCancelBtn");
@@ -22551,25 +22579,20 @@ function saveDesignEditorChanges(designId, alsoOpen) {
   // R99: persist new design preferences with explicit whitelists. None of
   // these change scoring yet — they shape the user's intent statement on
   // the workspace + share link, and future scoring rounds can read them.
-  const styleEl = form.querySelector("[data-edit-style]:checked");
-  const chosenStyle = styleEl ? styleEl.getAttribute("data-edit-style") : "any";
-  const STYLE_OK = new Set(["any","kinfolk","wild","cottage","formal","tropical","japanese"]);
+  // R102 B6: whitelists hoisted to module level so persist + score share
+  // one source of truth. R102 B3: defensive ?.getAttribute so a missing
+  // radio group (e.g. fork that hides the section) doesn't throw.
+  const chosenStyle = form.querySelector("[data-edit-style]:checked")?.getAttribute("data-edit-style") || "any";
   snap.style = STYLE_OK.has(chosenStyle) ? chosenStyle : "any";
 
-  const natEl = form.querySelector("[data-edit-native-target]:checked");
-  const chosenNative = natEl ? natEl.getAttribute("data-edit-native-target") : "any";
-  const NAT_OK = new Set(["any","50","75","100"]);
-  snap.nativeTarget = NAT_OK.has(chosenNative) ? chosenNative : "any";
+  const chosenNative = form.querySelector("[data-edit-native-target]:checked")?.getAttribute("data-edit-native-target") || "any";
+  snap.nativeTarget = NATIVE_TARGET_OK.has(chosenNative) ? chosenNative : "any";
 
-  const maintEl = form.querySelector("[data-edit-maintenance]:checked");
-  const chosenMaint = maintEl ? maintEl.getAttribute("data-edit-maintenance") : "medium";
-  const MAINT_OK = new Set(["low","medium","intensive"]);
+  const chosenMaint = form.querySelector("[data-edit-maintenance]:checked")?.getAttribute("data-edit-maintenance") || "medium";
   snap.maintenance = MAINT_OK.has(chosenMaint) ? chosenMaint : "medium";
 
-  const wildEl = form.querySelector("[data-edit-wildlife]:checked");
-  const chosenWild = wildEl ? wildEl.getAttribute("data-edit-wildlife") : "any";
-  const WILD_OK = new Set(["any","butterfly","bird","bee","mixed"]);
-  snap.wildlifeFocus = WILD_OK.has(chosenWild) ? chosenWild : "any";
+  const chosenWild = form.querySelector("[data-edit-wildlife]:checked")?.getAttribute("data-edit-wildlife") || "any";
+  snap.wildlifeFocus = WILDLIFE_FOCUS_OK.has(chosenWild) ? chosenWild : "any";
   // Persist. Don't change savedAt — preserves the original "first saved" date
   // so the dashboard's "Saved N ago" stays meaningful for the original creation.
   saveDesignList(list);
