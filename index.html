@@ -13185,6 +13185,14 @@ function buildLayoutWrapInner(entry) {
 // drag-end, tap-empty, tap-select, labels toggle, reset. Stay with full
 // render() when snap.qty changes (tap-place, undo) so the budget total
 // + design logic panel re-derive from the new qty.
+//
+// R107 hardening:
+// - B2: refresh entry from disk so a drag-end save isn't masked by a stale
+//   closure entry whose layout array reference predates the save.
+// - B3: capture activeElement id + caret state before the swap and restore
+//   afterwards so keyboard users don't lose focus on every partial render.
+// - B5: reuse applyLanguage with the wrap as root so any data-zh-* attribute
+//   pair we didn't enumerate inline (e.g. data-zh-title) still gets swapped.
 function renderLayoutInPlace(entry) {
   const wrap = document.querySelector(".ddash-layout-wrap");
   if (!wrap) {
@@ -13192,21 +13200,43 @@ function renderLayoutInPlace(entry) {
     render();
     return;
   }
-  wrap.innerHTML = buildLayoutWrapInner(entry);
-  // Scoped bilingual swap on the freshly-set subtree only — applyLanguage's
-  // global roots include #app so calling it would walk the whole page.
-  wrap.querySelectorAll("[data-zh][data-en]").forEach((el) => {
-    el.innerHTML = el.dataset[state.lang];
-  });
-  wrap.querySelectorAll("[data-zh-placeholder][data-en-placeholder]").forEach((el) => {
-    const v = state.lang === "zh" ? el.dataset.zhPlaceholder : el.dataset.enPlaceholder;
-    if (v != null) el.setAttribute("placeholder", v);
-  });
-  wrap.querySelectorAll("[data-zh-aria][data-en-aria]").forEach((el) => {
-    const v = state.lang === "zh" ? el.dataset.zhAria : el.dataset.enAria;
-    if (v != null) el.setAttribute("aria-label", v);
-  });
-  wireLayoutEditor(entry);
+  // R107 B2: pull a fresh entry. Without this, drag-end → saveEntryLayout
+  // updates the persisted layout, but the closure `entry.layout` may still
+  // point at the pre-save array. Re-render reads stale tokens → token visually
+  // snaps back to its pre-drag spot even though the save succeeded.
+  const fresh = (entry && entry.id) ? (loadDesignById(entry.id) || entry) : entry;
+
+  // R107 B3 + B4: snapshot focus + caret + scroll BEFORE the innerHTML wipe.
+  // The active element is destroyed by the swap; restoring by id lands the
+  // user back on the same control with their selection intact. Picker search
+  // is the main beneficiary — on mobile, losing focus dismisses the keyboard.
+  const focused = document.activeElement;
+  const focusInfo = (focused && wrap.contains(focused)) ? {
+    id: focused.id || null,
+    selStart: (typeof focused.selectionStart === "number") ? focused.selectionStart : null,
+    selEnd:   (typeof focused.selectionEnd   === "number") ? focused.selectionEnd   : null,
+    scrollTop: focused.scrollTop || 0,
+  } : null;
+
+  wrap.innerHTML = buildLayoutWrapInner(fresh);
+  // Reuse applyLanguage with the wrap as the single root — same code path the
+  // global apply uses, so any data-zh-* attribute it handles is handled here.
+  applyLanguage(wrap);
+  wireLayoutEditor(fresh);
+
+  // Restore focus + caret. Setting selection on a non-text input throws, so
+  // guard. setTimeout(0) so the browser finishes layout before we move focus.
+  if (focusInfo && focusInfo.id) {
+    setTimeout(() => {
+      const el = document.getElementById(focusInfo.id);
+      if (!el) return;
+      try { el.focus(); } catch (_) { return; }
+      if (focusInfo.selStart != null && focusInfo.selEnd != null) {
+        try { el.setSelectionRange(focusInfo.selStart, focusInfo.selEnd); } catch (_) {}
+      }
+      if (focusInfo.scrollTop) el.scrollTop = focusInfo.scrollTop;
+    }, 0);
+  }
 }
 
 function wireLayoutEditor(entry) {
@@ -13724,13 +13754,18 @@ function wireLayoutEditor(entry) {
     }
     e.preventDefault();
   };
-  document.addEventListener("keydown", escListener);
-  // Stash the handler on the SVG node so the next render-and-rewire knows to
-  // remove it — without this we'd accumulate ESC listeners every render.
-  if (svg) {
-    if (svg._escListener) document.removeEventListener("keydown", svg._escListener);
-    svg._escListener = escListener;
+  // R107 B1 fix: stash the handler on state.layoutEditor — a stable target
+  // that survives the innerHTML swap renderLayoutInPlace does. Pre-R107 the
+  // handler was stashed on the SVG node, but `renderLayoutInPlace` destroys
+  // and re-creates the SVG every partial render, so `svg._escListener` was
+  // always undefined on the new node → previous listener never removed →
+  // one ESC keydown handler leaked per partial render. After 20 drags, ESC
+  // fired 20 stale callbacks each racing on state.layoutEditor.
+  if (state.layoutEditor._escListener) {
+    document.removeEventListener("keydown", state.layoutEditor._escListener);
   }
+  document.addEventListener("keydown", escListener);
+  state.layoutEditor._escListener = escListener;
 
   // Keyboard nudge — arrow keys move a focused token by 2% per press.
   // Saves on every keystroke (cheap; up to ~50 writes per session).
@@ -22847,7 +22882,26 @@ function plantCompareEscHandler(e) { if (e.key === "Escape") closePlantCompareMo
 // ─────────────────────────────────────────────────────────────
 // Language toggle (zh/en) — same data-zh/data-en pattern as farm-pitch.html
 // ─────────────────────────────────────────────────────────────
-function applyLanguage() {
+function applyLanguage(scopeRoot) {
+  // R107 B5: accept an optional scope root. When given, walk just that
+  // subtree — used by renderLayoutInPlace so it doesn't duplicate the
+  // attribute-pair enumeration inline. When omitted (the original call
+  // shape), walk the global set of roots.
+  if (scopeRoot && scopeRoot.querySelectorAll) {
+    scopeRoot.querySelectorAll("[data-zh][data-en]").forEach((el) => {
+      el.innerHTML = el.dataset[state.lang];
+    });
+    scopeRoot.querySelectorAll("[data-zh-placeholder][data-en-placeholder]").forEach((el) => {
+      const v = state.lang === "zh" ? el.dataset.zhPlaceholder : el.dataset.enPlaceholder;
+      if (v != null) el.setAttribute("placeholder", v);
+    });
+    scopeRoot.querySelectorAll("[data-zh-aria][data-en-aria]").forEach((el) => {
+      const v = state.lang === "zh" ? el.dataset.zhAria : el.dataset.enAria;
+      if (v != null) el.setAttribute("aria-label", v);
+    });
+    return;
+  }
+
   // Perf: only walk the regions that actually carry bilingual strings instead
   // of the entire <body>. The result page in particular has thousands of
   // [data-zh][data-en] nodes — scoping cuts language-toggle / re-render cost
