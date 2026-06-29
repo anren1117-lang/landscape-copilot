@@ -12288,8 +12288,7 @@ function ensureDesignLayout(entry, opts) {
   const plantEntries = Object.keys(qtyMap)
     .filter(id => Number(qtyMap[id]) > 0)
     .map(id => ({ id, qty: Number(qtyMap[id]) || 0, plant: PLANT_BY_ID[id] }))
-    .filter(e => e.plant)
-    .sort((a, b) => (b.plant.tier || 0) - (a.plant.tier || 0));
+    .filter(e => e.plant);
   const rand = _miniSvgRand(Math.round(w * 1000 + d * 7 + plantEntries.length * 13));
   const layout = [];
   // R87: auto-init respects the shape. For non-rect shapes we reject any
@@ -12297,37 +12296,88 @@ function ensureDesignLayout(entry, opts) {
   // Done in unit-rect coords (0..1) so the shape test reads naturally.
   const shape = (snap.shape === "L" || snap.shape === "round") ? snap.shape : "rect";
   const inUnitShape = (x, y) => pointInShape(shape, x, y, 0, 0, 1, 1);
+
+  // R108: redesigned placement. Pre-R108 this code computed
+  // `yFraction = 1 - Math.min(4, tier - 1) / 4` against tier values that are
+  // strings ("T"/"S"/"H"/etc.) → `tier - 1` was NaN → yFraction was NaN →
+  // every token landed at a random y in [0.06, 0.94] regardless of tier.
+  // The canvas looked like "tokens scattered randomly," not "a designed
+  // landscape." Two changes:
+  //
+  // (a) Tier zonation now uses a proper string→y map. Canopy (T) at the back
+  //     (y=0.18), shrubs (S) middle-back, herbaceous (H) middle-front, ground
+  //     cover (G) at the front (y=0.82). Climbers (C) hug the back wall like
+  //     canopy. Water (W) sits with the herbs.
+  //
+  // (b) Same species clusters around a single center instead of scattering
+  //     across the whole tier band. Real landscape designers plant in drifts
+  //     of 3–7, not random one-offs. Each species' cluster center is spread
+  //     evenly along x within its tier so canopy trees space out across the
+  //     back wall and ground covers fill the front edge. Tokens drop within a
+  //     small radius of the cluster center → "drift of plants" feel.
+  const TIER_Y = { T: 0.18, C: 0.22, S: 0.40, V: 0.45, H: 0.58, W: 0.70, G: 0.82 };
+
+  // Group by tier so we can lay clusters out left-to-right inside each band.
+  const byTier = {};
   for (const e of plantEntries) {
-    const tier = e.plant.tier || 1;
-    const yFraction = 1 - Math.min(4, tier - 1) / 4;
-    const qty = Math.min(e.qty, 8);  // cap per-species at 8 tokens to keep the canvas readable
-    for (let i = 0; i < qty; i++) {
-      if (layout.length >= LAYOUT_MAX_TOKENS) break;
-      // Up to 8 tries to land inside the shape. If none succeed, snap to
-      // the center of the bounding rect — for round that's guaranteed to
-      // be inside; for L that's the intersection point between the two
-      // walls of the L, also always inside.
-      let x = 0.5, y = 0.5, ok = false;
-      for (let attempt = 0; attempt < 8; attempt++) {
-        const yJ = (rand() - 0.5) * 0.20;
-        y = Math.max(0.06, Math.min(0.94, yFraction + yJ));
-        x = 0.06 + rand() * 0.88;
-        if (inUnitShape(x, y)) { ok = true; break; }
-      }
-      if (!ok) {
-        // R88 B1: fall back to a guaranteed-in-shape placement instead of
-        // shipping the last-attempt (likely out-of-shape) coords.
-        if (shape === "round") {
-          x = 0.5; y = 0.5;
-        } else if (shape === "L") {
-          // The lower-left quadrant is always inside the L.
-          x = 0.25 + rand() * 0.20;
-          y = 0.55 + rand() * 0.30;
+    const tier = TIER_Y[e.plant.tier] != null ? e.plant.tier : "H";
+    if (!byTier[tier]) byTier[tier] = [];
+    byTier[tier].push(e);
+  }
+  // Within a tier, highest qty first → that species claims the most central
+  // cluster slot (focal positioning: the biggest drift becomes the visual
+  // anchor of its tier band).
+  for (const tier in byTier) {
+    byTier[tier].sort((a, b) => b.qty - a.qty);
+  }
+  // Tier order from back of design to front. Tokens go in the layout array
+  // in this order; the SVG renderer already draws later tokens on top, so
+  // back-to-front layering naturally falls out.
+  const tierOrder = ["T", "C", "S", "V", "H", "W", "G"];
+
+  for (const tier of tierOrder) {
+    const list = byTier[tier];
+    if (!list || list.length === 0) continue;
+    const baseY = TIER_Y[tier];
+    const n = list.length;
+    // Cluster centers spaced evenly across x. For 1 species: cx=0.5.
+    // For 2: 0.33, 0.67. For 3: 0.25, 0.50, 0.75 — etc.
+    list.forEach((e, idx) => {
+      if (layout.length >= LAYOUT_MAX_TOKENS) return;
+      const cx = (idx + 1) / (n + 1);
+      const cy = baseY;
+      const qty = Math.min(e.qty, 8);   // per-species token cap for readability
+      // Cluster radius scales with qty so a drift of 7 spreads a bit more
+      // than a drift of 3 — but capped so clusters never overflow into
+      // neighboring species' territory (~0.5/n per side).
+      const radiusX = Math.min(0.06 + qty * 0.012, 0.45 / Math.max(2, n));
+      const radiusY = 0.06;
+      for (let i = 0; i < qty; i++) {
+        if (layout.length >= LAYOUT_MAX_TOKENS) break;
+        let x = cx, y = cy, ok = false;
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const dx = (rand() - 0.5) * 2 * radiusX;
+          const dy = (rand() - 0.5) * 2 * radiusY;
+          x = Math.max(0.06, Math.min(0.94, cx + dx));
+          y = Math.max(0.06, Math.min(0.94, cy + dy));
+          if (inUnitShape(x, y)) { ok = true; break; }
         }
+        if (!ok) {
+          // R88 B1: shape fallback — guaranteed-in-shape placement instead
+          // of shipping the last-attempt (possibly out-of-shape) coords.
+          if (shape === "round") {
+            // Pull toward the round's center; stays inside by definition.
+            x = 0.5 + (cx - 0.5) * 0.4;
+            y = 0.5 + (cy - 0.5) * 0.4;
+          } else if (shape === "L") {
+            // The lower-left quadrant is always inside the L.
+            x = 0.25 + rand() * 0.20;
+            y = 0.55 + rand() * 0.30;
+          }
+        }
+        layout.push({ tokenId: makeTokenId(), plantId: e.id, x, y });
       }
-      layout.push({ tokenId: makeTokenId(), plantId: e.id, x, y });
-    }
-    if (layout.length >= LAYOUT_MAX_TOKENS) break;
+    });
   }
   // Persist only when the caller asked for it AND the entry has an id we can
   // find on the list. Read-only callers leave persist=false and get the
