@@ -779,6 +779,26 @@
        SVG root so the rule below scopes to just those nodes. */
     .plan-svg .native-overlay { display: none !important; }
   }
+  /* R114 mobile audit: at 360px the growth-year-bar now carries 6 children
+     (label + 3 pills + native toggle + R111 art toggle) and wraps to 2 rows.
+     The wrap itself is fine (flex-wrap already handles it), but the buttons'
+     tap targets were ~28px tall — below the WCAG 2.5.5 target-size minimum
+     of 24×24 and well below the practical thumb target. Bump both pill
+     types to min-height 36px on small viewports and add a bit more inner
+     padding so they read as tappable, not decorative. */
+  @media (max-width: 480px) {
+    .growth-year-bar { padding: 6px 10px; gap: 6px; }
+    .growth-year-btn,
+    .native-toggle-btn {
+      min-height: 36px;
+      padding: 8px 12px;
+      font-size: 12.5px;
+      display: inline-flex; align-items: center;
+    }
+    /* Growth-year label wraps to its own line at very narrow widths so the
+       three year pills + two toggles get more horizontal room. */
+    .growth-year-label { flex-basis: 100%; padding: 0; margin-bottom: 2px; }
+  }
   .est-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .est-ref-row { display: grid; grid-template-columns: 1fr; gap: 6px; max-height: 200px; overflow-y: auto; padding-right: 4px; }
   .est-ref-row::-webkit-scrollbar { width: 6px; }
