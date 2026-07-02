@@ -17759,13 +17759,42 @@ function wireR103ExtraChips() {
       _r103Rerender(`[data-r103-toggle="${field}"]`);
     });
   });
-  document.querySelectorAll('[data-r103-budget]').forEach(btn => {
+  const budgetBtns = Array.from(document.querySelectorAll('[data-r103-budget]'));
+  budgetBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       const tier = btn.getAttribute("data-r103-budget");
       if (!BUDGET_OK.has(tier)) return;
       state.budgetTier = tier;
       state.r103ExtraOpen = true;
       _r103Rerender(`[data-r103-budget="${tier}"]`);
+    });
+    // R113 a11y: role="radio" buttons need arrow-key navigation per WAI-ARIA
+    // radiogroup pattern — screen readers announce these as "radio button, 1
+    // of 4" and users expect Left/Up = previous, Right/Down = next, Home =
+    // first, End = last. Native <button> Space/Enter still fires the click
+    // via browser default; this adds the missing arrow-key contract.
+    btn.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight"
+       && e.key !== "ArrowUp"   && e.key !== "ArrowDown"
+       && e.key !== "Home"      && e.key !== "End") return;
+      e.preventDefault();
+      const idx = budgetBtns.indexOf(btn);
+      let nextIdx = idx;
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp")   nextIdx = (idx - 1 + budgetBtns.length) % budgetBtns.length;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") nextIdx = (idx + 1) % budgetBtns.length;
+      if (e.key === "Home") nextIdx = 0;
+      if (e.key === "End")  nextIdx = budgetBtns.length - 1;
+      const nextBtn = budgetBtns[nextIdx];
+      if (!nextBtn) return;
+      // Arrow keys on a radio group both move focus AND select (per ARIA
+      // pattern). Click fires state update + re-render; the re-render swaps
+      // DOM, so we capture the target tier and re-focus by data-attr after.
+      const targetTier = nextBtn.getAttribute("data-r103-budget");
+      nextBtn.click();
+      setTimeout(() => {
+        const refocused = document.querySelector(`[data-r103-budget="${targetTier}"]`);
+        if (refocused) refocused.focus();
+      }, 0);
     });
   });
 }
@@ -20329,6 +20358,17 @@ function wire3DInteractions() {
       const recs   = (window.__lastRecs   || []);
       const layers = (window.__lastLayers || []);
       renderTabPanel(recs, layers);
+      // R113 a11y: renderTabPanel replaces the SVG innerHTML so a screen
+      // reader user gets no signal that art mode toggled — the button's
+      // aria-pressed changes in DOM but focus stays on the button and the
+      // new pressed state isn't automatically re-announced. showSaveToast
+      // (role="status" polite) is the existing bilingual announcer we
+      // already use for save confirmations; reuse it here so the mode
+      // change is announced without stealing focus.
+      showSaveToast(
+        state.iso3dArtMode ? "已切換為藝術視角" : "已回到微氣候視角",
+        state.iso3dArtMode ? "Art view on" : "Realistic view on"
+      );
     });
   }
 }
