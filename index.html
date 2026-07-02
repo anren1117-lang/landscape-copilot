@@ -2394,7 +2394,20 @@
     margin-top: 14px; padding: 18px; background: rgba(255,255,255,0.55);
     border: 1px solid var(--line); border-radius: 18px;
   }
+  /* R111 3D art view — swap the frame's chrome to look like a page from a
+     botanical illustration book. Warm parchment background, sepia border,
+     slight inset shadow so the illustration reads as sitting on the page. */
+  .plan-frame.plan-frame-art {
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(255,244,220,0.85), rgba(232,215,178,0.4) 60%, rgba(214,192,148,0.2) 100%),
+      #F1E6CB;
+    border: 1px solid #B49676;
+    box-shadow: inset 0 0 40px rgba(140,111,82,0.18), 0 2px 12px rgba(140,111,82,0.15);
+  }
+  .plan-frame.plan-frame-art .plan-legend { color: #7A5F42; font-style: italic; }
+  .plan-frame.plan-frame-art .plan-legend-dot { border-color: #8C6F52; }
   .plan-svg { width: 100%; height: auto; display: block; border-radius: 12px; -webkit-tap-highlight-color: rgba(138,154,123,0.25); }
+  .plan-svg.plan-svg-art { border-radius: 6px; }
   .plan-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 12px; color: var(--ink-soft); }
   .plan-legend-item { display: flex; align-items: center; gap: 6px; }
   .plan-legend-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
@@ -8931,6 +8944,11 @@ const state = {
   //    shows "N / total · M% 本土". View knob only — not persisted across
   //    designs, just like growthYear.
   show3DNative: false,
+  // R111: art-mode toggle for the 3D tab. When on, the isometric view is
+  // wrapped in an SVG watercolor filter + swapped to a botanical-illustration
+  // colour palette (warm cream sky, muted greens, sepia frame). Off by
+  // default so first-visit users see the honest microclimate view.
+  iso3dArtMode: false,
   // ── R36: Garden journal — text-only freeform notes attached to each named
   //    design entry. Persisted *inside* the LIST_KEY entry (no new storage
   //    key). UI state lives here so we can remember which cards are showing
@@ -18586,6 +18604,9 @@ function __tabCacheKey(tab) {
     state.style || "", state.pet ? 1 : 0, state.children ? 1 : 0,
     state.nativeOnly ? 1 : 0,
     state.growthYear, state.show3DNative ? 1 : 0,
+    // R111: iso3dArtMode is a 3D-tab-only knob; include so the cache doesn't
+    // hand back the wrong style when the user toggles it.
+    state.iso3dArtMode ? 1 : 0,
     state.lang,
     likedKeys, dislikedKeys, pinnedKeys,
   ];
@@ -20146,46 +20167,82 @@ function render3D(layers, recs, allRecs) {
               title="${t('在 3D 視角中標示本土植物（🟢 標記 + 比例徽章）','Highlight native plants in the 3D view (🟢 markers + ratio chip)')}"
               data-zh="🟢 顯示本土"
               data-en="🟢 Show natives">${t("🟢 顯示本土", "🟢 Show natives")}</button>
+      <button class="native-toggle-btn iso3d-art-btn ${state.iso3dArtMode ? "on" : ""}"
+              id="iso3dArtToggleBtn"
+              type="button"
+              aria-pressed="${state.iso3dArtMode ? "true" : "false"}"
+              title="${t('把 3D 視角轉為植物插畫風格 — 水彩暈染 + 米色紙紋 + 復古邊框','Render the 3D view as a botanical illustration — watercolor wash, cream paper texture, sepia frame')}"
+              data-zh="🎨 藝術視角"
+              data-en="🎨 Art view">${t("🎨 藝術視角", "🎨 Art view")}</button>
     </div>
     <p class="lead-small" style="font-size:11px;color:#7A7C70;margin-top:-6px;"
        data-zh="Year 1 = 剛種下；Year 5 = 開始填滿；Year 10 = 成熟冠層。地被生長快，永遠以滿尺寸顯示。"
        data-en="Year 1 = newly planted. Year 5 = filling in. Year 10 = mature canopy. Groundcover grows fast and always shows at full size.">
        Year 1 = 剛種下；Year 5 = 開始填滿；Year 10 = 成熟冠層。地被生長快，永遠以滿尺寸顯示。</p>
-    <div class="plan-frame">
-      <svg viewBox="0 0 ${svgW} ${svgH}" class="plan-svg" preserveAspectRatio="xMidYMid meet">
+    <div class="plan-frame ${state.iso3dArtMode ? "plan-frame-art" : ""}">
+      <svg viewBox="0 0 ${svgW} ${svgH}" class="plan-svg ${state.iso3dArtMode ? "plan-svg-art" : ""}" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="trunkGrad" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%"   stop-color="#3E2A1A"/>
-            <stop offset="45%"  stop-color="#6B4D2E"/>
-            <stop offset="100%" stop-color="#4A3320"/>
+            <stop offset="0%"   stop-color="${state.iso3dArtMode ? "#5C3E1A" : "#3E2A1A"}"/>
+            <stop offset="45%"  stop-color="${state.iso3dArtMode ? "#8A6538" : "#6B4D2E"}"/>
+            <stop offset="100%" stop-color="${state.iso3dArtMode ? "#6E4A28" : "#4A3320"}"/>
           </linearGradient>
           <radialGradient id="groundGrad" cx="50%" cy="50%" r="60%">
-            <stop offset="0%"  stop-color="rgba(196,184,144,0.32)"/>
-            <stop offset="100%" stop-color="rgba(196,184,144,0.05)"/>
+            <stop offset="0%"  stop-color="${state.iso3dArtMode ? "rgba(232,215,178,0.42)" : "rgba(196,184,144,0.32)"}"/>
+            <stop offset="100%" stop-color="${state.iso3dArtMode ? "rgba(232,215,178,0.10)" : "rgba(196,184,144,0.05)"}"/>
           </radialGradient>
           <linearGradient id="skyGrad" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%"  stop-color="${tod.skyTop}"/>
-            <stop offset="100%" stop-color="${tod.skyMid}"/>
+            <stop offset="0%"  stop-color="${state.iso3dArtMode ? "#F5E8D0" : tod.skyTop}"/>
+            <stop offset="100%" stop-color="${state.iso3dArtMode ? "#EAD4B4" : tod.skyMid}"/>
           </linearGradient>
           <!-- Sunlit ground wash — bright on the sun-side corner, fades to opposite -->
           <linearGradient id="sunWash" x1="${sunGradX1}" y1="0" x2="${sunGradX2}" y2="1">
-            <stop offset="0%"  stop-color="${tod.sun}" stop-opacity="0.85"/>
-            <stop offset="55%" stop-color="${tod.sun}" stop-opacity="0.25"/>
+            <stop offset="0%"  stop-color="${tod.sun}" stop-opacity="${state.iso3dArtMode ? "0.55" : "0.85"}"/>
+            <stop offset="55%" stop-color="${tod.sun}" stop-opacity="${state.iso3dArtMode ? "0.15" : "0.25"}"/>
             <stop offset="100%" stop-color="${tod.sun}" stop-opacity="0"/>
           </linearGradient>
+          ${state.iso3dArtMode ? `
+          <!-- R111 art mode: watercolor filter. feTurbulence + feDisplacementMap
+               makes edges organically wavy like a wet-on-wet paint stroke; a
+               small blur softens the linework further. Applied to the whole
+               scene group so plants, ground, sky all pick up the painterly feel. -->
+          <filter id="watercolorFilter" x="-2%" y="-2%" width="104%" height="104%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.4"/>
+            <feGaussianBlur stdDeviation="0.35"/>
+          </filter>
+          <!-- Paper grain — very fine noise applied as a soft overlay on top
+               of everything, so the whole plate reads as "printed on cream
+               paper". Kept low-opacity so signals stay legible. -->
+          <filter id="paperGrain" x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="1" seed="3" result="grain"/>
+            <feColorMatrix in="grain" values="0 0 0 0 0.38  0 0 0 0 0.30  0 0 0 0 0.20  0 0 0 0.10 0"/>
+          </filter>
+          ` : ""}
         </defs>
         ${sky}
-        ${mountains}
-        ${backWall}
-        <polygon points="${groundPoly}" fill="url(#groundGrad)" stroke="#C9C3B4" stroke-width="1.2"/>
-        ${sunWash}
-        ${gridLines}
-        ${groundTexture}
-        ${edgeBed}
-        ${pathSvg}
-        ${decoSvg}
-        ${sun}
-        ${plantSvgs}
+        <g ${state.iso3dArtMode ? 'filter="url(#watercolorFilter)"' : ""}>
+          ${mountains}
+          ${backWall}
+          <polygon points="${groundPoly}" fill="url(#groundGrad)" stroke="${state.iso3dArtMode ? "#A88A6A" : "#C9C3B4"}" stroke-width="${state.iso3dArtMode ? "1.6" : "1.2"}"/>
+          ${sunWash}
+          ${gridLines}
+          ${groundTexture}
+          ${edgeBed}
+          ${pathSvg}
+          ${decoSvg}
+          ${sun}
+          ${plantSvgs}
+        </g>
+        ${state.iso3dArtMode ? `
+          <!-- Sepia botanical frame — inner double border with corner ornaments.
+               Sits above the filtered scene so the frame stays crisp. -->
+          <rect x="10" y="10" width="${svgW - 20}" height="${svgH - 20}" fill="none" stroke="#8C6F52" stroke-width="1.4" opacity="0.75"/>
+          <rect x="16" y="16" width="${svgW - 32}" height="${svgH - 32}" fill="none" stroke="#8C6F52" stroke-width="0.6" opacity="0.55"/>
+          <text x="${svgW / 2}" y="${svgH - 22}" text-anchor="middle" font-size="10" fill="#8C6F52" font-family="Noto Serif TC" font-style="italic" letter-spacing="2">— ${state.lang === "en" ? "Botanical illustration" : "植物構圖"} —</text>
+          <!-- Paper grain overlay across the plate. rect wide-covers the viewBox. -->
+          <rect x="0" y="0" width="${svgW}" height="${svgH}" filter="url(#paperGrain)" opacity="0.4" pointer-events="none"/>
+        ` : ""}
         ${heroPill}
         ${nativeChip}
         <text x="${(c3.ix + 12).toFixed(1)}" y="${(c3.iy + 24).toFixed(1)}" font-size="11" fill="#5A5C50" font-family="Noto Serif TC" font-style="italic">${realW}m × ${realD}m ≈ ${area} m²</text>
@@ -20221,7 +20278,9 @@ function wire3DInteractions() {
   // R41: native-overlay toggle — flips state.show3DNative and re-renders the
   // iso3d panel. State persists across re-renders because we mutate the global
   // state object (same pattern as growthYear above).
-  document.querySelectorAll(".native-toggle-btn").forEach((btn) => {
+  // R111: the art-mode toggle shares .native-toggle-btn for pill styling but
+  // needs a separate handler — refine the selector so we don't double-fire.
+  document.querySelectorAll(".native-toggle-btn:not(.iso3d-art-btn)").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.show3DNative = !state.show3DNative;
       const recs   = (window.__lastRecs   || []);
@@ -20229,6 +20288,19 @@ function wire3DInteractions() {
       renderTabPanel(recs, layers);
     });
   });
+  // R111: 🎨 art-view toggle — wraps the isometric scene in a watercolor
+  // filter, swaps to a botanical palette, adds a sepia frame. Persists on
+  // state.iso3dArtMode; re-renders the iso3d panel in place like the other
+  // 3D-tab knobs.
+  const artBtn = document.getElementById("iso3dArtToggleBtn");
+  if (artBtn) {
+    artBtn.addEventListener("click", () => {
+      state.iso3dArtMode = !state.iso3dArtMode;
+      const recs   = (window.__lastRecs   || []);
+      const layers = (window.__lastLayers || []);
+      renderTabPanel(recs, layers);
+    });
+  }
 }
 
 // ── TAB: LAYERS (section diagram) ───────────────────────────
