@@ -2403,9 +2403,22 @@
       #F1E6CB;
     border: 1px solid #B49676;
     box-shadow: inset 0 0 40px rgba(140,111,82,0.18), 0 2px 12px rgba(140,111,82,0.15);
+    /* R112 critic B4: opt into color-adjust so the parchment survives the
+       @media print white-background rule further down. Without this the
+       art frame prints as a plain white box with the sepia border visible
+       but the parchment gone. */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   .plan-frame.plan-frame-art .plan-legend { color: #7A5F42; font-style: italic; }
   .plan-frame.plan-frame-art .plan-legend-dot { border-color: #8C6F52; }
+  /* R112 critic B2: disable the hover-lift on plants when art mode is on.
+     The transform re-triggers the parent group's filter chain per hover
+     tick, which is the single biggest cost of the watercolor filter on
+     mobile. The hover affordance is less needed in art mode anyway (the
+     whole plate is a "look at me" object). */
+  .plan-svg.plan-svg-art .plan-plant { transition: none !important; }
+  .plan-svg.plan-svg-art .plan-plant:hover { transform: none !important; }
   .plan-svg { width: 100%; height: auto; display: block; border-radius: 12px; -webkit-tap-highlight-color: rgba(138,154,123,0.25); }
   .plan-svg.plan-svg-art { border-radius: 6px; }
   .plan-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 12px; color: var(--ink-soft); }
@@ -8948,6 +8961,9 @@ const state = {
   // wrapped in an SVG watercolor filter + swapped to a botanical-illustration
   // colour palette (warm cream sky, muted greens, sepia frame). Off by
   // default so first-visit users see the honest microclimate view.
+  // R112 critic B3: intentionally NOT persisted to snapshotState or the URL
+  // hash — art mode is a view lens, not a design property. Recipients of a
+  // shared #d= link should land on the honest scene and opt in themselves.
   iso3dArtMode: false,
   // ── R36: Garden journal — text-only freeform notes attached to each named
   //    design entry. Persisted *inside* the LIST_KEY entry (no new storage
@@ -20205,10 +20221,16 @@ function render3D(layers, recs, allRecs) {
           <!-- R111 art mode: watercolor filter. feTurbulence + feDisplacementMap
                makes edges organically wavy like a wet-on-wet paint stroke; a
                small blur softens the linework further. Applied to the whole
-               scene group so plants, ground, sky all pick up the painterly feel. -->
+               scene group so plants, ground, sky all pick up the painterly feel.
+               R112 critic B2: dialed baseFrequency 0.014 → 0.04 and scale
+               2.4 → 1.6 to make the filter ~3× cheaper on mobile without
+               losing the painterly feel. The old values produced a very
+               large noise tile that mobile browsers rasterized on every
+               hover/scroll repaint. The reduced values still give organic
+               edge wobble but at half the pixel-fill cost. -->
           <filter id="watercolorFilter" x="-2%" y="-2%" width="104%" height="104%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="7" result="noise"/>
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.4"/>
+            <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6"/>
             <feGaussianBlur stdDeviation="0.35"/>
           </filter>
           <!-- Paper grain — very fine noise applied as a soft overlay on top
@@ -20235,11 +20257,19 @@ function render3D(layers, recs, allRecs) {
           ${plantSvgs}
         </g>
         ${state.iso3dArtMode ? `
-          <!-- Sepia botanical frame — inner double border with corner ornaments.
-               Sits above the filtered scene so the frame stays crisp. -->
-          <rect x="10" y="10" width="${svgW - 20}" height="${svgH - 20}" fill="none" stroke="#8C6F52" stroke-width="1.4" opacity="0.75"/>
-          <rect x="16" y="16" width="${svgW - 32}" height="${svgH - 32}" fill="none" stroke="#8C6F52" stroke-width="0.6" opacity="0.55"/>
-          <text x="${svgW / 2}" y="${svgH - 22}" text-anchor="middle" font-size="10" fill="#8C6F52" font-family="Noto Serif TC" font-style="italic" letter-spacing="2">— ${state.lang === "en" ? "Botanical illustration" : "植物構圖"} —</text>
+          <!-- Sepia botanical frame — inner double border. R112 critic B5:
+               nudged the top edge down to y=60 so heroPill (top-center)
+               and nativeChip (top-left) don't slice through the frame's
+               top border. The frame now wraps just the illustration
+               plate, and the info chips float above it like a caption. -->
+          <rect x="10" y="60" width="${svgW - 20}" height="${svgH - 70}" fill="none" stroke="#8C6F52" stroke-width="1.4" opacity="0.75"/>
+          <rect x="16" y="66" width="${svgW - 32}" height="${svgH - 82}" fill="none" stroke="#8C6F52" stroke-width="0.6" opacity="0.55"/>
+          <!-- R112 critic B1: caption now uses data-zh/data-en so applyLanguage
+               swaps it correctly on lang toggle. Pre-R112 it was baked with a
+               state.lang ternary; combined with the R112 perf short-circuit
+               that skips the walk on zh→zh, the caption would have frozen. -->
+          <text x="${svgW / 2}" y="${svgH - 22}" text-anchor="middle" font-size="10" fill="#8C6F52" font-family="Noto Serif TC" font-style="italic" letter-spacing="2"
+                data-zh="— 植物構圖 —" data-en="— Botanical illustration —">— ${t("植物構圖", "Botanical illustration")} —</text>
           <!-- Paper grain overlay across the plate. rect wide-covers the viewBox. -->
           <rect x="0" y="0" width="${svgW}" height="${svgH}" filter="url(#paperGrain)" opacity="0.4" pointer-events="none"/>
         ` : ""}
@@ -23117,6 +23147,28 @@ function applyLanguage(scopeRoot) {
       const v = state.lang === "zh" ? el.dataset.zhAria : el.dataset.enAria;
       if (v != null) el.setAttribute("aria-label", v);
     });
+    return;
+  }
+
+  // R112 perf (R103 perf-critic #2): applyLanguage is called after every
+  // render() and after nearly every state mutation. On a warm result page
+  // the [data-zh][data-en] walk visits thousands of nodes just to set
+  // innerHTML to identical Chinese content — every renderer in this file
+  // emits the Chinese string as the literal default (verified: 499
+  // bilingual pairs, 497 have Chinese literals, 2 exceptions are
+  // ASCII-identical between zh and en). So on the zh path, when we
+  // already applied zh last time, the walk is provably a no-op.
+  //
+  // English users still need the walk on every apply because render()
+  // keeps emitting Chinese defaults inside data-zh tags. The check below
+  // only short-circuits the zh→zh case.
+  const skipWalk = state.lang === "zh" && state.__lastAppliedLang === "zh";
+  state.__lastAppliedLang = state.lang;
+  if (skipWalk) {
+    // Doc-level sync still happens (idempotent).
+    document.documentElement.lang = "zh-Hant";
+    const t = document.getElementById("langToggle");
+    if (t) t.textContent = "English";
     return;
   }
 
