@@ -244,28 +244,40 @@
     align-items: center;
   }
   .wiz-step {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 5px 10px; border-radius: 999px;
-    border: 1px solid var(--line);
-    background: rgba(255,255,255,0.5);
-    color: var(--ink-soft);
+    /* R119 Phase 2: pill still, but now with parchment fill + sepia border
+       so it reads as a botanical-book worksheet step. Font-family serif
+       italic matches the R118 kicker treatment. */
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: 999px;
+    border: 1px solid var(--sepia-line);
+    background: rgba(241,230,203,0.55);
+    color: var(--sepia);
+    font-family: var(--serif);
+    font-style: italic;
     white-space: nowrap;
     letter-spacing: 0.01em;
     transition: all .25s ease;
   }
   .wiz-step.done {
     color: var(--sage-deep);
-    background: rgba(110,126,96,0.08);
-    border-color: rgba(110,126,96,0.25);
+    background: rgba(110,126,96,0.10);
+    border-color: rgba(110,126,96,0.35);
   }
   .wiz-step.current {
-    background: var(--sage-deep, #6E7E60);
-    color: #fff;
-    border-color: var(--sage-deep, #6E7E60);
+    /* Forest-green fill for the current step so it reads as the "active
+       plate" in the botanical-book progression. */
+    background: linear-gradient(180deg, var(--forest-soft) 0%, var(--forest) 100%);
+    color: var(--paper);
+    border-color: var(--forest);
     font-weight: 600;
+    font-style: normal;
+    box-shadow: 0 4px 10px -6px rgba(44,53,38,0.55);
   }
   .wiz-step.future { opacity: 0.55; }
-  .wiz-step-sep { color: var(--clay); opacity: 0.5; font-size: 11px; }
+  .wiz-step-sep {
+    color: var(--sepia); opacity: 0.55; font-size: 11px;
+    font-family: var(--serif); font-style: italic;
+  }
   @media (max-width: 520px) {
     .wiz-steps { font-size: 10.5px; gap: 4px; margin-bottom: 18px; }
     .wiz-step { padding: 4px 7px; }
@@ -283,21 +295,34 @@
   .grid.cols-2 { grid-template-columns: 1fr 1fr; }
   .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
   .card-opt {
+    /* R119 Phase 2: wizard option cards feel like plates in a botanical
+       book — parchment fill, sepia border, subtle inset warmth. Active
+       state stays forest so the "chosen plate" reads unmistakably. */
     text-align: left;
-    border: 1px solid var(--line);
+    border: 1px solid var(--sepia-line);
     border-radius: 16px;
-    background: rgba(255,255,255,0.4);
+    background: linear-gradient(180deg, rgba(255,250,235,0.7) 0%, rgba(232,217,190,0.55) 100%);
     padding: 22px;
     min-height: 44px;
     cursor: pointer;
     display: flex; flex-direction: column;
     transition: all .3s cubic-bezier(.2,.7,.3,1);
     font-family: inherit;
-    backdrop-filter: blur(2px);
+    box-shadow: inset 0 0 22px rgba(140,111,82,0.06);
     width: 100%;
   }
-  .card-opt:hover { transform: translateY(-3px); border-color: var(--sage); box-shadow: 0 14px 28px -16px rgba(44,53,38,0.35); }
-  .card-opt.active { background: var(--forest); border-color: var(--forest); box-shadow: 0 16px 30px -16px rgba(44,53,38,0.5); }
+  .card-opt:hover {
+    transform: translateY(-3px);
+    border-color: var(--sepia);
+    box-shadow:
+      inset 0 0 22px rgba(140,111,82,0.10),
+      0 14px 28px -16px rgba(140,111,82,0.35);
+  }
+  .card-opt.active {
+    background: linear-gradient(180deg, var(--forest-soft) 0%, var(--forest) 100%);
+    border-color: var(--forest);
+    box-shadow: 0 16px 30px -16px rgba(44,53,38,0.55), inset 0 1px 0 rgba(255,255,255,0.10);
+  }
   .card-opt-icon { margin-bottom: 14px; }
   .card-opt-row { display: flex; justify-content: space-between; align-items: center; }
   .card-opt-label { font-size: 18px; font-weight: 600; font-family: var(--serif); color: var(--forest); }
@@ -2252,26 +2277,46 @@
   }
   .home-hero > * { position: relative; z-index: 1; }
   .home-hero .badge {
+    /* R119 Phase 2: sepia-stamped label instead of sage chip so the badge
+       reads as a botanical-book plate ID rather than a status pill. */
     display: inline-block;
-    padding: 5px 14px;
-    background: rgba(110,126,96,0.15);
-    color: var(--sage-deep);
-    border: 1px solid rgba(110,126,96,0.25);
+    padding: 6px 16px;
+    background: rgba(140,111,82,0.10);
+    color: var(--sepia);
+    border: 1px solid var(--sepia-line);
     border-radius: 999px;
+    font-family: var(--serif);
+    font-style: italic;
     font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
+    font-weight: 500;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     margin-bottom: 22px;
   }
   .home-hero h1 {
+    /* R119 Phase 2: italic accent so the headline reads as a chapter title.
+       Kept the fluid clamp() size + serif family from pre-R119. */
     font-family: var(--serif);
     font-size: clamp(34px, 7vw, 56px);
-    line-height: 1.12;
+    line-height: 1.15;
     color: var(--forest);
-    font-weight: 600;
-    letter-spacing: 0.01em;
+    font-weight: 500;
+    font-style: italic;
+    letter-spacing: -0.01em;
     margin-bottom: 18px;
+  }
+  /* R119 Phase 2: horizontal botanical rule beneath the title. Two hair-lines
+     with a small sepia dash between reads as a manuscript ornament. */
+  .home-hero h1::after {
+    content: "";
+    display: block;
+    margin: 14px auto 0;
+    width: 80px; height: 1px;
+    background:
+      linear-gradient(to right,
+        transparent 0%, var(--sepia-line) 15%, var(--sepia-line) 42%,
+        var(--sepia) 46%, var(--sepia) 54%,
+        var(--sepia-line) 58%, var(--sepia-line) 85%, transparent 100%);
   }
   .home-hero p.tagline {
     font-size: clamp(15px, 2.2vw, 18px);
