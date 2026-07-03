@@ -2151,7 +2151,25 @@
     padding: 40px 20px 20px;
     max-width: 760px;
     margin: 0 auto;
+    /* R115: subtle botanical wallpaper behind the hero. Watercolor Taiwan-
+       native-plant leaves generated via Pollinations, stored at 18KB in
+       assets/. Very low opacity so it reads as texture, not decoration —
+       the badge and headline stay dominant. */
+    position: relative;
   }
+  .home-hero::before {
+    content: "";
+    position: absolute;
+    inset: -20px 0 0 0;
+    background: url("assets/hero-wallpaper.jpg") center/cover no-repeat;
+    opacity: 0.09;
+    pointer-events: none;
+    z-index: 0;
+    border-radius: 0 0 40px 40px;
+    mask-image: linear-gradient(180deg, black, transparent 90%);
+    -webkit-mask-image: linear-gradient(180deg, black, transparent 90%);
+  }
+  .home-hero > * { position: relative; z-index: 1; }
   .home-hero .badge {
     display: inline-block;
     padding: 5px 14px;
@@ -3715,6 +3733,30 @@
     border-radius: 12px;
     padding: 14px;
     line-height: 0;
+  }
+  /* R115: space-specific watercolor pattern behind the layout SVG. Adds
+     a subtle texture that hints at the physical surface (terracotta on
+     balcony, concrete pavers on rooftop, lawn on yard, oak floor indoors).
+     Opacity kept low so plant tokens stay legible. Added via data-space
+     attribute on the wrap so no HTML class rewrite is needed. */
+  .ddash-layout-wrap[data-space="balcony"] { background-image: url("assets/space-balcony.jpg"); background-size: 220px 220px; background-repeat: repeat; background-blend-mode: overlay; }
+  .ddash-layout-wrap[data-space="rooftop"] { background-image: url("assets/space-rooftop.jpg"); background-size: 220px 220px; background-repeat: repeat; background-blend-mode: overlay; }
+  .ddash-layout-wrap[data-space="yard"]    { background-image: url("assets/space-yard.jpg");    background-size: 220px 220px; background-repeat: repeat; background-blend-mode: overlay; }
+  .ddash-layout-wrap[data-space="indoor"]  { background-image: url("assets/space-indoor.jpg");  background-size: 220px 220px; background-repeat: repeat; background-blend-mode: overlay; }
+  /* R115 surface 3 — tier silhouettes rendered inline in the logic panel's
+     drift-planting rule (see renderDesignLogicPanel), sized as small chips. */
+  .logic-tier-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(122,138,93,0.10);
+    border-radius: 999px;
+    padding: 2px 8px 2px 2px;
+    font-size: 11.5px;
+    color: var(--forest);
+    margin-right: 6px;
+  }
+  .logic-tier-chip img {
+    width: 22px; height: 22px; border-radius: 50%;
+    object-fit: cover;
   }
   .ddash-layout-wrap svg {
     width: 100%;
@@ -14386,11 +14428,24 @@ function renderDesignLogicPanel(entry) {
   const tierOrder = ["T", "C", "S", "V", "H", "W", "G"];
   const presentTiers = tierOrder.filter(t => tierCounts[t] > 0);
   if (presentTiers.length > 0) {
-    const partsZh = presentTiers.map(t => `${tierLabelsZh[t]} ${tierCounts[t]}`).join(" · ");
-    const partsEn = presentTiers.map(t => `${tierLabelsEn[t]} ${tierCounts[t]}`).join(" · ");
+    // R115 surface 3: pair each present tier with a small watercolor
+    // silhouette chip (Pollinations-generated top-down illustrations of
+    // canopy / shrub / herb / ground / water / climber). These read as
+    // "the shape of thing you'll actually plant" which the tier letter
+    // never did.
+    const chipsZh = presentTiers.map(t =>
+      `<span class="logic-tier-chip"><img src="assets/tier-${t}.jpg" alt="" loading="lazy"/>${tierLabelsZh[t]} ${tierCounts[t]}</span>`
+    ).join("");
+    const chipsEn = presentTiers.map(t =>
+      `<span class="logic-tier-chip"><img src="assets/tier-${t}.jpg" alt="" loading="lazy"/>${tierLabelsEn[t]} ${tierCounts[t]}</span>`
+    ).join("");
     rules.push({
-      zh: `🎨 群落種植：同種圍著焦點中心 (${partsZh})`,
-      en: `🎨 Drift planting: same species clustered around a focal center (${partsEn})`,
+      zh: `🎨 群落種植：同種圍著焦點中心<br>${chipsZh}`,
+      en: `🎨 Drift planting: same species clustered around a focal center<br>${chipsEn}`,
+      // Flag telling the renderer to skip escapeHtml because the string
+      // contains our own trusted <span><img> chip markup. All the img srcs
+      // are static asset paths hard-coded above; no user input mixed in.
+      html: true,
     });
   }
   if (snap.nativeTarget && snap.nativeTarget !== "any") {
@@ -14507,7 +14562,15 @@ function renderDesignLogicPanel(entry) {
                data-zh="📐 結構規則"
                data-en="📐 Structural rules">📐 結構規則</div>
           <ul class="logic-rule-list">
-            ${rules.map(r => `<li data-zh="${escapeHtml(r.zh)}" data-en="${escapeHtml(r.en)}">${escapeHtml(r.zh)}</li>`).join("")}
+            ${rules.map(r => {
+              const zh = r.html ? r.zh : escapeHtml(r.zh);
+              const en = r.html ? r.en : escapeHtml(r.en);
+              // data-zh/data-en still get escaped since applyLanguage
+              // will set them via el.innerHTML — but the escaped attribute
+              // value is safe on innerHTML because attribute-escaping keeps
+              // the trusted markup intact when re-parsed on lang toggle.
+              return `<li data-zh="${escapeHtml(r.zh)}" data-en="${escapeHtml(r.en)}">${state.lang === "en" ? en : zh}</li>`;
+            }).join("")}
           </ul>
         </div>
         ${top.length > 0 ? `
@@ -14665,7 +14728,7 @@ function renderDesignDashboard() {
               data-zh="拖移調整 · 點植物可移除 · 加入新植物"
               data-en="drag to rearrange · tap a plant to remove · add new plants">拖移調整 · 點植物可移除 · 加入新植物</span>
       </h2>
-      <div class="ddash-layout-wrap">${buildLayoutWrapInner(entry)}</div>
+      <div class="ddash-layout-wrap" data-space="${escapeHtml(entry.snapshot?.space || "")}">${buildLayoutWrapInner(entry)}</div>
     </section>`;
 
   // R72: Share this design — builds a URL with the design's snapshot
@@ -20313,6 +20376,16 @@ function render3D(layers, recs, allRecs) {
                plate, and the info chips float above it like a caption. -->
           <rect x="10" y="60" width="${svgW - 20}" height="${svgH - 70}" fill="none" stroke="#8C6F52" stroke-width="1.4" opacity="0.75"/>
           <rect x="16" y="66" width="${svgW - 32}" height="${svgH - 82}" fill="none" stroke="#8C6F52" stroke-width="0.6" opacity="0.55"/>
+          <!-- R115: botanical corner ornaments (watercolor ferns, generated
+               via Pollinations). Multiply blend-mode so the cream card
+               background of the corner image tints into the parchment
+               instead of stamping a hard rectangle. -->
+          <image href="assets/frame-corner-tl.jpg" x="10"           y="60"            width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply;"/>
+          <image href="assets/frame-corner-tr.jpg" x="${svgW - 82}" y="60"            width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply; transform: scaleX(-1); transform-origin: ${(svgW - 46).toFixed(1)}px 96px;"/>
+          <image href="assets/frame-corner-bl.jpg" x="10"           y="${svgH - 92}"  width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply; transform: scaleY(-1); transform-origin: 46px ${(svgH - 56).toFixed(1)}px;"/>
+          <image href="assets/frame-corner-br.jpg" x="${svgW - 82}" y="${svgH - 92}"  width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply; transform: scale(-1, -1); transform-origin: ${(svgW - 46).toFixed(1)}px ${(svgH - 56).toFixed(1)}px;"/>
+          <!-- Botanical horizontal frieze at the bottom above the caption. -->
+          <image href="assets/frame-banner.jpg" x="90" y="${svgH - 44}" width="${svgW - 180}" height="18" opacity="0.7" style="mix-blend-mode: multiply;"/>
           <!-- R112 critic B1: caption now uses data-zh/data-en so applyLanguage
                swaps it correctly on lang toggle. Pre-R112 it was baked with a
                state.lang ternary; combined with the R112 perf short-circuit
