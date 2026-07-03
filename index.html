@@ -20,6 +20,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!-- R117: preload the hero-wallpaper so it's fetched in parallel with the
+     HTML parse instead of after CSSOM discovers .home-hero::before's
+     background-image URL. 51KB JPEG so the impact is modest, but it
+     saves a paint stagger (visible blank cream area → wallpaper fades in)
+     on cold loads. Marked fetchpriority=low since it's decorative — we
+     don't want it competing with fonts / render-blocking CSS. -->
+<link rel="preload" as="image" href="assets/hero-wallpaper.jpg" fetchpriority="low">
 <style>
   :root {
     --paper: #EDEAE0;
