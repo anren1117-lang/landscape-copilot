@@ -3814,10 +3814,15 @@
 
   /* R63: Per-Design Personal Dashboard — workspace for a single saved design */
   .design-dash-header {
-    background: linear-gradient(180deg, rgba(196,210,176,0.24) 0%, rgba(196,210,176,0) 100%);
+    /* R121 Phase 4: dashboard header now reads as a botanical-book
+       chapter opener. Warmer parchment gradient with sepia hair-line
+       underneath so the header floats above the sections below. */
+    background: linear-gradient(180deg, rgba(255,250,235,0.85) 0%, rgba(232,217,190,0.4) 100%);
+    border: 1px solid var(--sepia-line);
     border-radius: 14px;
     padding: 20px 22px 22px;
     margin-bottom: 18px;
+    box-shadow: inset 0 0 30px rgba(140,111,82,0.06);
   }
   .design-dash-back-row {
     display: flex; justify-content: space-between; gap: 10px;
@@ -3845,28 +3850,49 @@
     font-size: 12px;
   }
   .design-dash-name {
-    font-family: var(--serif);
-    font-size: 26px; font-weight: 500;
+    /* R121 Phase 4: italic serif so the design name reads like a
+       book chapter title. */
+    font-family: var(--serif); font-style: italic;
+    font-size: 28px; font-weight: 500;
     color: var(--forest);
     line-height: 1.25;
-    margin: 0 0 10px;
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
   }
   .design-dash-meta {
     display: flex; flex-wrap: wrap; gap: 6px;
   }
   .design-dash-chip {
-    background: rgba(255,255,255,0.55);
-    border: 1px solid rgba(110,126,96,0.22);
+    /* R121 Phase 4: sepia-tinted meta chips so the design summary reads
+       as botanical-book plate metadata. */
+    background: rgba(255,250,235,0.6);
+    border: 1px solid var(--sepia-line);
     border-radius: 999px;
     padding: 4px 12px;
     font-size: 12px;
-    color: var(--forest);
-    font-family: var(--serif);
+    color: var(--sepia);
+    font-family: var(--serif); font-style: italic;
   }
   .design-dash-chip.native {
     background: rgba(45,139,92,0.12);
-    border-color: rgba(45,139,92,0.32);
+    border-color: rgba(45,139,92,0.35);
     color: #1F5A3C;
+  }
+  /* R121 Phase 4 — unified dashboard card treatment. Multiple existing
+     card classes (dash-care-card, ddash-today-card, ddash-share-card,
+     ddash-settings-card, dash-doctor-card) all serve as the primary
+     content container of their dash-section. Rather than editing each
+     rule individually, add a single grouped rule that reskins them all
+     to the parchment + sepia idiom. */
+  .dash-care-card,
+  .ddash-today-card,
+  .ddash-share-card,
+  .ddash-settings-card,
+  .dash-doctor-card,
+  .ddash-budget-card {
+    background: linear-gradient(180deg, rgba(255,250,235,0.75) 0%, rgba(232,217,190,0.5) 100%) !important;
+    border: 1px solid var(--sepia-line) !important;
+    box-shadow: inset 0 0 22px rgba(140,111,82,0.05);
   }
 
   /* Today's list */
