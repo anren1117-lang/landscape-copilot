@@ -29,17 +29,28 @@
 <link rel="preload" as="image" href="assets/hero-wallpaper.jpg" fetchpriority="low">
 <style>
   :root {
-    --paper: #EDEAE0;
-    --paper-warm: #E4DFD2;
-    --forest: #2C3526;
+    /* R118 Phase 1 — Botanical Illustration Book palette. Extends the R111
+       art view language (sepia + parchment + sage) to the whole app.
+       Existing tokens stay backward-compatible (all rules referencing
+       --paper / --forest / --sage etc. inherit the new values); new
+       tokens are added for surfaces that need the sepia frame treatment. */
+    --paper: #F1E6CB;         /* Parchment cream (warmer than pre-R118 #EDEAE0) */
+    --paper-warm: #E8D9BE;    /* Mid parchment for card backgrounds */
+    --paper-deep: #D4C3A0;    /* Deeper parchment for hover/pressed states */
+    --parchment-shadow: rgba(140,111,82,0.14);
+    --forest: #2B3820;        /* Deep botanical green — unchanged in spirit */
     --forest-soft: #3F4A37;
     --sage: #8A9A7B;
     --sage-deep: #6E7E60;
-    --clay: #A88A6A;
+    --sepia: #8C6F52;         /* Promoted from --clay-deep to primary accent */
+    --sepia-soft: #A88A6A;
+    --sepia-line: #B49676;    /* Border + rule color */
+    --terracotta: #B85C38;    /* Warm accent for calls-to-action */
+    --clay: #A88A6A;          /* Kept for backward compat with existing rules */
     --clay-deep: #8C6F52;
     --ink: #33352E;
     --ink-soft: #5A5C50;
-    --line: #C9C3B4;
+    --line: #B49676;          /* Was #C9C3B4 — now warmer sepia-tinted */
     --accent-line: #06C755;
     --serif: 'Noto Serif TC', 'Songti TC', Georgia, serif;
     --sans: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -47,6 +58,51 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
   html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
   body { min-height: 100vh; position: relative; overflow-x: hidden; padding-bottom: 100px; }
+  /* R118 Phase 1 — subtle parchment texture layered over the body background.
+     Uses the R115 hero-wallpaper at 4% opacity so leaves are barely visible
+     but the paper-grain feel is present everywhere. Fixed positioning so
+     the texture doesn't scroll with content. pointer-events:none + z-index:0
+     so it never blocks interaction. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: url("assets/hero-wallpaper.jpg") center/1000px repeat;
+    opacity: 0.04;
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* R118 Phase 1 — italic-serif heading treatment for major titles.
+     Applied broadly: .title (wizard/result page hero), .kicker (small
+     eyebrow above titles), h1/h2 in dash-section. All get the sepia
+     tone + italic serif so headers read as "botanical book chapter"
+     rather than "SaaS product". */
+  .title, h1.title {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--forest);
+    letter-spacing: -0.01em;
+  }
+  .kicker {
+    color: var(--sepia);
+    font-style: italic;
+    font-family: var(--serif);
+    letter-spacing: 0.06em;
+  }
+  /* Section h2 gets a hair-thin sepia rule underneath as a botanical
+     divider. Applied at ::after so we don't rewrite the h2 HTML. */
+  .dash-section h2 {
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--sepia-line);
+    position: relative;
+  }
+  .dash-section h2::after {
+    content: "";
+    position: absolute;
+    left: 0; bottom: -3px;
+    width: 40px; height: 1px;
+    background: var(--sepia);
+  }
 
   /* R35 — Respect prefers-reduced-motion. Users who opt in (OS/browser setting)
      get near-instant animations/transitions instead of the cubic-bezier easing
@@ -536,13 +592,31 @@
   .nav-btn.hidden { visibility: hidden; }
   .foot-note { font-size: 12.5px; color: var(--ink-soft); font-family: var(--serif); font-style: italic; }
   .cta {
-    background: var(--forest); color: var(--paper); border: none; border-radius: 30px;
+    /* R118 Phase 1: primary CTA moves from flat forest to a warm sepia
+       gradient so it reads as "botanical illustration book plate CTA"
+       rather than "SaaS submit button". Rounded pill shape and letter-
+       spacing preserved so muscle memory + a11y (focus ring, hit target
+       via min-height on wrapping containers) remain intact. */
+    background: linear-gradient(180deg, #3F4A37 0%, var(--forest) 100%);
+    color: var(--paper); border: none; border-radius: 30px;
     padding: 13px 26px; font-size: 14.5px; font-weight: 600; cursor: pointer;
     font-family: var(--sans); letter-spacing: 0.03em;
-    box-shadow: 0 12px 24px -12px rgba(44,53,38,0.6); transition: all .3s;
+    box-shadow: 0 8px 20px -10px rgba(44,53,38,0.55), inset 0 1px 0 rgba(255,255,255,0.10);
+    transition: all .3s;
   }
-  .cta:hover { transform: translateY(-2px); }
+  .cta:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -12px rgba(44,53,38,0.7), inset 0 1px 0 rgba(255,255,255,0.15); }
   .cta:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; transform: none; }
+  /* Secondary/warm CTA — for accent actions like "分享" / "列印" that want
+     to feel botanical + friendly without stealing focus from primary. */
+  .cta-warm {
+    background: linear-gradient(180deg, var(--sepia-soft) 0%, var(--sepia) 100%);
+    color: var(--paper); border: none; border-radius: 30px;
+    padding: 11px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+    font-family: var(--sans); letter-spacing: 0.03em;
+    box-shadow: 0 8px 18px -12px rgba(140,111,82,0.5), inset 0 1px 0 rgba(255,255,255,0.14);
+    transition: all .3s;
+  }
+  .cta-warm:hover { transform: translateY(-2px); }
 
   /* RESULT page */
   .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 22px; margin-bottom: 32px; }
