@@ -3255,8 +3255,9 @@
 
   /* This-month combined care list */
   .dash-care-card {
-    background: var(--paper);
-    border: 1px solid rgba(110,126,96,0.22);
+    background: linear-gradient(180deg, rgba(255,250,235,0.75) 0%, rgba(232,217,190,0.5) 100%);
+    border: 1px solid var(--sepia-line);
+    box-shadow: inset 0 0 22px rgba(140,111,82,0.05);
     border-radius: 12px;
     padding: 14px 14px 6px;
   }
@@ -3519,8 +3520,9 @@
      Big upload pad on first paint, photo preview + analyze button after,
      structured diagnosis card with severity badge + action steps after that. */
   .dash-doctor-card {
-    background: var(--paper);
-    border: 1px solid rgba(110,126,96,0.22);
+    background: linear-gradient(180deg, rgba(255,250,235,0.75) 0%, rgba(232,217,190,0.5) 100%);
+    border: 1px solid var(--sepia-line);
+    box-shadow: inset 0 0 22px rgba(140,111,82,0.05);
     border-radius: 12px;
     padding: 14px;
     display: flex; flex-direction: column; gap: 12px;
@@ -3902,27 +3904,19 @@
     border-color: rgba(45,139,92,0.35);
     color: #1F5A3C;
   }
-  /* R121 Phase 4 — unified dashboard card treatment. Multiple existing
-     card classes (dash-care-card, ddash-today-card, ddash-share-card,
-     ddash-settings-card, dash-doctor-card) all serve as the primary
-     content container of their dash-section. Rather than editing each
-     rule individually, add a single grouped rule that reskins them all
-     to the parchment + sepia idiom. */
-  .dash-care-card,
-  .ddash-today-card,
-  .ddash-share-card,
-  .ddash-settings-card,
-  .dash-doctor-card,
-  .ddash-budget-card {
-    background: linear-gradient(180deg, rgba(255,250,235,0.75) 0%, rgba(232,217,190,0.5) 100%) !important;
-    border: 1px solid var(--sepia-line) !important;
-    box-shadow: inset 0 0 22px rgba(140,111,82,0.05);
-  }
+  /* R121 Phase 4 → R124 cleanup: the grouped rule with !important was
+     replaced by direct edits to each of the 6 per-card rules. Same
+     visual outcome, but future state variants (.selected, .dragging,
+     data-severity=high, etc.) can now override cleanly via normal
+     specificity without needing !important themselves. See the six
+     per-card rules elsewhere in this file for the baked-in parchment
+     gradient + sepia border. */
 
   /* Today's list */
   .ddash-today-card {
-    background: var(--paper);
-    border: 1px solid rgba(110,126,96,0.22);
+    background: linear-gradient(180deg, rgba(255,250,235,0.75) 0%, rgba(232,217,190,0.5) 100%);
+    border: 1px solid var(--sepia-line);
+    box-shadow: inset 0 0 22px rgba(140,111,82,0.05);
     border-radius: 12px;
     padding: 10px 16px;
   }
@@ -4563,8 +4557,9 @@
 
   /* Settings */
   .ddash-settings-card {
-    background: var(--paper);
-    border: 1px solid rgba(110,126,96,0.22);
+    background: linear-gradient(180deg, rgba(255,250,235,0.75) 0%, rgba(232,217,190,0.5) 100%);
+    border: 1px solid var(--sepia-line);
+    box-shadow: inset 0 0 22px rgba(140,111,82,0.05);
     border-radius: 12px;
     padding: 14px;
     display: flex; flex-wrap: wrap; gap: 8px;
@@ -4593,8 +4588,9 @@
 
   /* R72: Share this design — link / QR / LINE */
   .ddash-share-card {
-    background: var(--paper);
-    border: 1px solid rgba(110,126,96,0.22);
+    background: linear-gradient(180deg, rgba(255,250,235,0.75) 0%, rgba(232,217,190,0.5) 100%);
+    border: 1px solid var(--sepia-line);
+    box-shadow: inset 0 0 22px rgba(140,111,82,0.05);
     border-radius: 12px;
     padding: 14px 16px;
     display: flex; flex-direction: column; gap: 10px;
@@ -4689,8 +4685,9 @@
 
   /* R64: Budget editor on per-design dashboard */
   .ddash-budget-card {
-    background: var(--paper);
-    border: 1px solid rgba(110,126,96,0.22);
+    background: linear-gradient(180deg, rgba(255,250,235,0.75) 0%, rgba(232,217,190,0.5) 100%);
+    border: 1px solid var(--sepia-line);
+    box-shadow: inset 0 0 22px rgba(140,111,82,0.05);
     border-radius: 12px;
     padding: 14px 16px 16px;
     display: flex; flex-direction: column; gap: 10px;
