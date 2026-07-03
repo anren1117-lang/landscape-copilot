@@ -20376,16 +20376,24 @@ function render3D(layers, recs, allRecs) {
                plate, and the info chips float above it like a caption. -->
           <rect x="10" y="60" width="${svgW - 20}" height="${svgH - 70}" fill="none" stroke="#8C6F52" stroke-width="1.4" opacity="0.75"/>
           <rect x="16" y="66" width="${svgW - 32}" height="${svgH - 82}" fill="none" stroke="#8C6F52" stroke-width="0.6" opacity="0.55"/>
-          <!-- R115: botanical corner ornaments (watercolor ferns, generated
+          <!-- R115 botanical corner ornaments (watercolor ferns, generated
                via Pollinations). Multiply blend-mode so the cream card
                background of the corner image tints into the parchment
-               instead of stamping a hard rectangle. -->
+               instead of stamping a hard rectangle.
+               R116 debug fix: browser support for transform-origin on SVG
+               image via inline style is unreliable — the mirrored corners
+               flipped around x=0 and landed off-screen. Using SVG native
+               transform attribute with rotate(deg cx cy) instead. -->
           <image href="assets/frame-corner-tl.jpg" x="10"           y="60"            width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply;"/>
-          <image href="assets/frame-corner-tr.jpg" x="${svgW - 82}" y="60"            width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply; transform: scaleX(-1); transform-origin: ${(svgW - 46).toFixed(1)}px 96px;"/>
-          <image href="assets/frame-corner-bl.jpg" x="10"           y="${svgH - 92}"  width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply; transform: scaleY(-1); transform-origin: 46px ${(svgH - 56).toFixed(1)}px;"/>
-          <image href="assets/frame-corner-br.jpg" x="${svgW - 82}" y="${svgH - 92}"  width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply; transform: scale(-1, -1); transform-origin: ${(svgW - 46).toFixed(1)}px ${(svgH - 56).toFixed(1)}px;"/>
-          <!-- Botanical horizontal frieze at the bottom above the caption. -->
-          <image href="assets/frame-banner.jpg" x="90" y="${svgH - 44}" width="${svgW - 180}" height="18" opacity="0.7" style="mix-blend-mode: multiply;"/>
+          <image href="assets/frame-corner-tr.jpg" x="${svgW - 82}" y="60"            width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply;" transform="rotate(90 ${svgW - 46} 96)"/>
+          <image href="assets/frame-corner-bl.jpg" x="10"           y="${svgH - 92}"  width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply;" transform="rotate(-90 46 ${svgH - 56})"/>
+          <image href="assets/frame-corner-br.jpg" x="${svgW - 82}" y="${svgH - 92}"  width="72" height="72" opacity="0.9" style="mix-blend-mode: multiply;" transform="rotate(180 ${svgW - 46} ${svgH - 56})"/>
+          <!-- Botanical horizontal frieze at the bottom above the caption.
+               R116 debug fix: bumped opacity 0.7 → 1.0 and height 18 → 26
+               so the frieze actually reads on the cream parchment. At 0.7
+               with multiply blend + paper grain overlay on top, it was
+               washing out to invisible. -->
+          <image href="assets/frame-banner.jpg" x="80" y="${svgH - 50}" width="${svgW - 160}" height="26" opacity="1" style="mix-blend-mode: multiply;"/>
           <!-- R112 critic B1: caption now uses data-zh/data-en so applyLanguage
                swaps it correctly on lang toggle. Pre-R112 it was baked with a
                state.lang ternary; combined with the R112 perf short-circuit
