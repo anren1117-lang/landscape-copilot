@@ -660,11 +660,25 @@
   .tabs-wrap::after  { right: 0; background: linear-gradient(to left,  var(--paper), transparent); border-radius: 0 999px 999px 0; }
   .tabs-wrap.at-start::before { opacity: 0; }
   .tabs-wrap.at-end::after    { opacity: 0; }
-  .tabs { display: flex; gap: 2px; background: rgba(255,255,255,0.5); border: 1px solid var(--line); border-radius: 999px; padding: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+  /* R120 Phase 3: tabs feel like tabs stitched to the top of a botanical
+     book. Parchment fill with sepia border, current tab in forest gradient
+     with paper text. Font stays sans (tabs are navigation, not editorial
+     content) so they read cleanly at small sizes. */
+  .tabs {
+    display: flex; gap: 2px;
+    background: linear-gradient(180deg, rgba(255,250,235,0.7) 0%, rgba(232,217,190,0.55) 100%);
+    border: 1px solid var(--sepia-line); border-radius: 999px; padding: 4px;
+    max-width: 100%; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; -webkit-overflow-scrolling: touch;
+    box-shadow: inset 0 0 18px rgba(140,111,82,0.06);
+  }
   .tabs::-webkit-scrollbar { display: none; }
-  .tab { padding: 11px 16px; min-height: 44px; background: none; border: none; border-radius: 999px; font-family: inherit; font-size: 13.5px; color: var(--ink-soft); cursor: pointer; white-space: nowrap; font-weight: 500; transition: all .2s; display: inline-flex; align-items: center; -webkit-tap-highlight-color: transparent; }
-  .tab:hover { color: var(--forest); }
-  .tab.active { background: var(--forest); color: var(--paper); }
+  .tab { padding: 11px 16px; min-height: 44px; background: none; border: none; border-radius: 999px; font-family: inherit; font-size: 13.5px; color: var(--sepia); cursor: pointer; white-space: nowrap; font-weight: 500; transition: all .2s; display: inline-flex; align-items: center; -webkit-tap-highlight-color: transparent; }
+  .tab:hover { color: var(--forest); background: rgba(140,111,82,0.06); }
+  .tab.active {
+    background: linear-gradient(180deg, var(--forest-soft) 0%, var(--forest) 100%);
+    color: var(--paper); font-weight: 600;
+    box-shadow: 0 4px 10px -6px rgba(44,53,38,0.5), inset 0 1px 0 rgba(255,255,255,0.10);
+  }
   .tab.active:active { transform: scale(0.98); transition: transform .08s; }
 
   /* section diagram (vertical layers) */
@@ -2534,24 +2548,65 @@
 
   /* recommendation grid */
   .rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-  .rec-card { padding: 18px; border-radius: 16px; background: rgba(255,255,255,0.5); border: 1px solid var(--line); cursor: pointer; transition: all .3s; display: flex; flex-direction: column; font-family: inherit; text-align: left; -webkit-tap-highlight-color: transparent; }
-  .rec-card:hover { transform: translateY(-3px); border-color: var(--sage); box-shadow: 0 14px 28px -16px rgba(44,53,38,0.35); }
+  /* R120 Phase 3: rec cards are now botanical-book plates.
+     - Parchment gradient fill (matches R119 .card-opt)
+     - Sepia border with a subtle inset warmth shadow
+     - Corner-ornament ::before that's a small watercolor-fern icon in
+       the top-left, reading as a "plate mark" of the botanical page.
+     - Serif italic Latin name (already), bumped weight on the ZH name.
+     - Hover deepens the sepia + lifts + adds a warm shadow. */
+  .rec-card {
+    position: relative;
+    padding: 18px 18px 18px 22px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255,250,235,0.75) 0%, rgba(232,217,190,0.55) 100%);
+    border: 1px solid var(--sepia-line);
+    box-shadow: inset 0 0 22px rgba(140,111,82,0.05);
+    cursor: pointer; transition: all .3s;
+    display: flex; flex-direction: column;
+    font-family: inherit; text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .rec-card::before {
+    /* Small sepia botanical fleuron in the top-left. Purely decorative;
+       aria-hidden by virtue of being CSS. */
+    content: "❋";
+    position: absolute;
+    top: 8px; left: 8px;
+    font-size: 10px;
+    color: var(--sepia);
+    opacity: 0.6;
+    line-height: 1;
+    pointer-events: none;
+  }
+  .rec-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--sepia);
+    box-shadow:
+      inset 0 0 22px rgba(140,111,82,0.10),
+      0 14px 28px -16px rgba(140,111,82,0.35);
+  }
   /* Touch feedback — without an :active state, taps on mobile feel "dead" while
      the user waits for the drawer to open. The subtle inset + sage border gives
      the same affordance as the hover lift, but works on touch where hover doesn't. */
-  .rec-card:active { transform: translateY(0); border-color: var(--sage-deep); background: rgba(110,126,96,0.08); transition: all .08s; }
+  .rec-card:active {
+    transform: translateY(0);
+    border-color: var(--sepia);
+    background: linear-gradient(180deg, rgba(232,217,190,0.85) 0%, rgba(212,195,160,0.7) 100%);
+    transition: all .08s;
+  }
   .dict-chip { -webkit-tap-highlight-color: transparent; }
   .dict-chip:active { background: rgba(110,126,96,0.15); transition: background .08s; }
   .rec-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
-  .rec-swatch { width: 40px; height: 40px; border-radius: 12px; }
-  .rec-match { font-family: var(--serif); font-size: 24px; font-weight: 700; color: var(--sage-deep); line-height: 1; }
-  .rec-match-pct { font-size: 11px; font-weight: 400; color: var(--ink-soft); margin-left: 3px; }
+  .rec-swatch { width: 40px; height: 40px; border-radius: 12px; border: 1px solid rgba(140,111,82,0.25); }
+  .rec-match { font-family: var(--serif); font-style: italic; font-size: 26px; font-weight: 700; color: var(--sepia); line-height: 1; }
+  .rec-match-pct { font-size: 11px; font-weight: 400; font-style: normal; color: var(--ink-soft); margin-left: 3px; }
   .rec-name { font-size: 19px; font-weight: 600; font-family: var(--serif); color: var(--forest); }
-  .rec-latin { font-size: 12.5px; font-style: italic; color: var(--ink-soft); font-family: var(--serif); margin-top: 2px; }
-  .rec-type { font-size: 12px; color: var(--clay-deep); margin-top: 8px; font-weight: 500; }
+  .rec-latin { font-size: 12.5px; font-style: italic; color: var(--sepia); font-family: var(--serif); margin-top: 2px; }
+  .rec-type { font-size: 12px; color: var(--sepia); font-family: var(--serif); font-style: italic; margin-top: 8px; font-weight: 500; letter-spacing: 0.02em; }
   .rec-reasons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; flex: 1; align-content: flex-start; }
-  .rec-tag { font-size: 11px; padding: 3px 9px; border-radius: 20px; background: rgba(168,138,106,0.15); color: var(--clay-deep); }
-  .rec-view { font-size: 12.5px; color: var(--forest); margin-top: 14px; font-weight: 600; letter-spacing: 0.02em; }
+  .rec-tag { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: rgba(140,111,82,0.12); color: var(--sepia); border: 1px solid rgba(140,111,82,0.20); }
+  .rec-view { font-size: 12.5px; color: var(--forest); margin-top: 14px; font-weight: 600; letter-spacing: 0.02em; font-family: var(--serif); font-style: italic; }
 
   /* GARDEN PLAN SVG */
   .plan-frame {
