@@ -42,7 +42,10 @@
     --forest-soft: #3F4A37;
     --sage: #8A9A7B;
     --sage-deep: #6E7E60;
-    --sepia: #8C6F52;         /* Promoted from --clay-deep to primary accent */
+    /* R123 critic B1 fix: darkened from #8C6F52 → #7A5F42 so sepia-on-
+       parchment small text (kicker 11.5px, rec-latin 12.5px, rec-tag 11px
+       et al.) clears WCAG AA 4.5:1 on --paper #F1E6CB (was ~4.07:1). */
+    --sepia: #7A5F42;         /* Promoted from --clay-deep to primary accent */
     --sepia-soft: #A88A6A;
     --sepia-line: #B49676;    /* Border + rule color */
     --terracotta: #B85C38;    /* Warm accent for calls-to-action */
@@ -50,7 +53,7 @@
     --clay-deep: #8C6F52;
     --ink: #33352E;
     --ink-soft: #5A5C50;
-    --line: #B49676;          /* Was #C9C3B4 — now warmer sepia-tinted */
+    --line: #B49676;          /* Warmer sepia-tinted (was cool gray pre-R118) */
     --accent-line: #06C755;
     --serif: 'Noto Serif TC', 'Songti TC', Georgia, serif;
     --sans: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -72,6 +75,13 @@
     pointer-events: none;
     z-index: 0;
   }
+  /* R123 critic B6 fix: shrink the parchment tile on narrow viewports so
+     the leaf pattern is actually visible. At 1000px repeat on a 360px
+     phone, one tile spans ~2.8 screens and the pattern feels like a
+     solid tone. */
+  @media (max-width: 640px) {
+    body::before { background-size: 500px; }
+  }
   /* R118 Phase 1 — italic-serif heading treatment for major titles.
      Applied broadly: .title (wizard/result page hero), .kicker (small
      eyebrow above titles), h1/h2 in dash-section. All get the sepia
@@ -84,10 +94,14 @@
     letter-spacing: -0.01em;
   }
   .kicker {
+    /* R123 critic B4 fix: removed font-style italic. Existing .kicker
+       rule below sets text-transform: uppercase + letter-spacing 0.28em;
+       italic small-caps with heavy tracking reads as broken typography.
+       Upright serif small-caps in sepia is the correct "botanical-book
+       eyebrow" idiom. Also dropped letter-spacing here — the older rule
+       wins on cascade and 0.28em is the intended tracking. */
     color: var(--sepia);
-    font-style: italic;
     font-family: var(--serif);
-    letter-spacing: 0.06em;
   }
   /* Section h2 gets a hair-thin sepia rule underneath as a botanical
      divider. Applied at ::after so we don't rewrite the h2 HTML. */
@@ -3070,8 +3084,18 @@
     .grain, .glow-tl, .glow-br, .screen-bar, footer.nav, .tabs, .drawer-overlay, .qr-overlay { display: none !important; }
     main.body { max-width: none; padding: 0 12mm; }
     header.brand { padding: 12mm 12mm 0; }
-    .card-opt, .layer-row, .rec-card, .plan-frame, .cal-frame, .shop-frame {
-      background: white !important; box-shadow: none !important; border-color: #ccc !important;
+    .card-opt, .layer-row, .rec-card, .plan-frame, .cal-frame, .shop-frame,
+    /* R123 critic B3 fix: R121's dashboard card group with !important
+       currently prints the beige parchment gradient onto white paper —
+       wastes toner + reduces contrast. Override to white here so print
+       output is clean. All 6 cards flattened to white with a gray hair
+       border. */
+    .dash-care-card, .ddash-today-card, .ddash-share-card,
+    .ddash-settings-card, .dash-doctor-card, .ddash-budget-card,
+    .design-dash-header, .design-logic-panel .design-logic-body {
+      background: white !important;
+      background-image: none !important;
+      box-shadow: none !important; border-color: #ccc !important;
     }
     h1.title { font-size: 28px; }
     .chip { background: #f5f3eb !important; }
@@ -17250,7 +17274,7 @@ function renderCompass() {
           <stop offset="100%" stop-color="rgba(196,184,144,0.05)"/>
         </radialGradient>
       </defs>
-      <circle cx="120" cy="120" r="110" fill="url(#cgrad)" stroke="#C9C3B4" stroke-width="2"/>
+      <circle cx="120" cy="120" r="110" fill="url(#cgrad)" stroke="#B49676" stroke-width="2"/>
       <circle cx="120" cy="120" r="90" fill="none" stroke="rgba(196,184,144,0.4)" stroke-width="1" stroke-dasharray="4 4"/>
       <!-- Tick marks every 30° -->
       ${[...Array(12).keys()].map(i => {
@@ -19067,7 +19091,7 @@ function renderPlan(layers, recs) {
 
   const ground = `
     <rect x="20" y="20" width="${dims.w - 40}" height="${dims.h - 40}" rx="14"
-          fill="rgba(196,184,144,0.18)" stroke="#C9C3B4" stroke-width="1.2" stroke-dasharray="6 4"/>`;
+          fill="rgba(196,184,144,0.18)" stroke="#B49676" stroke-width="1.2" stroke-dasharray="6 4"/>`;
 
   const labelBar = `
     <text x="32" y="46" font-size="11" letter-spacing="0.18em" fill="#8C6F52" font-weight="600">
@@ -19693,8 +19717,8 @@ function render3D(layers, recs, allRecs) {
       const winY1 = (c0.iy + c1.iy) / 2 - wallH + 12;
       const winY2 = (c0.iy + c1.iy) / 2 - 12;
       backWall = `
-        <polygon points="${wallLeft}"  fill="#E8E3D2" stroke="#C9C3B4" stroke-width="0.8" opacity="0.92"/>
-        <polygon points="${wallRight}" fill="#DFD9C7" stroke="#C9C3B4" stroke-width="0.8" opacity="0.92"/>
+        <polygon points="${wallLeft}"  fill="#E8E3D2" stroke="#B49676" stroke-width="0.8" opacity="0.92"/>
+        <polygon points="${wallRight}" fill="#DFD9C7" stroke="#B49676" stroke-width="0.8" opacity="0.92"/>
         <rect x="${winX1.toFixed(1)}" y="${winY1.toFixed(1)}" width="${(winX2 - winX1).toFixed(1)}" height="${(winY2 - winY1).toFixed(1)}" fill="url(#skyGrad)" stroke="#A88A6A" stroke-width="1.4" opacity="0.9"/>
         <line x1="${((winX1 + winX2) / 2).toFixed(1)}" y1="${winY1.toFixed(1)}" x2="${((winX1 + winX2) / 2).toFixed(1)}" y2="${winY2.toFixed(1)}" stroke="#A88A6A" stroke-width="1"/>
         <line x1="${winX1.toFixed(1)}" y1="${((winY1 + winY2) / 2).toFixed(1)}" x2="${winX2.toFixed(1)}" y2="${((winY1 + winY2) / 2).toFixed(1)}" stroke="#A88A6A" stroke-width="1"/>`;
@@ -20457,7 +20481,7 @@ function render3D(layers, recs, allRecs) {
   const heroPill = `
     <g pointer-events="none">
       <rect x="${pillX.toFixed(1)}" y="10" width="${pillW}" height="46" rx="23"
-            fill="rgba(252,248,238,0.88)" stroke="#C9C3B4" stroke-width="1.1"/>
+            fill="rgba(252,248,238,0.88)" stroke="#B49676" stroke-width="1.1"/>
       <text x="${(svgW / 2).toFixed(1)}" y="30" text-anchor="middle"
             font-family="Noto Serif TC" font-size="17" font-weight="700"
             fill="#3F4A37" data-zh="${heroTitleZh}" data-en="${heroTitleEn}">${heroTitle}</text>
@@ -20572,7 +20596,7 @@ function render3D(layers, recs, allRecs) {
         <g ${state.iso3dArtMode ? 'filter="url(#watercolorFilter)"' : ""}>
           ${mountains}
           ${backWall}
-          <polygon points="${groundPoly}" fill="url(#groundGrad)" stroke="${state.iso3dArtMode ? "#A88A6A" : "#C9C3B4"}" stroke-width="${state.iso3dArtMode ? "1.6" : "1.2"}"/>
+          <polygon points="${groundPoly}" fill="url(#groundGrad)" stroke="${state.iso3dArtMode ? "#A88A6A" : "#B49676"}" stroke-width="${state.iso3dArtMode ? "1.6" : "1.2"}"/>
           ${sunWash}
           ${gridLines}
           ${groundTexture}
@@ -20713,7 +20737,7 @@ function renderLayers(layers, recs) {
           <div class="layer-arrow">→</div>
         </div>` : `
         <div class="layer-row empty">
-          <div class="layer-bar" style="background:#C9C3B4"></div>
+          <div class="layer-bar" style="background:#B49676"></div>
           <div class="layer-info">
             <div class="layer-tier" data-zh="${l.tier_zh}" data-en="${l.tier_en}">${l.tier_zh}</div>
             <div class="layer-desc" data-zh="${l.desc_zh}" data-en="${l.desc_en}">${l.desc_zh}</div>
