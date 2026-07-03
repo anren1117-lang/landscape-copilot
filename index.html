@@ -4006,67 +4006,74 @@
     display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
     padding: 10px 4px 0;
   }
+  /* R122 Phase 5: layout editor toolbar shares the botanical language.
+     Secondary chips are parchment-filled with sepia border; primary Add
+     button is forest gradient so it matches the wizard step.current +
+     result-tab.active + primary CTA. */
   .layout-editor-reset {
-    background: var(--paper);
-    color: var(--forest);
-    border: 1.5px solid rgba(110,126,96,0.30);
-    padding: 7px 14px;
-    border-radius: 8px;
+    background: rgba(255,250,235,0.7);
+    color: var(--sepia);
+    border: 1px solid var(--sepia-line);
+    padding: 8px 14px;
+    border-radius: 999px;
     font-size: 12.5px;
     font-weight: 500;
+    font-family: var(--serif); font-style: italic;
     cursor: pointer;
-    font-family: inherit;
   }
   .layout-editor-reset:hover {
-    background: var(--sage-deep);
+    background: linear-gradient(180deg, var(--sepia-soft) 0%, var(--sepia) 100%);
     color: var(--paper);
-    border-color: var(--sage-deep);
+    border-color: var(--sepia);
   }
   .layout-editor-hint {
     font-size: 11.5px;
-    color: var(--clay);
+    color: var(--sepia);
     font-style: italic;
     font-family: var(--serif);
   }
   .layout-editor-add {
-    background: var(--sage-deep);
+    background: linear-gradient(180deg, var(--forest-soft) 0%, var(--forest) 100%);
     color: var(--paper);
     border: 0;
-    padding: 8px 16px;
-    border-radius: 8px;
+    padding: 9px 18px;
+    border-radius: 999px;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+    box-shadow: 0 4px 10px -6px rgba(44,53,38,0.55), inset 0 1px 0 rgba(255,255,255,0.10);
   }
-  .layout-editor-add:hover { background: var(--forest); }
+  .layout-editor-add:hover { transform: translateY(-1px); }
 
-  /* R84: secondary toolbar chips — labels toggle + undo */
+  /* R84: secondary toolbar chips — labels toggle + undo. R122: parchment
+     pills with sepia border, italic serif. Same idiom as .wiz-step. */
   .layout-editor-chip {
-    background: var(--paper);
-    color: var(--forest);
-    border: 1.5px solid rgba(110,126,96,0.30);
-    padding: 7px 12px;
-    border-radius: 8px;
+    background: rgba(255,250,235,0.55);
+    color: var(--sepia);
+    border: 1px solid var(--sepia-line);
+    padding: 8px 12px;
+    border-radius: 999px;
     font-size: 12.5px;
     font-weight: 500;
+    font-family: var(--serif); font-style: italic;
     cursor: pointer;
-    font-family: inherit;
-    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   }
   .layout-editor-chip:hover:not(:disabled) {
-    background: var(--sage-deep);
+    background: linear-gradient(180deg, var(--sepia-soft) 0%, var(--sepia) 100%);
     color: var(--paper);
-    border-color: var(--sage-deep);
+    border-color: var(--sepia);
   }
   .layout-editor-chip:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
   .layout-editor-chip.on {
-    background: var(--clay);
+    background: linear-gradient(180deg, var(--forest-soft) 0%, var(--forest) 100%);
     color: var(--paper);
-    border-color: var(--clay);
+    border-color: var(--forest);
+    font-style: normal; font-weight: 600;
   }
 
   /* R84: Color palette swatch row beneath the canvas */
