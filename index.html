@@ -9284,12 +9284,20 @@ const state = {
   show3DNative: false,
   // R111: art-mode toggle for the 3D tab. When on, the isometric view is
   // wrapped in an SVG watercolor filter + swapped to a botanical-illustration
-  // colour palette (warm cream sky, muted greens, sepia frame). Off by
-  // default so first-visit users see the honest microclimate view.
+  // colour palette (warm cream sky, muted greens, sepia frame).
+  //
+  // R136 (user ask): "everytime the 3d graph of the layout is shown make it
+  // into an more like an art work". Default flipped from false → true so
+  // first-time viewers land on the watercolor botanical illustration —
+  // it's the framing the whole R118+ redesign extends. The 🎨 toggle
+  // still lets users cycle to ink wash or turn it off entirely if they
+  // want the honest microclimate view.
+  //
   // R112 critic B3: intentionally NOT persisted to snapshotState or the URL
   // hash — art mode is a view lens, not a design property. Recipients of a
-  // shared #d= link should land on the honest scene and opt in themselves.
-  iso3dArtMode: false,
+  // shared #d= link inherit the R136 default (art-on) locally, not from
+  // the sender's preference.
+  iso3dArtMode: true,
   // R129: which art style is applied when iso3dArtMode is on.
   //   "watercolor" — R111 default (organic feTurbulence edges + warm cream)
   //   "inkwash"    — R129 addition (sepia monochrome, feColorMatrix)
