@@ -9948,16 +9948,32 @@ function clearPrefs() {
 //   disliked — plants the user disliked that *would have been in top-8* without the dislike
 //              (counterfactual: re-score ignoring dislikes, then check the top-8)
 // Old callers that treat the return as a number still get a useful sum via valueOf.
-function prefImpactCount(recs) {
+function prefImpactCount(recs, scored) {
   const liked = (state.prefs && state.prefs.liked) || {};
   const disliked = (state.prefs && state.prefs.disliked) || {};
   const pinned = (state.prefs && state.prefs.pinned) || {};
   const likedHit = (recs || []).slice(0, 8).filter(p => liked[p.id] || pinned[p.id]).length;
   let dislikedHit = 0;
   if (Object.keys(disliked).length) {
-    // Counterfactual top-8 without the dislike penalty applied
-    const counterfactual = scorePlants({ ignoreDislike: true }).filter(p => p.score >= 30).slice(0, 8);
-    dislikedHit = counterfactual.filter(p => disliked[p.id]).length;
+    // R134 perf (R103 perf-critic #4): derive the counterfactual top-8
+    // from the already-computed `scored` array when the caller can pass
+    // it — every plant's counterfactual score is `score + 15` if it's
+    // a disliked plant (undoing the -15 penalty from scorePlants line
+    // ~9740), and unchanged otherwise. That's O(N) map+sort instead of
+    // a second full scorePlants() pass (which does 6+ regex tests per
+    // plant across ~245 plants). Fallback to the original re-score for
+    // callers that don't have `scored`.
+    if (scored && Array.isArray(scored)) {
+      const counterfactual = scored
+        .map(p => disliked[p.id] ? { ...p, score: Math.min(99, p.score + 15) } : p)
+        .filter(p => p.score >= 30)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8);
+      dislikedHit = counterfactual.filter(p => disliked[p.id]).length;
+    } else {
+      const counterfactual = scorePlants({ ignoreDislike: true }).filter(p => p.score >= 30).slice(0, 8);
+      dislikedHit = counterfactual.filter(p => disliked[p.id]).length;
+    }
   }
   const result = { liked: likedHit, disliked: dislikedHit, total: likedHit + dislikedHit };
   // Backwards-compatible numeric coercion so any leftover `>= N` / arithmetic callers still work.
@@ -19348,7 +19364,7 @@ function renderSustainChips(recs) {
   // of the visible top-8 they affected. The "清除偏好" link is the reversible
   // escape hatch so nothing is ever locked in.
   const prefTotal = prefTotalCount();
-  const prefImpact = prefImpactCount(top);
+  const prefImpact = prefImpactCount(top, scored);
   const pinTotal = pinnedCount();
   // Pinned plants get their own micro-note so the user sees explicitly
   // "X plants are guaranteed in this design" — pinning is a stronger commit
