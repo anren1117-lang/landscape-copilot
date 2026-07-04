@@ -12172,9 +12172,13 @@ function renderDesignMiniSVG(snap, layoutOverride) {
   const rectY = (vbH - rectH) / 2;
 
   // Background tint by sun exposure — gold for full sun, muted teal for shade.
-  let bgTint = "rgba(196,210,176,0.16)";
-  if (snap.sun === "shade") bgTint = "rgba(70,90,80,0.14)";
-  if (snap.sun === "full")  bgTint = "rgba(245,210,140,0.18)";
+  // R137 polish: shifted all three toward warmer parchment palette so mini-SVGs
+  // read as botanical-book plates in the home gallery (complements R136's
+  // watercolor default on the full 3D tab). Sun tints stay recognizable but
+  // now sit against a cream base instead of neutral gray.
+  let bgTint = "rgba(232,217,180,0.24)";  // parchment cream (part sun / default)
+  if (snap.sun === "shade") bgTint = "rgba(180,190,170,0.22)";  // cool sage cream
+  if (snap.sun === "full")  bgTint = "rgba(245,220,155,0.28)";  // warm honey cream
 
   // R67 gallery sync: if the caller passed an explicit `layoutOverride`
   // (the design entry's saved layout), use those token positions so the
@@ -12269,20 +12273,25 @@ function renderDesignMiniSVG(snap, layoutOverride) {
         </clipPath>
       </defs>
       <rect x="0" y="0" width="${vbW}" height="${vbH}" fill="${bgTint}" rx="8"/>
+      <!-- R137: subtle sepia botanical-book inner frame so the mini-svg reads
+           as a plate in the home gallery. Hair-line at 30% opacity so it's
+           present but doesn't compete with the plant tokens. -->
+      <rect x="3" y="3" width="${vbW - 6}" height="${vbH - 6}" fill="none"
+            stroke="rgba(140,111,82,0.30)" stroke-width="0.6" rx="7"/>
       <rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}" width="${rectW.toFixed(1)}" height="${rectH.toFixed(1)}"
             fill="url(#${gridId})"
             clip-path="url(#${clipId})"/>
-      ${shapeOutlineSVG(miniShape, rectX, rectY, rectW, rectH, { stroke: "rgba(110,126,96,0.50)", strokeWidth: 1 })}
+      ${shapeOutlineSVG(miniShape, rectX, rectY, rectW, rectH, { stroke: "rgba(140,111,82,0.55)", strokeWidth: 1 })}
       ${plantsHtml}
       ${emptyStateHtml}
       <g class="mini-compass" transform="translate(${cmpX}, ${cmpY})">
-        <circle r="11" fill="rgba(255,255,255,0.78)" stroke="rgba(110,126,96,0.40)" stroke-width="0.8"/>
+        <circle r="11" fill="rgba(255,250,235,0.85)" stroke="rgba(140,111,82,0.50)" stroke-width="0.8"/>
         <path d="M 0,-8 L 2.5,0 L 0,8 L -2.5,0 Z" fill="rgba(178,80,52,0.88)"/>
-        <text y="-2.5" text-anchor="middle" font-size="6.5" font-family="serif" fill="rgba(110,126,96,0.90)" font-weight="600">N</text>
+        <text y="-2.5" text-anchor="middle" font-size="6.5" font-family="serif" fill="rgba(122,95,66,0.90)" font-weight="600">N</text>
       </g>
       <text x="${(rectX + 6).toFixed(1)}" y="${(rectY + rectH - 6).toFixed(1)}"
             font-size="9.5" font-family="serif" font-style="italic"
-            fill="rgba(110,126,96,0.85)">${areaText}</text>
+            fill="rgba(122,95,66,0.85)">${areaText}</text>
     </svg>`;
 }
 
