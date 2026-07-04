@@ -9277,6 +9277,12 @@ const state = {
   // hash — art mode is a view lens, not a design property. Recipients of a
   // shared #d= link should land on the honest scene and opt in themselves.
   iso3dArtMode: false,
+  // R129: which art style is applied when iso3dArtMode is on.
+  //   "watercolor" — R111 default (organic feTurbulence edges + warm cream)
+  //   "inkwash"    — R129 addition (sepia monochrome, feColorMatrix)
+  // Cycles via the 🎨 toggle button. Not persisted (session-only view knob,
+  // same reasoning as iso3dArtMode itself — see R112 critic B3).
+  iso3dArtVariant: "watercolor",
   // ── R36: Garden journal — text-only freeform notes attached to each named
   //    design entry. Persisted *inside* the LIST_KEY entry (no new storage
   //    key). UI state lives here so we can remember which cards are showing
@@ -19009,6 +19015,9 @@ function __tabCacheKey(tab) {
     // R111: iso3dArtMode is a 3D-tab-only knob; include so the cache doesn't
     // hand back the wrong style when the user toggles it.
     state.iso3dArtMode ? 1 : 0,
+    // R129: include the variant so the cache doesn't hand back the wrong
+    // art style when the user cycles watercolor → inkwash.
+    state.iso3dArtMode ? (state.iso3dArtVariant || "watercolor") : "",
     state.lang,
     likedKeys, dislikedKeys, pinnedKeys,
   ];
@@ -20569,13 +20578,29 @@ function render3D(layers, recs, allRecs) {
               title="${t('在 3D 視角中標示本土植物（🟢 標記 + 比例徽章）','Highlight native plants in the 3D view (🟢 markers + ratio chip)')}"
               data-zh="🟢 顯示本土"
               data-en="🟢 Show natives">${t("🟢 顯示本土", "🟢 Show natives")}</button>
-      <button class="native-toggle-btn iso3d-art-btn ${state.iso3dArtMode ? "on" : ""}"
-              id="iso3dArtToggleBtn"
-              type="button"
-              aria-pressed="${state.iso3dArtMode ? "true" : "false"}"
-              title="${t('把 3D 視角轉為植物插畫風格 — 水彩暈染 + 米色紙紋 + 復古邊框','Render the 3D view as a botanical illustration — watercolor wash, cream paper texture, sepia frame')}"
-              data-zh="🎨 藝術視角"
-              data-en="🎨 Art view">${t("🎨 藝術視角", "🎨 Art view")}</button>
+      ${(() => {
+        // R129: 3-state cycle. Off → Watercolor → Ink wash → Off.
+        // Label + tooltip reflect the CURRENT state so the user knows
+        // what they're seeing; wire3DInteractions cycles on click.
+        const isOn = state.iso3dArtMode;
+        const variant = state.iso3dArtVariant || "watercolor";
+        const labels = {
+          off:        { zh: "🎨 藝術視角",  en: "🎨 Art view",     next_zh: "點擊：水彩", next_en: "click: watercolor" },
+          watercolor: { zh: "🎨 水彩",      en: "🎨 Watercolor",   next_zh: "點擊：墨染", next_en: "click: ink wash"   },
+          inkwash:    { zh: "🖋 墨染",      en: "🖋 Ink wash",     next_zh: "點擊：關閉", next_en: "click: turn off"   },
+        };
+        const key = isOn ? variant : "off";
+        const L = labels[key] || labels.off;
+        const titleZh = "把 3D 視角轉為植物插畫風格 — 水彩 / 墨染兩種變化。" + L.next_zh;
+        const titleEn = "Render the 3D view as a botanical illustration — watercolor or ink wash. " + L.next_en;
+        return `<button class="native-toggle-btn iso3d-art-btn ${isOn ? "on" : ""}"
+                id="iso3dArtToggleBtn"
+                type="button"
+                aria-pressed="${isOn ? "true" : "false"}"
+                title="${escapeHtml(t(titleZh, titleEn))}"
+                data-zh="${L.zh}"
+                data-en="${L.en}">${state.lang === "en" ? L.en : L.zh}</button>`;
+      })()}
     </div>
     <p class="lead-small" style="font-size:11px;color:#7A7C70;margin-top:-6px;"
        data-zh="Year 1 = 剛種下；Year 5 = 開始填滿；Year 10 = 成熟冠層。地被生長快，永遠以滿尺寸顯示。"
@@ -20626,10 +20651,27 @@ function render3D(layers, recs, allRecs) {
             <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="1" seed="3" result="grain"/>
             <feColorMatrix in="grain" values="0 0 0 0 0.38  0 0 0 0 0.30  0 0 0 0 0.20  0 0 0 0.10 0"/>
           </filter>
+          <!-- R129 ink wash variant. Sepia color matrix desaturates the
+               source and re-tints to sepia (classic sepia matrix values).
+               Combined with the same feTurbulence displacement for wet-
+               on-wet edges. Result: a monochrome sepia botanical sketch
+               that reads like a 19th-century Redouté engraving. Applied
+               instead of watercolor when state.iso3dArtVariant is
+               "inkwash". -->
+          <filter id="inkwashFilter" x="-2%" y="-2%" width="104%" height="104%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6" result="displaced"/>
+            <feColorMatrix in="displaced" type="matrix" values="
+              0.393 0.769 0.189 0 0
+              0.349 0.686 0.168 0 0
+              0.272 0.534 0.131 0 0
+              0     0     0     1 0"/>
+            <feGaussianBlur stdDeviation="0.35"/>
+          </filter>
           ` : ""}
         </defs>
         ${sky}
-        <g ${state.iso3dArtMode ? 'filter="url(#watercolorFilter)"' : ""}>
+        <g ${state.iso3dArtMode ? `filter="url(#${(state.iso3dArtVariant || "watercolor") === "inkwash" ? "inkwashFilter" : "watercolorFilter"})"` : ""}>
           ${mountains}
           ${backWall}
           <polygon points="${groundPoly}" fill="url(#groundGrad)" stroke="${state.iso3dArtMode ? "#A88A6A" : "#B49676"}" stroke-width="${state.iso3dArtMode ? "1.6" : "1.2"}"/>
@@ -20668,12 +20710,17 @@ function render3D(layers, recs, allRecs) {
                with multiply blend + paper grain overlay on top, it was
                washing out to invisible. -->
           <image href="assets/frame-banner.jpg" x="80" y="${svgH - 50}" width="${svgW - 160}" height="26" opacity="1" style="mix-blend-mode: multiply;"/>
-          <!-- R112 critic B1: caption now uses data-zh/data-en so applyLanguage
-               swaps it correctly on lang toggle. Pre-R112 it was baked with a
-               state.lang ternary; combined with the R112 perf short-circuit
-               that skips the walk on zh→zh, the caption would have frozen. -->
-          <text x="${svgW / 2}" y="${svgH - 22}" text-anchor="middle" font-size="10" fill="#8C6F52" font-family="Noto Serif TC" font-style="italic" letter-spacing="2"
-                data-zh="— 植物構圖 —" data-en="— Botanical illustration —">— ${t("植物構圖", "Botanical illustration")} —</text>
+          <!-- R112 critic B1 / R129: caption now uses data-zh/data-en so
+               applyLanguage swaps correctly on lang toggle, and the label
+               differentiates watercolor vs ink wash so the user sees which
+               variant is applied. -->
+          ${(() => {
+            const isInk = (state.iso3dArtVariant || "watercolor") === "inkwash";
+            const zh = isInk ? "— 墨染植物 —" : "— 植物構圖 —";
+            const en = isInk ? "— Ink wash botanical —" : "— Botanical illustration —";
+            return `<text x="${svgW / 2}" y="${svgH - 22}" text-anchor="middle" font-size="10" fill="#8C6F52" font-family="Noto Serif TC" font-style="italic" letter-spacing="2"
+                  data-zh="${zh}" data-en="${en}">${state.lang === "en" ? en : zh}</text>`;
+          })()}
           <!-- Paper grain overlay across the plate. rect wide-covers the viewBox. -->
           <rect x="0" y="0" width="${svgW}" height="${svgH}" filter="url(#paperGrain)" opacity="0.4" pointer-events="none"/>
         ` : ""}
@@ -20729,7 +20776,24 @@ function wire3DInteractions() {
   const artBtn = document.getElementById("iso3dArtToggleBtn");
   if (artBtn) {
     artBtn.addEventListener("click", () => {
-      state.iso3dArtMode = !state.iso3dArtMode;
+      // R129: 3-state cycle. Off → Watercolor → Ink wash → Off.
+      // The button's own text + aria-pressed re-emit correctly on the
+      // renderTabPanel below because both are computed from state.
+      const isOn = state.iso3dArtMode;
+      const variant = state.iso3dArtVariant || "watercolor";
+      let toastZh, toastEn;
+      if (!isOn) {
+        state.iso3dArtMode = true;
+        state.iso3dArtVariant = "watercolor";
+        toastZh = "已切換為水彩藝術視角"; toastEn = "Watercolor art view on";
+      } else if (variant === "watercolor") {
+        state.iso3dArtVariant = "inkwash";
+        toastZh = "已切換為墨染藝術視角"; toastEn = "Ink wash art view on";
+      } else {
+        state.iso3dArtMode = false;
+        state.iso3dArtVariant = "watercolor";  // reset for next cycle
+        toastZh = "已回到微氣候視角";     toastEn = "Realistic view on";
+      }
       const recs   = (window.__lastRecs   || []);
       const layers = (window.__lastLayers || []);
       renderTabPanel(recs, layers);
@@ -20737,13 +20801,8 @@ function wire3DInteractions() {
       // reader user gets no signal that art mode toggled — the button's
       // aria-pressed changes in DOM but focus stays on the button and the
       // new pressed state isn't automatically re-announced. showSaveToast
-      // (role="status" polite) is the existing bilingual announcer we
-      // already use for save confirmations; reuse it here so the mode
-      // change is announced without stealing focus.
-      showSaveToast(
-        state.iso3dArtMode ? "已切換為藝術視角" : "已回到微氣候視角",
-        state.iso3dArtMode ? "Art view on" : "Realistic view on"
-      );
+      // (role="status" polite) is the existing bilingual announcer.
+      showSaveToast(toastZh, toastEn);
     });
   }
 }
