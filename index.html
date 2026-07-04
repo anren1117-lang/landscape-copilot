@@ -199,18 +199,28 @@
     .btn { padding: 6px 10px; font-size: 12px; min-height: 40px; }
     .btn.text { padding: 6px 8px; }
   }
-  /* Visible focus ring for all interactive surfaces (WCAG 2.4.7) */
+  /* Visible focus ring for all interactive surfaces (WCAG 2.4.7).
+     R128 a11y: extended the group to cover R120's .rec-card (result-page
+     plates), R120's .cta-warm secondary button, R122's layout editor
+     toolbar pills, and R119's .card-opt was already here. Sage-deep at
+     3px gives ~3.65:1 against the R118 parchment #F1E6CB — clears WCAG
+     1.4.11 for non-text UI. */
   .btn:focus-visible,
   a:focus-visible,
   .tab:focus-visible,
   .card-opt:focus-visible,
+  .rec-card:focus-visible,
   .orient-btn:focus-visible,
   .nav-btn:focus-visible,
   .cta:focus-visible,
+  .cta-warm:focus-visible,
   .photo-dropzone:focus-visible,
   .dict-chip:focus-visible,
   .field-input:focus-visible,
-  .field-input-num:focus-visible {
+  .field-input-num:focus-visible,
+  .layout-editor-add:focus-visible,
+  .layout-editor-chip:focus-visible,
+  .layout-editor-reset:focus-visible {
     outline: 3px solid var(--sage-deep);
     outline-offset: 2px;
   }
@@ -434,7 +444,12 @@
     border-color: var(--sage-deep);
   }
   .r103-chip:focus-visible {
-    outline: 2px solid var(--sage);
+    /* R128 a11y fix: was `var(--sage)` which computes to ~2.48:1 against
+       the R118 parchment #F1E6CB — below WCAG 1.4.11's 3:1 minimum for
+       UI. Bumped to --sage-deep (~3.65:1) to match the main focus rule
+       above. Also nudged to 3px for consistency with the group at line
+       ~214 so keyboard users see the same ring width everywhere. */
+    outline: 3px solid var(--sage-deep);
     outline-offset: 2px;
   }
 
