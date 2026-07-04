@@ -14675,8 +14675,20 @@ function rerenderBudgetTotals(entry) {
 //
 // scorePlants reads module-level `state`, so we temporarily hydrate state from
 // the snap, call scorePlants, then restore. Synchronous, no async hazards.
+//
+// R135 perf: WeakMap-memoized by (snap, topN). The output is a pure function of
+// the snap object — the state-swap trick isolates scorePlants from outer state.
+// Called from renderDesignLogicPanel on every dashboard render; caching
+// removes a ~5ms 245-plant scan per repeat call within the same render pass.
+// Same pattern as R105's designSummary cache. WeakMap auto-GCs when the snap
+// leaves scope; fresh loadDesignById parses give fresh snap objects → cache
+// miss → recompute (correct on edit).
+const _topReasonsCache = new WeakMap();
 function topReasonsForSnap(snap, topN) {
   if (!snap) return [];
+  const nKey = topN || 3;
+  const perSnap = _topReasonsCache.get(snap);
+  if (perSnap && perSnap.has(nKey)) return perSnap.get(nKey);
   // Snapshot of the fields scorePlants reads, so we can restore exactly.
   const saved = {
     sun: state.sun, water: state.water, goals: state.goals, space: state.space,
@@ -14721,7 +14733,12 @@ function topReasonsForSnap(snap, topN) {
     // qty is empty (e.g. legacy / minimal snapshots).
     const inDesign = scored.filter(p => qtyIds.has(p.id));
     const list = inDesign.length > 0 ? inDesign : scored;
-    return list.slice(0, topN || 3);
+    const out = list.slice(0, nKey);
+    // Cache before returning; the try/finally restores state on the way out.
+    const bucket = perSnap || new Map();
+    bucket.set(nKey, out);
+    _topReasonsCache.set(snap, bucket);
+    return out;
   } finally {
     Object.assign(state, saved);
   }
