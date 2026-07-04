@@ -661,9 +661,16 @@
   .cta:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -12px rgba(44,53,38,0.7), inset 0 1px 0 rgba(255,255,255,0.15); }
   .cta:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; transform: none; }
   /* Secondary/warm CTA — for accent actions like "分享" / "列印" that want
-     to feel botanical + friendly without stealing focus from primary. */
+     to feel botanical + friendly without stealing focus from primary.
+     R133 critic C4: bottom stop uses --clay-deep (#8C6F52, the pre-R128
+     --sepia value) instead of the new --sepia (#7A5F42) so the button
+     retains its original visual weight. R128 darkened --sepia to hit
+     WCAG 4.5:1 for SMALL TEXT — the button's large text at 14px/600
+     doesn't need that, and darkening the gradient made secondary CTAs
+     compete with the forest primary. --sepia still applies wherever
+     small sepia text sits. */
   .cta-warm {
-    background: linear-gradient(180deg, var(--sepia-soft) 0%, var(--sepia) 100%);
+    background: linear-gradient(180deg, var(--sepia-soft) 0%, var(--clay-deep) 100%);
     color: var(--paper); border: none; border-radius: 30px;
     padding: 11px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
     font-family: var(--sans); letter-spacing: 0.03em;
@@ -774,6 +781,12 @@
   /* Subtle ribbon on the rec card swatch when a plant is pinned — so users can scan
      the grid and see at a glance which plants they've locked in. */
   .rec-card.pinned { box-shadow: 0 0 0 2px rgba(196,160,76,0.45), 0 6px 18px rgba(44,53,38,0.06); }
+  /* R133 critic C5: pinned cards draw a 2px golden faux-ring via box-shadow.
+     When focused, R128's 3px sage-deep outline appears concentric with the
+     golden ring — visually noisy. Suppress the pinned box-shadow when the
+     card is focused so the sage outline reads clean. The pin badge itself
+     (📌 in the swatch) still marks the card as pinned. */
+  .rec-card.pinned:focus-visible { box-shadow: 0 6px 18px rgba(44,53,38,0.06); }
   .rec-card.pinned .rec-swatch::after {
     content: "📌"; position: absolute; top: -8px; right: -8px;
     font-size: 14px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.18));
@@ -13962,15 +13975,21 @@ function wireLayoutEditor(entry) {
     // Pre-R131 every rAF called loadDesignById(entry.id) which did a
     // localStorage.getItem + JSON.parse of the whole LIST_KEY. On a fast
     // drag (60 events/sec) that meant 60 × parse-the-whole-storage per
-    // second. The R91 comment below explains why we re-resolved: the
-    // closure `entry` could go stale if a render() fired between input
-    // events. But during ACTIVE drag input events fire faster than
-    // any render(), so caching is safe. Invalidate on pointerup /
-    // pointercancel (the terminal event of the drag).
+    // second. Cache is populated on the first tick, invalidated at the
+    // end of the drag. Multiple invalidation channels because iOS Safari
+    // range inputs don't reliably fire pointerdown/up on the thumb (the
+    // shadow-DOM intercepts pointer events and dispatches only touch/
+    // change) — R133 critic C3. Belt and braces: pointer* covers desktop
+    // + Android, touchend/cancel covers iOS, change fires on release for
+    // range inputs on every browser.
     let cachedEntry = null;
-    seasonSlider.addEventListener("pointerdown", () => { cachedEntry = null; });
-    seasonSlider.addEventListener("pointerup",   () => { cachedEntry = null; });
-    seasonSlider.addEventListener("pointercancel", () => { cachedEntry = null; });
+    const invalidateSliderCache = () => { cachedEntry = null; };
+    seasonSlider.addEventListener("pointerdown",   invalidateSliderCache);
+    seasonSlider.addEventListener("pointerup",     invalidateSliderCache);
+    seasonSlider.addEventListener("pointercancel", invalidateSliderCache);
+    seasonSlider.addEventListener("touchend",      invalidateSliderCache);
+    seasonSlider.addEventListener("touchcancel",   invalidateSliderCache);
+    seasonSlider.addEventListener("change",        invalidateSliderCache);
     seasonSlider.addEventListener("input", (e) => {
       const m = parseInt(e.target.value, 10);
       if (!m || m < 1 || m > 12) return;
@@ -20668,17 +20687,21 @@ function render3D(layers, recs, allRecs) {
             <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="1" seed="3" result="grain"/>
             <feColorMatrix in="grain" values="0 0 0 0 0.38  0 0 0 0 0.30  0 0 0 0 0.20  0 0 0 0.10 0"/>
           </filter>
-          <!-- R129 ink wash variant. Sepia color matrix desaturates the
-               source and re-tints to sepia (classic sepia matrix values).
-               Combined with the same feTurbulence displacement for wet-
-               on-wet edges. Result: a monochrome sepia botanical sketch
-               that reads like a 19th-century Redouté engraving. Applied
-               instead of watercolor when state.iso3dArtVariant is
-               "inkwash". -->
+          <!-- R129 ink wash variant. Same organic edge as watercolor, then
+               grayscale + sepia tint for a truly monochrome sepia sketch.
+               R133 critic C2 fix: the classic sepia matrix alone doesn't
+               produce true monochrome — bright saturated inputs (like a
+               yellow sun) stay warm-gold instead of collapsing to a
+               brown ramp. Chained luminance-to-gray (feColorMatrix
+               saturate=0) BEFORE the sepia matrix, so every input is
+               grayscale first → then re-tinted to a single brown ramp.
+               Result now reads unambiguously as a 19th-century Redouté-
+               style sepia engraving. -->
           <filter id="inkwashFilter" x="-2%" y="-2%" width="104%" height="104%">
             <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="noise"/>
             <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6" result="displaced"/>
-            <feColorMatrix in="displaced" type="matrix" values="
+            <feColorMatrix in="displaced" type="saturate" values="0" result="gray"/>
+            <feColorMatrix in="gray" type="matrix" values="
               0.393 0.769 0.189 0 0
               0.349 0.686 0.168 0 0
               0.272 0.534 0.131 0 0
@@ -23982,7 +24005,7 @@ window.openAboutModal = function () {
           <div style="margin-bottom:4px;">• <b>無圖植物的色盤色塊</b>：當植物資料缺乏「實際花色」欄位時，色盤以植物 id 進行雜湊運算（djb2 hash）合成代表色，方便視覺辨識；該顏色<b>不代表實際花色或葉色</b>。</div>
           <div style="margin-bottom:4px;">• <b>形狀感知配置 (L 型 / 圓形)</b>：植物 token 在 SVG 座標被限制於形狀內；橢圓計算採 (x-c)²/rx² + (y-c)²/ry² ≤ 1。L 形時高木與攀緣 tier 的群落中心會被限制在左半邊 (x ≤ 0.55)，避免凹陷處。</div>
           <div style="margin-bottom:4px;">• <b>🎨 藝術視角</b>：3D 分頁的 🎨 按鈕可循環三種樣式 — 關閉 / 水彩 / 墨染。水彩樣式套用 SVG feTurbulence + feDisplacementMap 濾鏡讓邊緣呈有機水彩暈染，配合米色紙紋漸層與復古邊框；墨染樣式在同樣的邊緣濾鏡後套用經典 sepia feColorMatrix 讓場景轉為棕褐單色。這是純視覺呈現，不影響評分、資料或匯出結果。</div>
-          <div style="margin-bottom:4px;">• <b>植物插畫書 UI (R118+)</b>：整個應用採用米色紙紋 (#F1E6CB) + 棕褐 (#7A5F42) 色調 + 花體斜體標題的視覺語言，取自植物圖鑑書冊。所有介面元素（表單、儀表板、按鈕）都套用同一套設計語彙。這是純樣式選擇，不影響資料處理或運算結果。</div>
+          <div style="margin-bottom:4px;">• <b>植物插畫書 UI (R118+)</b>：整個應用採用米色紙紋 (#F1E6CB) + 棕褐 (#7A5F42) 色調 + 花體斜體標題的視覺語言，取自植物圖鑑書冊。所有介面元素（表單、儀表板、按鈕）都套用同一套設計語彙。這是純樣式選擇，不影響評分、推薦或匯出的資料值（3D 分頁的線條顏色會跟著調整，屬視覺呈現差異）。</div>
           <div style="margin-bottom:4px;">• <b>AI 諮詢與植物醫生</b>：由 Pollinations.ai 提供（開放 API，無內建出處），答案僅供參考，重要決策請諮詢專業園藝師或農業改良場。</div>
           <div style="margin-bottom:4px;">• <b>地址查詢</b>：OpenStreetMap Nominatim 地理編碼服務（免費）。</div>
           <div style="margin-bottom:4px;">• <b>QR 圖示</b>：qrserver.com 即時產生（外部服務）。</div>
@@ -24006,7 +24029,7 @@ window.openAboutModal = function () {
           <div style="margin-bottom:4px;">• <b>Palette swatch colors for data-less plants</b>: when a plant lacks an explicit "flower color" field, the palette swatch is synthesized via a djb2 hash of the plant id (mapped to HSL). This is for visual distinction only — <b>it does NOT represent the plant's actual flower or leaf color</b>.</div>
           <div style="margin-bottom:4px;">• <b>Shape-aware placement (L / round)</b>: tokens are constrained to the shape interior in SVG coordinates; the ellipse test is (x-c)²/rx² + (y-c)²/ry² ≤ 1. For L shapes, the back-band tiers (canopy + climbers) constrain cluster centers to x ≤ 0.55 so they don't fall into the L cutout.</div>
           <div style="margin-bottom:4px;">• <b>🎨 Art view</b>: the 🎨 button on the 3D tab cycles three styles — Off / Watercolor / Ink wash. Watercolor applies an SVG feTurbulence + feDisplacementMap filter for organic wet-on-wet edges plus a cream paper gradient and sepia frame; Ink wash runs the same edge filter followed by a classic sepia feColorMatrix so the scene reads as a 19th-century Redouté-style monochrome engraving. Purely visual — does not affect scoring, data, or export output.</div>
-          <div style="margin-bottom:4px;">• <b>Botanical illustration book UI (R118+)</b>: the whole app uses a parchment cream (#F1E6CB) + sepia (#7A5F42) palette with italic-serif chapter titles, matching a botanical illustration book aesthetic. All UI elements (forms, dashboard, buttons) share one visual vocabulary. Purely presentational — has no effect on data processing or computed output.</div>
+          <div style="margin-bottom:4px;">• <b>Botanical illustration book UI (R118+)</b>: the whole app uses a parchment cream (#F1E6CB) + sepia (#7A5F42) palette with italic-serif chapter titles, matching a botanical illustration book aesthetic. All UI elements (forms, dashboard, buttons) share one visual vocabulary. Purely presentational — no effect on scoring, recommendations, or exported data (3D-tab stroke colors do shift, but that's rendered pixels only).</div>
           <div style="margin-bottom:4px;">• <b>AI Q&A + Plant Doctor</b>: provided by Pollinations.ai (open API, no built-in sourcing). Treat answers as advisory; verify with a horticulturist or agricultural research station for major decisions.</div>
           <div style="margin-bottom:4px;">• <b>Address lookup</b>: OpenStreetMap Nominatim geocoding (free).</div>
           <div style="margin-bottom:4px;">• <b>QR codes</b>: generated on demand by qrserver.com (external).</div>
