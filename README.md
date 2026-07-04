@@ -1,8 +1,8 @@
 # AI Landscape Copilot · 原生植物景觀規劃
 
-> Free, browser-based AI landscape design tool for Taiwan — generates a layered native-plant landscape from your space, light, water budget, and goals. Photorealistic preview, 3D isometric view, top-down plan, year-round bloom and care calendars, install guide, sustainability metrics, 140+ plant dictionary.
+> Free, browser-based AI landscape design tool for Taiwan — generates a layered native-plant landscape from your space, light, water budget, goals, plus optional criteria like existing plants and household constraints. Photorealistic preview, watercolor 3D isometric art view, top-down plan, year-round bloom and care calendars, install guide, sustainability metrics, per-design workspace with interactive layout editor, plant doctor, AI Q&A, and a 245-species plant dictionary.
 >
-> 為台灣的陽台、頂樓、庭院打造的免費 AI 景觀規劃工具：5 分鐘從光照、水分、空間生成台灣原生植物復層配置 — 含 AI 實景參考、3D 等角視角、俯瞰平面圖、花期月曆、養護月曆、施工指南、5 年成本估算、災害準備、140+ 種植物字典。
+> 為台灣的陽台、頂樓、庭院打造的免費 AI 景觀規劃工具：5 分鐘從光照、水分、空間生成台灣原生植物復層配置 — 含 AI 實景參考、水彩藝術 3D 視角、俯瞰平面圖、花期與養護月曆、施工指南、每個設計獨立的工作台（可互動排版、植物醫生、AI 問答）、以及 245 種植物字典。
 
 **[Live · 線上版本](https://anren1117-lang.github.io/landscape-copilot/)** · MIT License
 
@@ -10,35 +10,48 @@
 
 ## What it does
 
-A 5-step wizard captures your context:
+### 5-step wizard captures your context
 
-1. **Space type** — 陽台 / 頂樓 / 庭院 / 室內
+1. **Space type** — 陽台 / 頂樓 / 庭院 / 室內, plus L-shape or round shape support
 2. **Space details** — actual address (Nominatim geocoding) + width × depth + orientation. Includes an inline area estimator (📐 common objects / 👣 walking paces / ◻️ floor tiles).
 3. **Sunlight** — full / part / shade
 4. **Water budget** — low / medium / high
-5. **Goals** — pollinator / screen / edible / low-maintenance
+5. **Goals** — pollinator / screen / edible / low-maintenance, plus an **Advanced** disclosure for existing plants, household (kids / pets / allergies), budget tier, privacy needs, native ratio target, wildlife focus, maintenance intensity, and aesthetic style
 
-Then generates a result page with 9 tabs:
+### Result page — 10 tabs
 
 | Tab | What it shows |
 |---|---|
 | **實景參考 · Realistic** | 3 AI-generated photorealistic landscape previews via pollinations.ai (free, no API key) |
 | **俯瞰平面圖 · Plan** | Top-down SVG using your real width × depth, with orientation-aware sun marker |
-| **3D 視角 · 3D View** | 30° isometric SVG with cylindrical trunks, crown ellipses, ground shadows |
+| **3D 視角 · 3D View** | 30° isometric SVG with cylindrical trunks, crown ellipses, ground shadows, sun time-of-day, native overlay, and a 🎨 **Art view** toggle that renders the scene as a watercolor botanical illustration |
 | **復層配置 · Layered Design** | Vertical section diagram — canopy → shrub → ground → water → climber |
 | **花期月曆 · Bloom Calendar** | 12-month grid of bloom × fruit timing across recommended plants |
 | **養護月曆 · Care Calendar** | Auto-generated month-by-month tasks: prune, fertilize, pest watch, seasonal warnings |
 | **施工指南 · Build Plan** | 8-phase install sequence + soil-recipe calculator + Taiwan-specific hazard preparedness (颱風 / 淹水 / 乾旱 / 寒流) |
 | **採購清單 · Shopping List** | Editable per-plant qty with NT$ subtotals + 5-year cost-of-ownership projection |
-| **植物字典 · Plant Dictionary** | 140+ plants, filterable by tier / native vs introduced / fragrance / pet-safe / search |
+| **植物字典 · Plant Dictionary** | 245 plants, filterable by tier / native vs introduced / fragrance / pet-safe / 🥗 edible / 🏹 indigenous / search |
+
+### Per-design workspace
+
+Every saved design gets its own dashboard:
+
+- **🎨 Interactive layout editor** — drag plants around your space; auto-init uses tier-based drift planting (canopy at the back, ground cover in front, same species clustered around focal centers)
+- **🧠 Why this design** — panel showing the structural rules, top-3 focal plants with reasons, and constraints derived from your inputs (existing plants avoided, pet-toxic suppressed, etc.)
+- **📋 Today's list** — auto-seeded from this month's care calendar
+- **💰 Budget editor** — auto plant + element cost + user line items + target progress bar
+- **📸 Plant Doctor** — upload a leaf photo, get an AI diagnosis
+- **💬 AI Q&A** — design-scoped conversation with pollinations.ai
+- **📔 Garden journal** — per-design growth log
+- **📤 Share** — copy link / LINE share / QR code (all self-contained in the URL hash)
 
 ## Plant database
 
-**140+ species** covering:
+**245 species** including 24 non-plant landscape elements (paths, planters, benches, water features, etc.) covering:
 
 - Taiwan endemic conifers (紅檜 Formosan Cypress, 台灣肖楠, 樟葉楓)
 - Native canopy (樟樹, 茄苳, 楓香, 台灣欒樹, 雀榕, 楊梅, 苦楝, 烏心石)
-- Coastal natives (海桐, 黃槿, 水黃皮, 草海桐, 福木, 馬鞍藤)
+- Coastal natives (海桐, 黃槿, 水黃皮, 草海骨, 福木, 馬鞍藤)
 - Edible fruit trees (龍眼, 荔枝, 芒果, 木瓜, 番石榴, 楊桃, 釋迦, 蓮霧)
 - Taiwan endemic orchids (蝴蝶蘭 Phalaenopsis — Taiwan is the global breeding mother)
 - Iconic street trees (鳳凰木, 阿勃勒, 大花紫薇, 火焰木, 印度紫檀)
@@ -46,29 +59,23 @@ Then generates a result page with 9 tabs:
 - Succulents (蘆薈, 龍舌蘭, 玉露, 石蓮花, 翡翠木, 仙人掌)
 - Edible vegetables and herbs (九層塔, 紫蘇, 香茅, 龍葵, 韭菜, 蝶豆花)
 - Mediterranean herbs (薰衣草, 迷迭香, 鼠尾草)
+- Indigenous-tradition plants (each carries the tribe or region of the note)
 
-Each plant carries:
+Each plant carries: bilingual name + Latin, tier, sun/water/height/spread, bloom + fruit months, native flag + origin, years to mature, fragrance level, pet-safety, common pests, water L/week + CO₂ kg/year estimates, sourcing hints, companion plants, ethnobotanical / cultural significance where applicable, and specific Taiwan wildlife it attracts (台灣藍鵲, 五色鳥, 大鳳蝶, 蜻蜓, etc.).
 
-- Bilingual name + Latin
-- Tier (canopy / shrub / ground / water / climber)
-- Sun, water, height, spread requirements
-- Bloom + fruit months
-- Native flag + origin
-- Years to mature, fragrance level, pet-safety
-- Common pests / diseases
-- Water L/week + CO₂ kg/year estimates
-- Sourcing hints (花市 / 林試所 / 特生中心 / 海岸復育苗圃 / etc.)
-- Companion plants
-- Ethnobotanical / cultural significance (where applicable)
-- Specific Taiwan wildlife it attracts (台灣藍鵲, 五色鳥, 大鳳蝶, 蜻蜓, etc.)
+## Design language
+
+The whole app extends a **botanical illustration book** aesthetic: parchment cream palette (`#F1E6CB`) with sepia accents (`#7A5F42`), italic serif for chapter titles and captions, upright sepia serif small-caps for eyebrows, forest gradient for primary actions and active states, sepia gradient for warm secondary actions. Watercolor imagery (corner ornaments, botanical banner, space patterns, tier silhouettes, home wallpaper) is generated once via pollinations.ai and committed to `assets/` so the runtime is fully self-contained.
 
 ## Tech
 
-- **Single HTML file**, no build step, runs offline (except address geocoding and AI preview)
+- **Single HTML file** (`index.html`), no build step, runs offline (except address geocoding + AI image / Q&A / Plant Doctor)
 - Pure vanilla JS — no framework
+- 16 watercolor asset images (~220 KB) in `assets/`
 - Real geocoding via **OpenStreetMap Nominatim** (free, no key)
-- Realistic preview via **pollinations.ai** (free, no key)
+- Realistic preview + AI Q&A + Plant Doctor via **pollinations.ai** (free, no key)
 - Hosted on **GitHub Pages**
+- Design + layout persisted to `localStorage`; portable via a `#d=` URL hash
 
 ## Local development
 
