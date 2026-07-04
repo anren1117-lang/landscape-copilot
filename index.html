@@ -13181,6 +13181,32 @@ function removeLayoutToken(designId, tokenId) {
 // 2. Plants suitable for the design's space + sun, so the picker leads
 //    with relevant species instead of dumping all 184.
 // 3. Everything else (filtered by search query when present).
+// R127 perf: sort PLANTS once per sun tier and cache. Called by
+// renderLayoutPickerGrid which was previously sorting all ~245 plants
+// with an Intl.Collator on every render + keystroke. The sort is now
+// amortized over the session — at most 4 distinct sun values
+// ("full" / "part" / "shade" / "" or unset) each pay a one-time
+// sort cost. Cached arrays are safe to share because PLANTS is
+// module-constant and callers don't mutate the returned array.
+const _pickerSortCache = new Map();
+const _pickerCollator = (typeof Intl !== "undefined" && Intl.Collator)
+  ? new Intl.Collator("zh-Hant")
+  : null;
+function _pickerSortedForSun(sunKey) {
+  const key = String(sunKey || "");
+  if (_pickerSortCache.has(key)) return _pickerSortCache.get(key);
+  const rank = (p) => {
+    if (!key) return 1;
+    return (p.sun || []).indexOf(key) >= 0 ? 0 : 1;
+  };
+  const cmp = _pickerCollator
+    ? (a, b) => _pickerCollator.compare(a.zh || "", b.zh || "")
+    : (a, b) => (a.zh || "").localeCompare(b.zh || "", "zh-Hant");
+  const sorted = PLANTS.slice().sort((a, b) => rank(a) - rank(b) || cmp(a, b));
+  _pickerSortCache.set(key, sorted);
+  return sorted;
+}
+
 function renderLayoutPickerGrid(entry) {
   const snap = entry.snapshot || {};
   const qtyMap = snap.qty || {};
@@ -13204,16 +13230,14 @@ function renderLayoutPickerGrid(entry) {
     .filter(matches);
 
   // Bucket B: not in design — sun-ranked then alphabetical, filtered by query.
-  // ~200 plants × cheap compare; sub-millisecond and runs only when the
-  // picker is open + on each keystroke. No memoization theatre.
-  const sunRank = (p) => {
-    if (!snap.sun) return 1;
-    return (p.sun || []).indexOf(snap.sun) >= 0 ? 0 : 1;
-  };
-  const others = PLANTS
+  // R127 perf: pre-sorted list is cached per sun value at module scope.
+  // Pre-R127 the ~245-plant sort with a zh-Hant Intl.Collator ran on every
+  // keystroke inside a full dashboard render. Now the sort runs once per
+  // distinct sun tier (max 4) across the whole session and every keystroke
+  // just filters the cached array.
+  const others = _pickerSortedForSun(snap.sun)
     .filter(p => !inDesignIds.has(p.id))
-    .filter(matches)
-    .sort((a, b) => sunRank(a) - sunRank(b) || (a.zh || "").localeCompare(b.zh || "", "zh-Hant"));
+    .filter(matches);
 
   // Cap the visible list so we don't ship 200 cards into the DOM on first paint.
   // Search narrows it; without a query we show top 40 others.
