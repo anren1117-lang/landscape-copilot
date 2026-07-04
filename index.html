@@ -13958,6 +13958,19 @@ function wireLayoutEditor(entry) {
   const seasonSlider = document.getElementById("layoutSeasonSlider");
   if (seasonSlider) {
     let rafPending = false;
+    // R131 perf: cache the parsed entry across rAF ticks of a drag session.
+    // Pre-R131 every rAF called loadDesignById(entry.id) which did a
+    // localStorage.getItem + JSON.parse of the whole LIST_KEY. On a fast
+    // drag (60 events/sec) that meant 60 × parse-the-whole-storage per
+    // second. The R91 comment below explains why we re-resolved: the
+    // closure `entry` could go stale if a render() fired between input
+    // events. But during ACTIVE drag input events fire faster than
+    // any render(), so caching is safe. Invalidate on pointerup /
+    // pointercancel (the terminal event of the drag).
+    let cachedEntry = null;
+    seasonSlider.addEventListener("pointerdown", () => { cachedEntry = null; });
+    seasonSlider.addEventListener("pointerup",   () => { cachedEntry = null; });
+    seasonSlider.addEventListener("pointercancel", () => { cachedEntry = null; });
     seasonSlider.addEventListener("input", (e) => {
       const m = parseInt(e.target.value, 10);
       if (!m || m < 1 || m > 12) return;
@@ -13997,14 +14010,18 @@ function wireLayoutEditor(entry) {
         });
         // 2) Patch the season chip's stats + tick indicator in place —
         //    do NOT touch the slider DOM (user is mid-drag).
-        // R91 (B3/B4): re-resolve the design from LIST_KEY on every rAF
-        // instead of trusting the closure `entry`, which can go stale if
-        // anything else triggered a full render() between input events
-        // (picker close, undo, tap on token). Otherwise the chip counts
-        // diverge from what's visible on the canvas.
-        const freshEntry = (loadDesignById && state.designDashboardId === entry.id)
-          ? (loadDesignById(entry.id) || entry)
-          : entry;
+        // R91 (B3/B4): re-resolve the design from LIST_KEY so the chip
+        // counts don't diverge when a render() fired between events.
+        // R131 perf: cached across rAF ticks of the same drag session,
+        // populated on first tick, cleared on pointerup/pointercancel.
+        // Skips the ~30-100µs localStorage.getItem + JSON.parse per rAF.
+        let freshEntry = cachedEntry;
+        if (!freshEntry) {
+          freshEntry = (loadDesignById && state.designDashboardId === entry.id)
+            ? (loadDesignById(entry.id) || entry)
+            : entry;
+          cachedEntry = freshEntry;
+        }
         let blooming = 0, fruiting = 0;
         (freshEntry.layout || []).forEach(t => {
           // R89: token may now be a plant or an element. Elements don't bloom.
