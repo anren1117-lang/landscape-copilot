@@ -23019,7 +23019,13 @@ function openDrawer(id) {
   document.body.classList.add("drawer-open");
   drawerHost.innerHTML = `
     <div class="drawer-overlay" id="drawerOverlay">
-      <div class="drawer slide-in" onclick="event.stopPropagation()">
+      <!-- R142 a11y: dialog role + aria-modal so screen readers announce this
+           as a modal, aria-labelledby points at the plant name h2 (given an
+           id below) so the announcement is "dialog, 月橘" not just "dialog".
+           tabindex=-1 so the wrapper can receive focus programmatically on
+           open (see wireDrawerInteractions), matching the modal a11y contract
+           for the plant-compare + about + qr overlays already in this file. -->
+      <div class="drawer slide-in" role="dialog" aria-modal="true" aria-labelledby="drawerName" tabindex="-1" onclick="event.stopPropagation()">
         <button class="drawer-compare-btn ${state.plantCompareFirstId === plant.id ? "armed" : ""}" id="drawerCompareBtn"
                 aria-label="${t('比較植物','Compare plant')}"
                 title="${t('開始比較 · 從植物字典或結果頁選擇第二個植物','Start a side-by-side compare · then pick a second plant from the dictionary or result page')}">
@@ -23028,7 +23034,7 @@ function openDrawer(id) {
         <button class="drawer-close" id="drawerClose" aria-label="${t('關閉植物詳細資訊 / Close plant details','Close plant details / 關閉植物詳細資訊')}">✕</button>
         <div class="drawer-swatch" style="background:${plant.color}"></div>
         <div class="drawer-type" data-zh="${plant.type_zh}" data-en="${plant.type_en}">${plant.type_zh}</div>
-        <h2 class="drawer-name" data-zh="${plant.zh}" data-en="${plant.en}">${plant.zh}</h2>
+        <h2 id="drawerName" class="drawer-name" data-zh="${plant.zh}" data-en="${plant.en}">${plant.zh}</h2>
         <div class="drawer-en" data-zh="${plant.en}" data-en="${plant.zh}">${plant.en}</div>
         <div class="drawer-latin">${plant.lt}</div>
 
