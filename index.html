@@ -2956,6 +2956,36 @@
   .drawer-block-title { font-size: 12.5px; letter-spacing: 0.12em; color: var(--sage-deep); font-weight: 600; margin-bottom: 10px; text-transform: uppercase; }
   .drawer-text { font-size: 15px; line-height: 1.78; color: var(--ink-soft); }
   .drawer-foot { font-size: 11.5px; color: var(--clay); font-family: var(--serif); font-style: italic; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--line); }
+  /* R148 — per-field data-source disclosure. Kept collapsed by default so
+     the drawer stays scannable; users who want to cite the tool for
+     research can expand and see exactly where each column comes from. */
+  .drawer-sources {
+    margin-top: 22px;
+    padding: 12px 14px;
+    background: rgba(140,111,82,0.05);
+    border: 1px solid var(--sepia-line);
+    border-radius: 10px;
+  }
+  .drawer-sources summary {
+    cursor: pointer;
+    font-family: var(--serif);
+    font-size: 12.5px;
+    color: var(--sepia);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    list-style: none;
+  }
+  .drawer-sources summary::-webkit-details-marker { display: none; }
+  .drawer-sources summary::before { content: "▸ "; transition: transform .15s; display: inline-block; margin-right: 4px; }
+  .drawer-sources[open] > summary::before { content: "▾ "; }
+  .drawer-sources-body {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+  }
+  .drawer-sources-body > div { margin-bottom: 5px; }
+  .drawer-sources-body b { color: var(--forest); font-weight: 600; }
   .drawer-supports { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .drawer-supports .chip { font-size: 11.5px; padding: 4px 10px; }
 
@@ -23403,6 +23433,31 @@ function openDrawer(id) {
             </div>`;
         })()}
 
+        <!-- R148: source-of-data footnote per user ask ("cite every information
+             from the plant dictionary"). Compact per-field breakdown of what's
+             general botanical knowledge vs an estimate vs cited inline vs
+             linked to the About methodology. Keeps the drawer honest at a
+             glance without needing users to open the About modal. -->
+        <details class="drawer-sources">
+          <summary data-zh="📚 這頁的資料來源" data-en="📚 Sources for this page">📚 這頁的資料來源</summary>
+          <div class="drawer-sources-body">
+            <div data-zh="• <b>名稱 / 學名 / 樹型 / 日照 / 水分 / 高度 / 冠幅</b>：一般植物學常識，彙整自台灣維管束植物簡誌、林試所植物誌、TaiBIF。"
+                 data-en="• <b>Name / Latin / tier / sun / water / height / spread</b>: general botanical knowledge, aggregated from Taiwan vascular plant refs, Forestry Research Institute, TaiBIF.">• <b>名稱 / 學名 / 樹型 / 日照 / 水分 / 高度 / 冠幅</b>：一般植物學常識，彙整自台灣維管束植物簡誌、林試所植物誌、TaiBIF。</div>
+            <div data-zh="• <b>花期 / 結果期</b>：台灣平地一般時間範圍，高山或寒流年份會偏移 ±1 個月。"
+                 data-en="• <b>Bloom / Fruit months</b>: general Taiwan lowland timing; shifts ±1 month at altitude or in cold-snap years.">• <b>花期 / 結果期</b>：台灣平地一般時間範圍，高山或寒流年份會偏移 ±1 個月。</div>
+            <div data-zh="• <b>售價 / 每年固碳 / 每週用水量 / 每月工時</b>：<b>估算值</b>。詳見『關於』的『資料來源與方法』區。"
+                 data-en="• <b>Price / CO₂ / weekly water / monthly hours</b>: <b>estimates</b>. See About → Sources & methodology for the derivation.">• <b>售價 / 每年固碳 / 每週用水量 / 每月工時</b>：<b>估算值</b>。詳見『關於』的『資料來源與方法』區。</div>
+            <div data-zh="• <b>寵物安全 / 花香程度</b>：多為一般認知；未經個別實驗驗證的以「未驗證」標示。"
+                 data-en="• <b>Pet-safe / fragrance</b>: general knowledge; unverified entries are marked as such.">• <b>寵物安全 / 花香程度</b>：多為一般認知；未經個別實驗驗證的以「未驗證」標示。</div>
+            <div data-zh="• <b>原住民傳統 · 料理應用</b>：《台灣島嶼植物生活圖譜 100 選》atlas 的條目會在『餐桌搭配』區塊註明出處；其他文化條目標明族群（泰雅、布農、排灣、客家、閩南等）。"
+                 data-en="• <b>Indigenous tradition · Culinary</b>: entries from 《Taiwan Island Plant Life Atlas 100 Selections》 cite inline in At-the-table section; other cultural notes name the tribe / region (Atayal, Bunun, Paiwan, Hakka, Hokkien).">• <b>原住民傳統 · 料理應用</b>：《台灣島嶼植物生活圖譜 100 選》atlas 的條目會在『餐桌搭配』區塊註明出處；其他文化條目標明族群（泰雅、布農、排灣、客家、閩南等）。</div>
+            <div data-zh="• <b>採購來源提示</b>：作者依 2025 年台北地區花市 / 苗圃常見情況給出的建議，不是保證有貨。"
+                 data-en="• <b>Sourcing hints</b>: author's suggestions based on typical Taipei-area nursery availability in 2025 — not a guarantee of stock.">• <b>採購來源提示</b>：作者依 2025 年台北地區花市 / 苗圃常見情況給出的建議，不是保證有貨。</div>
+            <div style="margin-top:8px; font-style: italic; color: var(--sepia);"
+                 data-zh="所有資料僅供規劃參考，不取代專業園藝師或農業改良場的建議。"
+                 data-en="All data is advisory — does not replace guidance from a horticulturist or agricultural research station.">所有資料僅供規劃參考，不取代專業園藝師或農業改良場的建議。</div>
+          </div>
+        </details>
         <div class="drawer-foot" data-zh="Biodiversity Living System · 植物資料庫" data-en="Biodiversity Living System · Plant Database">Biodiversity Living System · 植物資料庫</div>
       </div>
     </div>`;
