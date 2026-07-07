@@ -48,8 +48,10 @@
        tokens are added for surfaces that need the sepia frame treatment. */
     --paper: #F1E6CB;         /* Parchment cream (warmer than pre-R118 #EDEAE0) */
     --paper-warm: #E8D9BE;    /* Mid parchment for card backgrounds */
-    --paper-deep: #D4C3A0;    /* Deeper parchment for hover/pressed states */
-    --parchment-shadow: rgba(140,111,82,0.14);
+    /* R154: removed --paper-deep and --parchment-shadow — reserved in
+       R118 for hover/pressed states + inset shadows that never got
+       adopted. Rules that need those effects use inline rgba() with
+       specific alpha values. Same for --terracotta below. */
     --forest: #2B3820;        /* Deep botanical green — unchanged in spirit */
     --forest-soft: #3F4A37;
     --sage: #8A9A7B;
@@ -60,7 +62,6 @@
     --sepia: #7A5F42;         /* Promoted from --clay-deep to primary accent */
     --sepia-soft: #A88A6A;
     --sepia-line: #B49676;    /* Border + rule color */
-    --terracotta: #B85C38;    /* Warm accent for calls-to-action */
     --clay: #A88A6A;          /* Kept for backward compat with existing rules */
     --clay-deep: #8C6F52;
     --ink: #33352E;
