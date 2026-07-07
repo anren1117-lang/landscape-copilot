@@ -18745,7 +18745,17 @@ function renderNav() {
     navFooter.innerHTML = `
       <button class="nav-btn" id="navReset">↺ <span data-zh="重新開始" data-en="Start over">重新開始</span></button>
       <button class="save-design-btn" id="navSaveDesign">💾 <span data-zh="另存為新設計" data-en="Save as new design">另存為新設計</span></button>
-      <span class="foot-note" data-zh="共 ${recsCount} 種候選 · AI 依你的微氣候生成 · <a href=\"#\" onclick=\"openAboutModal();return false;\" style=\"color:var(--sage-deep);\">📊 評分依據</a>" data-en="${recsCount} candidates · generated from your microclimate · <a href=\"#\" onclick=\"openAboutModal();return false;\" style=\"color:var(--sage-deep);\">📊 Scoring rationale</a>">共 ${recsCount} 種候選 · AI 依你的微氣候生成 · <a href="#" onclick="openAboutModal();return false;" style="color:var(--sage-deep);">📊 評分依據</a></span>`;
+      <!-- R147 mobile audit fix: the previous version used JS-escaped
+           \" to emit literal " inside the data-zh / data-en attribute
+           values — but literal " inside an attribute terminates the
+           attribute early, so the browser mis-parsed the anchor's
+           href="#" as ending data-zh, then rendered every character
+           after that (including the raw "data-en=" attribute source)
+           as visible text below the nav. Replaced every inner-quote
+           with the &quot; HTML entity so the attribute value stays
+           intact through parsing; applyLanguage's dataset.zh read
+           decodes the entity back to " when it swaps innerHTML. -->
+      <span class="foot-note" data-zh="共 ${recsCount} 種候選 · AI 依你的微氣候生成 · <a href=&quot;#&quot; onclick=&quot;openAboutModal();return false;&quot; style=&quot;color:var(--sage-deep);&quot;>📊 評分依據</a>" data-en="${recsCount} candidates · generated from your microclimate · <a href=&quot;#&quot; onclick=&quot;openAboutModal();return false;&quot; style=&quot;color:var(--sage-deep);&quot;>📊 Scoring rationale</a>">共 ${recsCount} 種候選 · AI 依你的微氣候生成 · <a href="#" onclick="openAboutModal();return false;" style="color:var(--sage-deep);">📊 評分依據</a></span>`;
     document.getElementById("navSaveDesign")?.addEventListener("click", () => {
       const defaultName = defaultDesignName(snapshotState());
       const name = prompt(t("為這個設計命名：", "Name this design:"), defaultName);
