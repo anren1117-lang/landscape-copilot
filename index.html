@@ -20718,9 +20718,23 @@ function render3D(layers, recs, allRecs) {
             <stop offset="0%"  stop-color="${state.iso3dArtMode ? "rgba(232,215,178,0.42)" : "rgba(196,184,144,0.32)"}"/>
             <stop offset="100%" stop-color="${state.iso3dArtMode ? "rgba(232,215,178,0.10)" : "rgba(196,184,144,0.05)"}"/>
           </radialGradient>
+          <!-- R143 polish: cyanotype needs a prussian blue sky (that's the
+               entire point of the "blueprint" look). Watercolor + ink wash
+               keep the warm parchment gradient established in R111. Kept
+               the sky OUTSIDE the filter <g> so the frame + caption stay
+               legible; the sky element itself just picks the right
+               palette per variant. -->
           <linearGradient id="skyGrad" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%"  stop-color="${state.iso3dArtMode ? "#F5E8D0" : tod.skyTop}"/>
-            <stop offset="100%" stop-color="${state.iso3dArtMode ? "#EAD4B4" : tod.skyMid}"/>
+            <stop offset="0%"  stop-color="${
+              !state.iso3dArtMode ? tod.skyTop :
+              state.iso3dArtVariant === "cyanotype" ? "#2A4B7C" :
+              "#F5E8D0"
+            }"/>
+            <stop offset="100%" stop-color="${
+              !state.iso3dArtMode ? tod.skyMid :
+              state.iso3dArtVariant === "cyanotype" ? "#1B335A" :
+              "#EAD4B4"
+            }"/>
           </linearGradient>
           <!-- Sunlit ground wash — bright on the sun-side corner, fades to opposite -->
           <linearGradient id="sunWash" x1="${sunGradX1}" y1="0" x2="${sunGradX2}" y2="1">
