@@ -18901,7 +18901,7 @@ function renderResult() {
         </button>
       </div>
 
-      ${renderSustainChips(recs)}
+      ${renderSustainChips(recs, scored)}
 
       <div class="tabs-wrap at-start" id="tabsWrap">
         <div class="tabs" role="tablist" aria-label="${t('結果頁籤', 'Result tabs')}">
@@ -19359,7 +19359,7 @@ function wirePlanInteractions() {
 
 // ── Sustainability roll-up — aggregates per-plant CO2, water, and ecological
 //    support tags into 3 headline chips on the result page.
-function renderSustainChips(recs) {
+function renderSustainChips(recs, scored) {
   const top = recs.slice(0, 8);
   if (!top.length) return "";
 
