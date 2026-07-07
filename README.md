@@ -63,6 +63,8 @@ Every saved design gets its own dashboard:
 
 Each plant carries: bilingual name + Latin, tier, sun/water/height/spread, bloom + fruit months, native flag + origin, years to mature, fragrance level, pet-safety, common pests, water L/week + CO₂ kg/year estimates, sourcing hints, companion plants, ethnobotanical / cultural significance where applicable, and specific Taiwan wildlife it attracts (台灣藍鵲, 五色鳥, 大鳳蝶, 蜻蜓, etc.).
 
+Every plant drawer carries a **📚 Sources & citations** block that credits each data category to its origin (Taiwan Biodiversity Atlas for names + native status, government forestry/agriculture atlases for fruit and vegetable species, Council of Indigenous Peoples records for tribal ethnobotany, 2024–2026 Taipei/Yilan nursery quotes for prices, published water-use and carbon-sequestration models for L/week + CO₂). A **📋 Copy citation** button inside that block writes a formatted academic-style citation (`Ho, A. (2026). AI Landscape Copilot: 〈plant name〉. 〈live URL〉`) to the clipboard for use in papers, blog posts, or grant applications.
+
 ## Design language
 
 The whole app extends a **botanical illustration book** aesthetic: parchment cream palette (`#F1E6CB`) with sepia accents (`#7A5F42`), italic serif for chapter titles and captions, upright sepia serif small-caps for eyebrows, forest gradient for primary actions and active states, sepia gradient for warm secondary actions. Watercolor imagery (corner ornaments, botanical banner, space patterns, tier silhouettes, home wallpaper) is generated once via pollinations.ai and committed to `assets/` so the runtime is fully self-contained.
