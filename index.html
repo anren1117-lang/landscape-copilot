@@ -2973,7 +2973,17 @@
     overflow-y: auto; position: relative;
     box-shadow: -30px 0 60px -20px rgba(0,0,0,0.3);
   }
-  .drawer-close { position: absolute; top: 22px; right: 24px; background: none; border: none; font-size: 18px; color: var(--ink-soft); cursor: pointer; }
+  .drawer-close {
+    position: absolute; top: 10px; right: 12px;
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; padding: 0;
+    font-size: 20px; color: var(--ink-soft); cursor: pointer;
+    border-radius: 50%;
+    transition: background 0.15s ease;
+  }
+  .drawer-close:hover { background: rgba(122,95,66,0.10); }
+  .drawer-close:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
   .drawer-swatch { width: 70px; height: 70px; border-radius: 18px; margin-bottom: 22px; }
   .drawer-type { font-size: 12px; letter-spacing: 0.1em; color: var(--clay-deep); font-weight: 600; }
   .drawer-name { font-family: var(--serif); font-size: 32px; font-weight: 600; color: var(--forest); margin: 6px 0 2px; }
@@ -3142,7 +3152,7 @@
   @media (max-width: 480px) {
     /* (2) Plant drawer auto-fit — full-screen on small phones, tighter padding */
     .drawer { width: 100vw; padding: 24px 18px 32px; }
-    .drawer-close { top: 16px; right: 16px; }
+    .drawer-close { top: 6px; right: 6px; }
     .drawer-name { font-size: 26px; }
     .drawer-meta { gap: 8px; margin: 18px 0; padding: 14px 0; }
     .drawer-block { margin-bottom: 18px; }
