@@ -23322,9 +23322,14 @@ function openDrawer(id) {
                 ${e.cultural_zh ? `<p class="drawer-text" style="margin-bottom: 8px;" data-zh="${e.cultural_zh}" data-en="${e.cultural_en ?? e.cultural_zh}">${e.cultural_zh}</p>` : ""}
                 ${e.medicinal_zh ? `
                   <p class="drawer-text" style="margin-bottom: 6px;" data-zh="⚠ ${e.medicinal_zh}" data-en="⚠ ${e.medicinal_en ?? e.medicinal_zh}">⚠ ${e.medicinal_zh}</p>
-                  <div style="font-size: 11px; color: var(--clay-mid); font-style: italic; opacity: 0.8;"
+                  <!-- R150: same --clay-mid → --sepia fix as recipe pairings.
+                       Also merged the ZH+EN into the text/data-* pair; the
+                       previous version had "· Cultural info only, not
+                       medical advice" baked in as fallback text that showed
+                       to both Chinese and English users. -->
+                  <div style="font-size: 11px; color: var(--sepia); font-family: var(--serif); font-style: italic;"
                        data-zh="* 僅供文化資訊，非醫療建議"
-                       data-en="* Cultural info only, not medical advice">* 僅供文化資訊，非醫療建議 · Cultural info only, not medical advice</div>` : ""}
+                       data-en="* Cultural info only, not medical advice">* 僅供文化資訊，非醫療建議</div>` : ""}
               </div>` : ""}
 
             ${(() => {
@@ -23345,9 +23350,16 @@ function openDrawer(id) {
                   <p class="drawer-text" style="margin-top: 6px;"
                      data-zh="${escapeHtml(pair.body_zh || '')}"
                      data-en="${escapeHtml(pair.body_en || pair.body_zh || '')}">${escapeHtml(pair.body_zh || '')}</p>
-                  <div style="font-size: 11px; color: var(--clay-mid); font-style: italic; opacity: 0.8; margin-top: 4px;"
-                       data-zh="出自《台灣島嶼植物生活圖譜》"
-                       data-en="from《Taiwan Island Plant Life Atlas》">出自《台灣島嶼植物生活圖譜》</div>
+                  <!-- R150 polish: citation line was using a non-existent
+                       --clay-mid token so it fell back to inherit (semi-visible
+                       ink-soft), and opacity 0.8 made it feel like an
+                       afterthought. Now: sepia color from the R118 palette,
+                       italic serif to match the recipe body, small 📖 icon
+                       prefix so it visually reads as "source of this quote"
+                       instead of a random footnote. -->
+                  <div style="font-size: 11px; color: var(--sepia); font-family: var(--serif); font-style: italic; margin-top: 6px;"
+                       data-zh="📖 出自《台灣島嶼植物生活圖譜 100 選》atlas"
+                       data-en="📖 from《Taiwan Island Plant Life Atlas 100 Selections》">📖 出自《台灣島嶼植物生活圖譜 100 選》atlas</div>
                 </div>`;
             })()}
 
