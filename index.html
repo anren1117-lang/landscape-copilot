@@ -9984,8 +9984,17 @@ function prefImpactCount(recs, scored) {
     // plant across ~245 plants). Fallback to the original re-score for
     // callers that don't have `scored`.
     if (scored && Array.isArray(scored)) {
+      // R146 critic F1 fix: clamp with BOTH bounds. Pre-R146 the +15
+      // recovery was `Math.min(99, score + 15)` — for a plant whose raw
+      // pre-clamp score was very negative (rare but possible: many
+      // dislikes / zone mismatches), scorePlants clamps to 0. Adding 15
+      // to 0 gives 15, which the pre-R134 counterfactual path would
+      // have clamped to 0 via `Math.max(0, ...)`. Both branches still
+      // filter at score >= 30 so no user-visible divergence today, but
+      // if that gate ever drops to <15 the counts would silently
+      // diverge from what pre-R134 produced. Defensive symmetry.
       const counterfactual = scored
-        .map(p => disliked[p.id] ? { ...p, score: Math.min(99, p.score + 15) } : p)
+        .map(p => disliked[p.id] ? { ...p, score: Math.max(0, Math.min(99, p.score + 15)) } : p)
         .filter(p => p.score >= 30)
         .sort((a, b) => b.score - a.score)
         .slice(0, 8);
@@ -14079,7 +14088,18 @@ function wireLayoutEditor(entry) {
         // R131 perf: cached across rAF ticks of the same drag session,
         // populated on first tick, cleared on pointerup/pointercancel.
         // Skips the ~30-100µs localStorage.getItem + JSON.parse per rAF.
+        // R146 critic F2 fix: invalidate the cache if the visible design
+        // changed mid-drag (state.designDashboardId no longer matches
+        // the cached entry). Pre-R146 the R131 cache would carry the
+        // old design's counts for the rest of the drag even after the
+        // user navigated to a different design's dashboard. Edge case
+        // but the R131 cache made it worse than the pre-R131 one-frame
+        // flicker — now it's exactly a one-frame miss on nav.
         let freshEntry = cachedEntry;
+        if (freshEntry && freshEntry.id !== state.designDashboardId) {
+          freshEntry = null;
+          cachedEntry = null;
+        }
         if (!freshEntry) {
           freshEntry = (loadDesignById && state.designDashboardId === entry.id)
             ? (loadDesignById(entry.id) || entry)
