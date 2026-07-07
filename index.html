@@ -20677,20 +20677,22 @@ function render3D(layers, recs, allRecs) {
               data-zh="🟢 顯示本土"
               data-en="🟢 Show natives">${t("🟢 顯示本土", "🟢 Show natives")}</button>
       ${(() => {
-        // R129: 3-state cycle. Off → Watercolor → Ink wash → Off.
-        // Label + tooltip reflect the CURRENT state so the user knows
-        // what they're seeing; wire3DInteractions cycles on click.
+        // R129 → R143: 4-state cycle. Watercolor (default per R136) →
+        // Ink wash → Cyanotype → Off → Watercolor. Label + tooltip reflect
+        // the CURRENT state so the user knows what they're seeing;
+        // wire3DInteractions cycles on click.
         const isOn = state.iso3dArtMode;
         const variant = state.iso3dArtVariant || "watercolor";
         const labels = {
           off:        { zh: "🎨 藝術視角",  en: "🎨 Art view",     next_zh: "點擊：水彩", next_en: "click: watercolor" },
           watercolor: { zh: "🎨 水彩",      en: "🎨 Watercolor",   next_zh: "點擊：墨染", next_en: "click: ink wash"   },
-          inkwash:    { zh: "🖋 墨染",      en: "🖋 Ink wash",     next_zh: "點擊：關閉", next_en: "click: turn off"   },
+          inkwash:    { zh: "🖋 墨染",      en: "🖋 Ink wash",     next_zh: "點擊：藍曬", next_en: "click: cyanotype"  },
+          cyanotype:  { zh: "🟦 藍曬",      en: "🟦 Cyanotype",    next_zh: "點擊：關閉", next_en: "click: turn off"   },
         };
         const key = isOn ? variant : "off";
         const L = labels[key] || labels.off;
-        const titleZh = "把 3D 視角轉為植物插畫風格 — 水彩 / 墨染兩種變化。" + L.next_zh;
-        const titleEn = "Render the 3D view as a botanical illustration — watercolor or ink wash. " + L.next_en;
+        const titleZh = "把 3D 視角轉為植物插畫風格 — 水彩 / 墨染 / 藍曬三種變化。" + L.next_zh;
+        const titleEn = "Render the 3D view as a botanical illustration — watercolor, ink wash, or cyanotype. " + L.next_en;
         return `<button class="native-toggle-btn iso3d-art-btn ${isOn ? "on" : ""}"
                 id="iso3dArtToggleBtn"
                 type="button"
@@ -20770,10 +20772,34 @@ function render3D(layers, recs, allRecs) {
               0     0     0     1 0"/>
             <feGaussianBlur stdDeviation="0.35"/>
           </filter>
+          <!-- R143 cyanotype variant. Same organic edge, then grayscale +
+               invert (so light source pixels darken toward prussian blue and
+               dark pixels lift toward paper-white — the classic cyanotype
+               "photogram" inversion). Then re-tint with a matrix that maps
+               grayscale to a two-color ramp: near-white (cream #FAF6E4)
+               through mid (prussian blue #2A4B7C) to deep (dark blue #1B335A).
+               Result reads like a 19th-century Anna Atkins botanical
+               cyanotype print. -->
+          <filter id="cyanotypeFilter" x="-2%" y="-2%" width="104%" height="104%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6" result="displaced"/>
+            <feColorMatrix in="displaced" type="saturate" values="0" result="gray"/>
+            <feComponentTransfer in="gray" result="inverted">
+              <feFuncR type="table" tableValues="0.98 0.10"/>
+              <feFuncG type="table" tableValues="0.96 0.29"/>
+              <feFuncB type="table" tableValues="0.89 0.48"/>
+              <feFuncA type="identity"/>
+            </feComponentTransfer>
+            <feGaussianBlur stdDeviation="0.35"/>
+          </filter>
           ` : ""}
         </defs>
         ${sky}
-        <g ${state.iso3dArtMode ? `filter="url(#${(state.iso3dArtVariant || "watercolor") === "inkwash" ? "inkwashFilter" : "watercolorFilter"})"` : ""}>
+        <g ${state.iso3dArtMode ? `filter="url(#${
+          (state.iso3dArtVariant === "inkwash")    ? "inkwashFilter"    :
+          (state.iso3dArtVariant === "cyanotype") ? "cyanotypeFilter" :
+                                                     "watercolorFilter"
+        })"` : ""}>
           ${mountains}
           ${backWall}
           <polygon points="${groundPoly}" fill="url(#groundGrad)" stroke="${state.iso3dArtMode ? "#A88A6A" : "#B49676"}" stroke-width="${state.iso3dArtMode ? "1.6" : "1.2"}"/>
@@ -20817,11 +20843,15 @@ function render3D(layers, recs, allRecs) {
                differentiates watercolor vs ink wash so the user sees which
                variant is applied. -->
           ${(() => {
-            const isInk = (state.iso3dArtVariant || "watercolor") === "inkwash";
-            const zh = isInk ? "— 墨染植物 —" : "— 植物構圖 —";
-            const en = isInk ? "— Ink wash botanical —" : "— Botanical illustration —";
+            const v = state.iso3dArtVariant || "watercolor";
+            const captions = {
+              watercolor: { zh: "— 植物構圖 —",  en: "— Botanical illustration —" },
+              inkwash:    { zh: "— 墨染植物 —",  en: "— Ink wash botanical —" },
+              cyanotype:  { zh: "— 藍曬植物 —",  en: "— Cyanotype botanical —" },
+            };
+            const c = captions[v] || captions.watercolor;
             return `<text x="${svgW / 2}" y="${svgH - 22}" text-anchor="middle" font-size="10" fill="#8C6F52" font-family="Noto Serif TC" font-style="italic" letter-spacing="2"
-                  data-zh="${zh}" data-en="${en}">${state.lang === "en" ? en : zh}</text>`;
+                  data-zh="${c.zh}" data-en="${c.en}">${state.lang === "en" ? c.en : c.zh}</text>`;
           })()}
           <!-- Paper grain overlay across the plate. rect wide-covers the viewBox. -->
           <rect x="0" y="0" width="${svgW}" height="${svgH}" filter="url(#paperGrain)" opacity="0.4" pointer-events="none"/>
@@ -20878,9 +20908,8 @@ function wire3DInteractions() {
   const artBtn = document.getElementById("iso3dArtToggleBtn");
   if (artBtn) {
     artBtn.addEventListener("click", () => {
-      // R129: 3-state cycle. Off → Watercolor → Ink wash → Off.
-      // The button's own text + aria-pressed re-emit correctly on the
-      // renderTabPanel below because both are computed from state.
+      // R129 → R143: 4-state cycle. Watercolor (default per R136) →
+      // Ink wash → Cyanotype → Off → Watercolor.
       const isOn = state.iso3dArtMode;
       const variant = state.iso3dArtVariant || "watercolor";
       let toastZh, toastEn;
@@ -20891,6 +20920,9 @@ function wire3DInteractions() {
       } else if (variant === "watercolor") {
         state.iso3dArtVariant = "inkwash";
         toastZh = "已切換為墨染藝術視角"; toastEn = "Ink wash art view on";
+      } else if (variant === "inkwash") {
+        state.iso3dArtVariant = "cyanotype";
+        toastZh = "已切換為藍曬藝術視角"; toastEn = "Cyanotype art view on";
       } else {
         state.iso3dArtMode = false;
         state.iso3dArtVariant = "watercolor";  // reset for next cycle
