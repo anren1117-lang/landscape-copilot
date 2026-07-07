@@ -144,6 +144,36 @@
     }
   }
 
+  /* R152 — Respect prefers-contrast: more. The botanical parchment/sepia
+     palette is deliberately subtle by design (see R118 tokens above), but
+     users who set the OS "increase contrast" option should get stronger
+     edges + darker text. Overriding the shared tokens here cascades to
+     every rule using them without per-rule edits. Focus rings also thicken
+     so keyboard users still see them clearly on a boosted background. */
+  @media (prefers-contrast: more) {
+    :root {
+      --sepia: #4A3826;         /* was #7A5F42 — clears WCAG AAA 7:1 vs paper */
+      --sepia-soft: #7A5F42;    /* was #A88A6A */
+      --sepia-line: #6E5638;    /* was #B49676 — much stronger border */
+      --line: #6E5638;          /* borders inherit sepia-line */
+      --ink: #1F211D;           /* body text goes near-black */
+      --ink-soft: #33352E;      /* was #5A5C50 */
+      --forest: #1A2515;        /* deeper for headings */
+    }
+    /* Focus rings widen so they still stand out against the boosted
+       borders. Same 3px sage-deep hue for continuity. */
+    .btn:focus-visible, a:focus-visible, .tab:focus-visible, .card-opt:focus-visible,
+    .rec-card:focus-visible, .cta:focus-visible, .cta-warm:focus-visible,
+    .field-input:focus-visible, .r103-chip:focus-visible,
+    .layout-editor-add:focus-visible, .layout-editor-chip:focus-visible,
+    .layout-editor-reset:focus-visible {
+      outline-width: 4px !important;
+    }
+    /* body::before parchment texture reads as noise at high contrast —
+       hide it so the darker text sits on solid parchment. */
+    body::before { display: none; }
+  }
+
   /* atmospheric layer (light texture + corner glows) */
   .grain {
     position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.35;
