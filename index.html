@@ -3016,6 +3016,27 @@
   }
   .drawer-sources-body > div { margin-bottom: 5px; }
   .drawer-sources-body b { color: var(--forest); font-weight: 600; }
+  /* R153 citation-copy button — small warm-sepia pill inside the sources
+     block so researchers/students citing the tool get a one-tap
+     ready-to-paste line. */
+  .drawer-cite-btn {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 14px;
+    background: linear-gradient(180deg, var(--sepia-soft) 0%, var(--clay-deep) 100%);
+    color: var(--paper);
+    border: 1px solid var(--sepia);
+    border-radius: 999px;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: transform .15s, box-shadow .15s;
+    box-shadow: 0 4px 10px -6px rgba(122,95,66,0.55);
+  }
+  .drawer-cite-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px -8px rgba(122,95,66,0.65); }
+  .drawer-cite-btn:active { transform: translateY(0); }
   .drawer-supports { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .drawer-supports .chip { font-size: 11.5px; padding: 4px 10px; }
 
@@ -23498,6 +23519,17 @@ function openDrawer(id) {
             <div style="margin-top:8px; font-style: italic; color: var(--sepia);"
                  data-zh="所有資料僅供規劃參考，不取代專業園藝師或農業改良場的建議。"
                  data-en="All data is advisory — does not replace guidance from a horticulturist or agricultural research station.">所有資料僅供規劃參考，不取代專業園藝師或農業改良場的建議。</div>
+            <!-- R153: one-tap citation copy. Users citing the tool in a paper
+                 or blog paste a formatted line; the plant name + latin +
+                 site URL identify the page unambiguously without needing
+                 a #p= deep link scheme this repo doesn't have yet. -->
+            <button type="button" class="drawer-cite-btn"
+                    data-plant-id="${escapeHtml(plant.id)}"
+                    data-plant-zh="${escapeHtml(plant.zh)}"
+                    data-plant-en="${escapeHtml(plant.en)}"
+                    data-plant-lt="${escapeHtml(plant.lt || '')}"
+                    data-zh="📋 複製引用（給論文或部落格用）"
+                    data-en="📋 Copy citation (for papers or blogs)">📋 複製引用（給論文或部落格用）</button>
           </div>
         </details>
         <div class="drawer-foot" data-zh="Biodiversity Living System · 植物資料庫" data-en="Biodiversity Living System · Plant Database">Biodiversity Living System · 植物資料庫</div>
@@ -23512,6 +23544,32 @@ function openDrawer(id) {
     dcBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       startPlantCompare(plant.id);
+    });
+  }
+  // R153: 📋 copy citation button in the sources block. Formats the reference
+  // as "Ho, A. (year). AI Landscape Copilot: 名 · Latin. URL" and drops it
+  // into the clipboard. Falls back to a prompt() if clipboard is blocked
+  // (Safari private mode, iframed, etc.) so users can still copy manually.
+  const citeBtn = document.querySelector(".drawer-cite-btn");
+  if (citeBtn) {
+    citeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const pid = citeBtn.dataset.plantId || "";
+      const pzh = citeBtn.dataset.plantZh || "";
+      const pen = citeBtn.dataset.plantEn || "";
+      const plt = citeBtn.dataset.plantLt || "";
+      const year = new Date().getFullYear();
+      const parts = [pzh, pen, plt].filter(Boolean);
+      const nameLine = parts.join(" · ");
+      const siteUrl = "https://anren1117-lang.github.io/landscape-copilot/";
+      const citation = `Ho, A. (${year}). AI Landscape Copilot: ${nameLine}. ${siteUrl}`;
+      try {
+        await navigator.clipboard.writeText(citation);
+        showSaveToast(`📋 已複製引用：${pzh}`, `📋 Citation copied: ${pen || pzh}`);
+      } catch (err) {
+        // Fallback for restricted clipboard environments.
+        prompt(state.lang === "zh" ? "請手動複製引用：" : "Please copy citation:", citation);
+      }
     });
   }
   // ESC closes the drawer (parity with the QR + Tips modals). Listener is
