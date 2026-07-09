@@ -20809,12 +20809,13 @@ function render3D(layers, recs, allRecs) {
           off:        { zh: "🎨 藝術視角",  en: "🎨 Art view",     next_zh: "點擊：水彩", next_en: "click: watercolor" },
           watercolor: { zh: "🎨 水彩",      en: "🎨 Watercolor",   next_zh: "點擊：墨染", next_en: "click: ink wash"   },
           inkwash:    { zh: "🖋 墨染",      en: "🖋 Ink wash",     next_zh: "點擊：藍曬", next_en: "click: cyanotype"  },
-          cyanotype:  { zh: "🟦 藍曬",      en: "🟦 Cyanotype",    next_zh: "點擊：關閉", next_en: "click: turn off"   },
+          cyanotype:  { zh: "🟦 藍曬",      en: "🟦 Cyanotype",    next_zh: "點擊：木刻", next_en: "click: woodblock"  },
+          woodblock:  { zh: "🎋 木刻",      en: "🎋 Woodblock",    next_zh: "點擊：關閉", next_en: "click: turn off"   },
         };
         const key = isOn ? variant : "off";
         const L = labels[key] || labels.off;
         const titleZh = "把 3D 視角轉為植物插畫風格 — 水彩 / 墨染 / 藍曬三種變化。" + L.next_zh;
-        const titleEn = "Render the 3D view as a botanical illustration — watercolor, ink wash, or cyanotype. " + L.next_en;
+        const titleEn = "Render the 3D view as a botanical illustration — watercolor, ink wash, cyanotype, or woodblock. " + L.next_en;
         return `<button class="native-toggle-btn iso3d-art-btn ${isOn ? "on" : ""}"
                 id="iso3dArtToggleBtn"
                 type="button"
@@ -20928,12 +20929,33 @@ function render3D(layers, recs, allRecs) {
             </feComponentTransfer>
             <feGaussianBlur stdDeviation="0.35"/>
           </filter>
+          <!-- R157 woodblock variant — 木刻版畫. Traditional East Asian
+               block-print aesthetic: bold flat colors with slight
+               hand-carved edge wobble. Uses feComponentTransfer with
+               type="discrete" to posterize each channel to 4 levels,
+               collapsing smooth gradients into flat inked regions.
+               Slight saturate boost so pigments read as printed ink
+               rather than watery paint. Turbulence is a touch finer
+               than watercolor (baseFrequency 0.08 vs 0.04) so the edge
+               feels like a chiselled cut, not a wet brush. -->
+          <filter id="woodblockFilter" x="-2%" y="-2%" width="104%" height="104%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="1" seed="9" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.0" result="displaced"/>
+            <feComponentTransfer in="displaced" result="posterized">
+              <feFuncR type="discrete" tableValues="0.18 0.50 0.78 0.95"/>
+              <feFuncG type="discrete" tableValues="0.22 0.48 0.72 0.90"/>
+              <feFuncB type="discrete" tableValues="0.15 0.40 0.62 0.82"/>
+              <feFuncA type="identity"/>
+            </feComponentTransfer>
+            <feColorMatrix in="posterized" type="saturate" values="1.2"/>
+          </filter>
           ` : ""}
         </defs>
         ${sky}
         <g ${state.iso3dArtMode ? `filter="url(#${
           (state.iso3dArtVariant === "inkwash")    ? "inkwashFilter"    :
           (state.iso3dArtVariant === "cyanotype") ? "cyanotypeFilter" :
+          (state.iso3dArtVariant === "woodblock") ? "woodblockFilter" :
                                                      "watercolorFilter"
         })"` : ""}>
           ${mountains}
@@ -21044,8 +21066,8 @@ function wire3DInteractions() {
   const artBtn = document.getElementById("iso3dArtToggleBtn");
   if (artBtn) {
     artBtn.addEventListener("click", () => {
-      // R129 → R143: 4-state cycle. Watercolor (default per R136) →
-      // Ink wash → Cyanotype → Off → Watercolor.
+      // R129 → R143 → R157: 5-state cycle. Watercolor (default per R136) →
+      // Ink wash → Cyanotype → Woodblock → Off → Watercolor.
       const isOn = state.iso3dArtMode;
       const variant = state.iso3dArtVariant || "watercolor";
       let toastZh, toastEn;
@@ -21059,6 +21081,9 @@ function wire3DInteractions() {
       } else if (variant === "inkwash") {
         state.iso3dArtVariant = "cyanotype";
         toastZh = "已切換為藍曬藝術視角"; toastEn = "Cyanotype art view on";
+      } else if (variant === "cyanotype") {
+        state.iso3dArtVariant = "woodblock";
+        toastZh = "已切換為木刻藝術視角"; toastEn = "Woodblock art view on";
       } else {
         state.iso3dArtMode = false;
         state.iso3dArtVariant = "watercolor";  // reset for next cycle
