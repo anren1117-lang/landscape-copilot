@@ -20305,41 +20305,82 @@ function render3D(layers, recs, allRecs) {
     const shape = speciesShape(p);
     let crown;
 
-    // ── Cloud-crown helper: 4-5 overlapping ellipses of varying size give a
-    // "puffy" canopy silhouette that reads as real foliage, not a wireframe ball.
-    // Highlights on the sun-facing side, shadow on the opposite. Seeded per-plant
-    // so the shape is stable across renders.
+    // ── Botanical-illustration crown ─────────────────────────────
+    // R158: the crown is no longer 5 overlapping ellipses (blobby). It's a
+    // lobed Bezier silhouette with a rim stroke, sun-side highlight,
+    // shade-side crescent, and visible leaf-tuft accents on the perimeter.
+    // Reads as real botanical illustration geometry whether the R111/R129/
+    // R143/R157 filter overlay is on or off — the art IS the geometry.
     function cloudyCrown(cx, cy, rx, ry, baseColor, sunSideX) {
       const seed = (p.id || "x").split("").reduce((a, c) => a + c.charCodeAt(0), 0) + Math.round(cx);
       const rndP = pseudoRand(seed);
       const sunSign = sunSideX < cx ? -1 : 1; // -1 = sun on left, +1 = sun on right
-      const puffs = [
-        // [dx, dy, rxMul, ryMul]
-        [0,                     0,                     1.00, 1.00],
-        [-rx * 0.55,           -ry * 0.10,            0.62, 0.68],
-        [ rx * 0.55,           -ry * 0.20,            0.68, 0.72],
-        [-rx * 0.18,           -ry * 0.55,            0.58, 0.55],
-        [ rx * 0.28,            ry * 0.30,            0.55, 0.50],
-      ];
-      // R14 #2: per-puff hue jitter so leaves aren't identical — +/- 8° in HSL.
-      // R14 #3: per-puff sun-facing gradient — sun-side puffs lifted brighter,
-      // shade-side puffs deepened, instead of one global highlight ellipse.
-      const parts = puffs.map(([dx, dy, rxm, rym]) => {
-        const jx = (rndP() - 0.5) * rx * 0.18;
-        const jy = (rndP() - 0.5) * ry * 0.18;
-        const hueShift = (rndP() - 0.5) * 16; // +/- 8 deg
-        const puffCol = shiftHueHex(baseColor, hueShift);
-        const puffCx = cx + dx + jx;
-        // sun-side puff (sunSign aligned with dx sign) → brighter
-        const onSunSide = (sunSign > 0 ? dx >= 0 : dx <= 0);
-        const lightOverlay = onSunSide
-          ? `<ellipse cx="${(puffCx + sunSign * rx * rxm * 0.20).toFixed(1)}" cy="${(cy + dy + jy - ry * rym * 0.22).toFixed(1)}" rx="${(rx * rxm * 0.55).toFixed(1)}" ry="${(ry * rym * 0.48).toFixed(1)}" fill="rgba(255,250,225,0.22)"/>`
-          : `<ellipse cx="${(puffCx - sunSign * rx * rxm * 0.18).toFixed(1)}" cy="${(cy + dy + jy + ry * rym * 0.22).toFixed(1)}" rx="${(rx * rxm * 0.55).toFixed(1)}" ry="${(ry * rym * 0.45).toFixed(1)}" fill="rgba(0,0,0,0.14)"/>`;
-        return `<ellipse cx="${puffCx.toFixed(1)}" cy="${(cy + dy + jy).toFixed(1)}" rx="${(rx * rxm).toFixed(1)}" ry="${(ry * rym).toFixed(1)}" fill="${puffCol}"/>${lightOverlay}`;
-      }).join("");
+
+      // Lobed perimeter: 12 anchor points with ±18% radius jitter, connected
+      // by quadratic Beziers whose control points bow slightly outward. That
+      // gives the classic scalloped canopy outline of a printed leaf plate.
+      const N = 12;
+      const pts = [];
+      for (let i = 0; i < N; i++) {
+        const ang = (Math.PI * 2 / N) * i;
+        const rJit = 0.82 + rndP() * 0.36; // 0.82–1.18
+        pts.push({
+          ang,
+          px: cx + Math.cos(ang) * rx * rJit,
+          py: cy + Math.sin(ang) * ry * rJit,
+        });
+      }
+      let d = "";
+      for (let i = 0; i < N; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % N];
+        const midAng = a.ang + (Math.PI * 2 / N) / 2;
+        const cRad = 0.95 + rndP() * 0.15;
+        const cpx = cx + Math.cos(midAng) * rx * cRad;
+        const cpy = cy + Math.sin(midAng) * ry * cRad;
+        if (i === 0) d += `M${a.px.toFixed(1)},${a.py.toFixed(1)}`;
+        d += ` Q${cpx.toFixed(1)},${cpy.toFixed(1)} ${b.px.toFixed(1)},${b.py.toFixed(1)}`;
+      }
+      d += " Z";
+
+      const shadeColor = shiftHueHex(baseColor, 6);
+      // Rim stroke — the drawn outline is what makes it feel etched, not blobby.
+      const body = `<path d="${d}" fill="${baseColor}" stroke="rgba(60,72,52,0.55)" stroke-width="0.8" stroke-linejoin="round"/>`;
+
+      // Shade-side crescent
+      const shadeCx = cx - sunSign * rx * 0.28;
+      const shadeCy = cy + ry * 0.10;
+      const shadeSvg = `<ellipse cx="${shadeCx.toFixed(1)}" cy="${shadeCy.toFixed(1)}" rx="${(rx * 0.55).toFixed(1)}" ry="${(ry * 0.45).toFixed(1)}" fill="${shadeColor}" opacity="0.42"/>`;
+
+      // Sun-side highlight
+      const hlCx = cx + sunSign * rx * 0.32;
+      const hlCy = cy - ry * 0.28;
+      const highlightSvg = `<ellipse cx="${hlCx.toFixed(1)}" cy="${hlCy.toFixed(1)}" rx="${(rx * 0.36).toFixed(1)}" ry="${(ry * 0.26).toFixed(1)}" fill="rgba(255,250,225,0.30)"/>`;
+
+      // Interior branch hint — a single soft dark radial line hinting at
+      // canopy structure without drawing every twig.
+      const branchAng = Math.PI * (0.35 + rndP() * 0.30) * (sunSign > 0 ? 1 : -1);
+      const branchX = cx + Math.cos(branchAng) * rx * 0.55;
+      const branchY = cy + Math.sin(branchAng) * ry * 0.45;
+      const branchSvg = `<path d="M${cx.toFixed(1)},${cy.toFixed(1)} L${branchX.toFixed(1)},${branchY.toFixed(1)}" stroke="rgba(60,72,52,0.30)" stroke-width="0.7" fill="none"/>`;
+
+      // Visible leaf-tuft accents on the perimeter — small rotated ovate
+      // leaves that read as individual foliage clusters up close.
+      const tufts = [];
+      const tuftN = 5;
+      for (let i = 0; i < tuftN; i++) {
+        const tang = (Math.PI * 2 / tuftN) * i + rndP() * 0.4;
+        const tRad = 0.90 + rndP() * 0.08;
+        const tx = cx + Math.cos(tang) * rx * tRad;
+        const ty = cy + Math.sin(tang) * ry * tRad;
+        const rot = (tang * 180 / Math.PI + 90).toFixed(0);
+        const tuftCol = shiftHueHex(baseColor, (rndP() - 0.5) * 14);
+        tufts.push(`<ellipse cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" rx="3.4" ry="1.9" fill="${tuftCol}" stroke="rgba(60,72,52,0.35)" stroke-width="0.4" transform="rotate(${rot} ${tx.toFixed(1)} ${ty.toFixed(1)})"/>`);
+      }
+
       // invisible hit-target ellipse the hover CSS can highlight
       const hit = `<ellipse class="crown-hit" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(rx * 1.05).toFixed(1)}" ry="${(ry * 1.05).toFixed(1)}" fill="none" stroke="transparent" stroke-width="0"/>`;
-      return parts + hit;
+      return body + shadeSvg + highlightSvg + branchSvg + tufts.join("") + hit;
     }
 
     if (p.tier === "W") {
