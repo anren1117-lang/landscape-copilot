@@ -20316,14 +20316,16 @@ function render3D(layers, recs, allRecs) {
       const rndP = pseudoRand(seed);
       const sunSign = sunSideX < cx ? -1 : 1; // -1 = sun on left, +1 = sun on right
 
-      // Lobed perimeter: 12 anchor points with ±18% radius jitter, connected
-      // by quadratic Beziers whose control points bow slightly outward. That
-      // gives the classic scalloped canopy outline of a printed leaf plate.
-      const N = 12;
+      // Lobed perimeter: 16 anchor points with ±28% radius jitter for
+      // visible undulation. Quadratic Beziers between points, control points
+      // bow OUT past the perimeter to create real convex lobes (not just
+      // wavy circle). This is the scalloped canopy outline of a printed
+      // leaf plate.
+      const N = 16;
       const pts = [];
       for (let i = 0; i < N; i++) {
         const ang = (Math.PI * 2 / N) * i;
-        const rJit = 0.82 + rndP() * 0.36; // 0.82–1.18
+        const rJit = 0.72 + rndP() * 0.56; // 0.72–1.28
         pts.push({
           ang,
           px: cx + Math.cos(ang) * rx * rJit,
@@ -20335,7 +20337,7 @@ function render3D(layers, recs, allRecs) {
         const a = pts[i];
         const b = pts[(i + 1) % N];
         const midAng = a.ang + (Math.PI * 2 / N) / 2;
-        const cRad = 0.95 + rndP() * 0.15;
+        const cRad = 1.08 + rndP() * 0.20; // control points pushed outward → visible lobes
         const cpx = cx + Math.cos(midAng) * rx * cRad;
         const cpy = cy + Math.sin(midAng) * ry * cRad;
         if (i === 0) d += `M${a.px.toFixed(1)},${a.py.toFixed(1)}`;
@@ -20344,43 +20346,57 @@ function render3D(layers, recs, allRecs) {
       d += " Z";
 
       const shadeColor = shiftHueHex(baseColor, 6);
-      // Rim stroke — the drawn outline is what makes it feel etched, not blobby.
-      const body = `<path d="${d}" fill="${baseColor}" stroke="rgba(60,72,52,0.55)" stroke-width="0.8" stroke-linejoin="round"/>`;
+      // Rim stroke — thick enough to read as etched illustration outline
+      // rather than colored blob edge.
+      const body = `<path d="${d}" fill="${baseColor}" stroke="rgba(58,70,52,0.75)" stroke-width="1.2" stroke-linejoin="round"/>`;
 
-      // Shade-side crescent
+      // Shade-side crescent — under the canopy dome away from the sun.
       const shadeCx = cx - sunSign * rx * 0.28;
       const shadeCy = cy + ry * 0.10;
       const shadeSvg = `<ellipse cx="${shadeCx.toFixed(1)}" cy="${shadeCy.toFixed(1)}" rx="${(rx * 0.55).toFixed(1)}" ry="${(ry * 0.45).toFixed(1)}" fill="${shadeColor}" opacity="0.42"/>`;
 
-      // Sun-side highlight
+      // Sun-side highlight — bright leaf-catch on the sun-facing dome.
       const hlCx = cx + sunSign * rx * 0.32;
       const hlCy = cy - ry * 0.28;
-      const highlightSvg = `<ellipse cx="${hlCx.toFixed(1)}" cy="${hlCy.toFixed(1)}" rx="${(rx * 0.36).toFixed(1)}" ry="${(ry * 0.26).toFixed(1)}" fill="rgba(255,250,225,0.30)"/>`;
+      const highlightSvg = `<ellipse cx="${hlCx.toFixed(1)}" cy="${hlCy.toFixed(1)}" rx="${(rx * 0.36).toFixed(1)}" ry="${(ry * 0.26).toFixed(1)}" fill="rgba(255,250,225,0.32)"/>`;
 
-      // Interior branch hint — a single soft dark radial line hinting at
-      // canopy structure without drawing every twig.
-      const branchAng = Math.PI * (0.35 + rndP() * 0.30) * (sunSign > 0 ? 1 : -1);
-      const branchX = cx + Math.cos(branchAng) * rx * 0.55;
-      const branchY = cy + Math.sin(branchAng) * ry * 0.45;
-      const branchSvg = `<path d="M${cx.toFixed(1)},${cy.toFixed(1)} L${branchX.toFixed(1)},${branchY.toFixed(1)}" stroke="rgba(60,72,52,0.30)" stroke-width="0.7" fill="none"/>`;
+      // Interior venation — 4 radial branch hints from crown center to
+      // near-perimeter points. Classic botanical-plate structural marks.
+      const veinN = 4;
+      const veins = [];
+      for (let i = 0; i < veinN; i++) {
+        const va = (Math.PI * 2 / veinN) * i + rndP() * 0.5;
+        const vLen = 0.55 + rndP() * 0.25;
+        const vx = cx + Math.cos(va) * rx * vLen;
+        const vy = cy + Math.sin(va) * ry * vLen;
+        veins.push(`<path d="M${cx.toFixed(1)},${cy.toFixed(1)} L${vx.toFixed(1)},${vy.toFixed(1)}" stroke="rgba(58,70,52,0.28)" stroke-width="0.6" fill="none" stroke-linecap="round"/>`);
+      }
 
-      // Visible leaf-tuft accents on the perimeter — small rotated ovate
-      // leaves that read as individual foliage clusters up close.
-      const tufts = [];
-      const tuftN = 5;
-      for (let i = 0; i < tuftN; i++) {
-        const tang = (Math.PI * 2 / tuftN) * i + rndP() * 0.4;
-        const tRad = 0.90 + rndP() * 0.08;
-        const tx = cx + Math.cos(tang) * rx * tRad;
-        const ty = cy + Math.sin(tang) * ry * tRad;
-        const rot = (tang * 180 / Math.PI + 90).toFixed(0);
-        const tuftCol = shiftHueHex(baseColor, (rndP() - 0.5) * 14);
-        tufts.push(`<ellipse cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" rx="3.4" ry="1.9" fill="${tuftCol}" stroke="rgba(60,72,52,0.35)" stroke-width="0.4" transform="rotate(${rot} ${tx.toFixed(1)} ${ty.toFixed(1)})"/>`);
+      // Visible individual leaves — 10 rotated ovate leaves scattered
+      // around the perimeter, size scaled to crown so they stay visible
+      // at every render scale. Each leaf gets a rim stroke + a midvein
+      // line so it reads as a real drawn leaf, not a color chip.
+      const leafN = 10;
+      const leafRx = Math.max(3.6, rx * 0.16);
+      const leafRy = Math.max(1.8, rx * 0.08);
+      const leaves = [];
+      for (let i = 0; i < leafN; i++) {
+        const la = (Math.PI * 2 / leafN) * i + rndP() * 0.3;
+        const lRad = 0.86 + rndP() * 0.14; // just inside → slightly outside rim
+        const lx = cx + Math.cos(la) * rx * lRad;
+        const ly = cy + Math.sin(la) * ry * lRad;
+        const rot = la * 180 / Math.PI + 90;
+        // sun-side leaves lighter, shade-side leaves darker
+        const onSun = (sunSign > 0 ? Math.cos(la) >= 0 : Math.cos(la) <= 0);
+        const leafCol = shiftHueHex(baseColor, (rndP() - 0.5) * 14 + (onSun ? 4 : -4));
+        // midvein — a short line down the leaf's long axis, drawn in the
+        // rotated coordinate space around the leaf center
+        leaves.push(`<g transform="rotate(${rot.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})"><ellipse cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" rx="${leafRx.toFixed(1)}" ry="${leafRy.toFixed(1)}" fill="${leafCol}" stroke="rgba(58,70,52,0.6)" stroke-width="0.5"/><line x1="${lx.toFixed(1)}" y1="${(ly - leafRx * 0.85).toFixed(1)}" x2="${lx.toFixed(1)}" y2="${(ly + leafRx * 0.85).toFixed(1)}" stroke="rgba(58,70,52,0.5)" stroke-width="0.35"/></g>`);
       }
 
       // invisible hit-target ellipse the hover CSS can highlight
       const hit = `<ellipse class="crown-hit" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(rx * 1.05).toFixed(1)}" ry="${(ry * 1.05).toFixed(1)}" fill="none" stroke="transparent" stroke-width="0"/>`;
-      return body + shadeSvg + highlightSvg + branchSvg + tufts.join("") + hit;
+      return body + shadeSvg + highlightSvg + veins.join("") + leaves.join("") + hit;
     }
 
     if (p.tier === "W") {
