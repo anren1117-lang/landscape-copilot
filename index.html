@@ -20296,9 +20296,31 @@ function render3D(layers, recs, allRecs) {
 
     let trunk = "";
     if (trunkH > 0 && trunkW > 0) {
+      // R160: trunk redesigned from rounded-rect gradient into a drawn
+      // botanical trunk — tapered path (wider at base, narrower at top),
+      // slight root flare at ground level, 2 bark striation lines, dark
+      // rim outline. Reads as illustrated wood, not colored bar.
       const tx = ground.ix;
       const tyTop = ground.iy - trunkH;
-      trunk = `<rect x="${(tx - trunkW/2).toFixed(1)}" y="${tyTop.toFixed(1)}" width="${trunkW}" height="${trunkH}" fill="url(#trunkGrad)" rx="2"/>`;
+      const halfBase = trunkW / 2;
+      const halfTop = Math.max(1.4, trunkW * 0.42);
+      const flare = Math.max(1.8, trunkW * 0.35);
+      // Tapered trunk with root flare — 6-point path so the base bulges
+      // outward before meeting the ground.
+      const trunkPath = `M${(tx - halfBase - flare).toFixed(1)},${ground.iy.toFixed(1)}` +
+        ` Q${(tx - halfBase).toFixed(1)},${(ground.iy - 2).toFixed(1)} ${(tx - halfBase).toFixed(1)},${(ground.iy - flare).toFixed(1)}` +
+        ` L${(tx - halfTop).toFixed(1)},${tyTop.toFixed(1)}` +
+        ` L${(tx + halfTop).toFixed(1)},${tyTop.toFixed(1)}` +
+        ` L${(tx + halfBase).toFixed(1)},${(ground.iy - flare).toFixed(1)}` +
+        ` Q${(tx + halfBase).toFixed(1)},${(ground.iy - 2).toFixed(1)} ${(tx + halfBase + flare).toFixed(1)},${ground.iy.toFixed(1)} Z`;
+      // Bark striations — 2 vertical dark lines suggesting bark ridges.
+      const barkOffsetA = -halfBase * 0.35;
+      const barkOffsetB = halfBase * 0.30;
+      const barkPath = trunkH > 12
+        ? `<line x1="${(tx + barkOffsetA).toFixed(1)}" y1="${(tyTop + 2).toFixed(1)}" x2="${(tx + barkOffsetA * 0.7).toFixed(1)}" y2="${(ground.iy - 3).toFixed(1)}" stroke="rgba(50,36,24,0.55)" stroke-width="0.6" stroke-linecap="round"/>` +
+          `<line x1="${(tx + barkOffsetB).toFixed(1)}" y1="${(tyTop + 3).toFixed(1)}" x2="${(tx + barkOffsetB * 0.7).toFixed(1)}" y2="${(ground.iy - 3).toFixed(1)}" stroke="rgba(50,36,24,0.45)" stroke-width="0.5" stroke-linecap="round"/>`
+        : "";
+      trunk = `<path d="${trunkPath}" fill="url(#trunkGrad)" stroke="rgba(50,36,24,0.75)" stroke-width="0.9" stroke-linejoin="round"/>${barkPath}`;
     }
 
     const cyCrown = ground.iy - trunkH - (trunkH > 0 ? crownRy * 0.4 : 0);
