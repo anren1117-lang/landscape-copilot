@@ -19897,12 +19897,16 @@ function render3D(layers, recs, allRecs) {
       const cy0 = 24 + rndC() * Math.max(20, horizonY - 60);
       const cw = 28 + rndC() * 36;
       const ch = 9  + rndC() * 6;
-      // 3 overlapping ellipses + a soft rim ellipse
-      cloudParts.push(`<g opacity="0.78">
+      // R162: 3 overlapping cloud lobes + rim ellipse + a thin drawn rim
+      // stroke on the top lobe so the cloud reads as etched contour, not a
+      // soft airbrush blob. Small dark dot on the underside adds a hint of
+      // shading like a lithograph cloud.
+      cloudParts.push(`<g opacity="0.82">
         <ellipse cx="${(cx0 - cw * 0.55).toFixed(1)}" cy="${(cy0 + ch * 0.25).toFixed(1)}" rx="${(cw * 0.55).toFixed(1)}" ry="${(ch * 0.85).toFixed(1)}" fill="rgba(255,255,255,0.78)"/>
-        <ellipse cx="${cx0.toFixed(1)}" cy="${cy0.toFixed(1)}" rx="${cw.toFixed(1)}" ry="${ch.toFixed(1)}" fill="rgba(255,255,255,0.88)"/>
+        <ellipse cx="${cx0.toFixed(1)}" cy="${cy0.toFixed(1)}" rx="${cw.toFixed(1)}" ry="${ch.toFixed(1)}" fill="rgba(255,255,255,0.90)" stroke="rgba(90,80,60,0.28)" stroke-width="0.6"/>
         <ellipse cx="${(cx0 + cw * 0.55).toFixed(1)}" cy="${(cy0 + ch * 0.15).toFixed(1)}" rx="${(cw * 0.6).toFixed(1)}" ry="${(ch * 0.9).toFixed(1)}" fill="rgba(255,255,255,0.82)"/>
-        <ellipse cx="${(cx0 - cw * 0.1).toFixed(1)}" cy="${(cy0 - ch * 0.4).toFixed(1)}" rx="${(cw * 0.5).toFixed(1)}" ry="${(ch * 0.7).toFixed(1)}" fill="rgba(255,255,255,0.92)"/>
+        <ellipse cx="${(cx0 - cw * 0.1).toFixed(1)}" cy="${(cy0 - ch * 0.4).toFixed(1)}" rx="${(cw * 0.5).toFixed(1)}" ry="${(ch * 0.7).toFixed(1)}" fill="rgba(255,255,255,0.94)" stroke="rgba(90,80,60,0.20)" stroke-width="0.4"/>
+        <ellipse cx="${cx0.toFixed(1)}" cy="${(cy0 + ch * 0.85).toFixed(1)}" rx="${(cw * 0.75).toFixed(1)}" ry="${(ch * 0.20).toFixed(1)}" fill="rgba(90,80,60,0.12)"/>
       </g>`);
     }
     skyClouds = cloudParts.join("");
