@@ -20424,10 +20424,18 @@ function render3D(layers, recs, allRecs) {
       // they sit on top of shade-side leaves (painter's algorithm within
       // the crown). This makes the canopy visibly leafy at every scale.
       // ─────────────────────────────────────────────────────────────
+      // Leaves are GREEN, not the plant color. Real botanical crowns have
+      // green foliage regardless of what color the flowers are — the
+      // baseColor stays as the 45% background wash carrying species
+      // identity, and any flowering flecks get added on top by the caller.
+      // Sun-side leaves lift toward a lighter warm-green; shade-side
+      // leaves darken to a deeper forest-green.
       const leafN = 20;
       const leafRx = Math.max(3.8, rx * 0.19);
       const leafRy = Math.max(1.7, rx * 0.09);
       const leafSpecs = [];
+      const LEAF_SUN = "#7E9E5A";   // sun-lit warm green
+      const LEAF_SHADE = "#3E5C34"; // shade-side deep green
       for (let i = 0; i < leafN; i++) {
         // Spread leaves in polar coords: angle uniformly around, radius
         // biased toward the outer 60-100% of the crown so the interior
@@ -20438,8 +20446,11 @@ function render3D(layers, recs, allRecs) {
         const ly = cy + Math.sin(la) * ry * lRad;
         const rot = (la * 180 / Math.PI + 90) + (rndP() - 0.5) * 30;
         const onSun = (sunSign > 0 ? Math.cos(la) >= 0 : Math.cos(la) <= 0);
-        const hueShift = (rndP() - 0.5) * 16 + (onSun ? 6 : -6);
-        const leafCol = shiftHueHex(baseColor, hueShift);
+        const baseGreen = onSun ? LEAF_SUN : LEAF_SHADE;
+        // Small hue shift per leaf so they aren't identical, plus a small
+        // pull toward the plant's baseColor so species tint still bleeds
+        // into the foliage.
+        const leafCol = shiftHueHex(baseGreen, (rndP() - 0.5) * 20);
         leafSpecs.push({ lx, ly, rot, leafCol, onSun, depthKey: (onSun ? 1 : 0) * 100 + rndP() });
       }
       // Painter's algorithm — shade-side leaves first, sun-side last
