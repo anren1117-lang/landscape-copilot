@@ -21234,6 +21234,7 @@ function render3D(layers, recs, allRecs) {
               watercolor: { zh: "— 植物構圖 —",  en: "— Botanical illustration —" },
               inkwash:    { zh: "— 墨染植物 —",  en: "— Ink wash botanical —" },
               cyanotype:  { zh: "— 藍曬植物 —",  en: "— Cyanotype botanical —" },
+              woodblock:  { zh: "— 木刻植物 —",  en: "— Woodblock botanical —" },
             };
             const c = captions[v] || captions.watercolor;
             return `<text x="${svgW / 2}" y="${svgH - 22}" text-anchor="middle" font-size="10" fill="#8C6F52" font-family="Noto Serif TC" font-style="italic" letter-spacing="2"
@@ -21245,6 +21246,21 @@ function render3D(layers, recs, allRecs) {
         ${heroPill}
         ${nativeChip}
         <text x="${(c3.ix + 12).toFixed(1)}" y="${(c3.iy + 24).toFixed(1)}" font-size="11" fill="#5A5C50" font-family="Noto Serif TC" font-style="italic">${realW}m × ${realD}m ≈ ${area} m²</text>
+        ${(() => {
+          // R163: plate signature — classic bottom-right botanical mark.
+          // Stable plate number derived from the design's plant IDs so
+          // the same design always shows the same plate N°.
+          const plateSeed = (drawList || []).slice(0, 6)
+            .map(d => (d.p?.id || "x"))
+            .join("|")
+            .split("")
+            .reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7);
+          const plateNum = ((plateSeed >>> 0) % 899) + 100;  // always 3-digit
+          const plateYear = new Date().getFullYear();
+          const sigX = svgW - 20;
+          const sigY = svgH - 8;
+          return `<text x="${sigX}" y="${sigY}" text-anchor="end" font-size="9" font-family="Noto Serif TC" font-style="italic" fill="#8C6F52" letter-spacing="1">Ho, A. · pl. ${plateNum} · ${plateYear}</text>`;
+        })()}
       </svg>
       <div class="plan-legend">
         <span class="plan-legend-item"><span class="plan-legend-dot" style="background:linear-gradient(180deg,${tod.skyTop},${tod.skyMid})"></span>${t("天空", "Sky")} · <span data-zh="${tod.labelZh}" data-en="${tod.labelEn}">${tod.labelZh}</span></span>
