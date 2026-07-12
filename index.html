@@ -20690,18 +20690,34 @@ function render3D(layers, recs, allRecs) {
       }
       crown = cloudyCrown(ground.ix, cyCrown, crownR, crownRy, p.color, sunX) + tendrils.join("");
     } else if (shape === "groundcover") {
-      const speckle = [];
-      for (let i = 0; i < 6; i++) {
-        const ang = (Math.PI * 2 / 6) * i;
-        const r = crownR * 0.6;
-        const sx2 = ground.ix + Math.cos(ang) * r;
-        const sy2 = ground.iy + Math.sin(ang) * crownRy * 0.7;
-        speckle.push(`<circle cx="${sx2.toFixed(1)}" cy="${sy2.toFixed(1)}" r="1.6" fill="rgba(255,255,255,0.45)"/>`);
+      // R164: ground cover was a flat colored ellipse with 6 white
+      // speckles — read as a colored puddle. Now draws 8 individual
+      // low-lying leaf clumps inside a soft base wash, each with a
+      // rim stroke + midvein so the mat visibly reads as ground-cover
+      // foliage seen from above.
+      const gcSeed = (p.id || "g").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+      const rndGc = pseudoRand(gcSeed);
+      const baseEll = `<ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 1.05).toFixed(1)}" ry="${(crownRy * 1.05).toFixed(1)}" fill="${p.color}" fill-opacity="0.55" stroke="rgba(58,72,42,0.55)" stroke-width="0.7"/>`;
+      const leafN = 8;
+      const clumps = [];
+      const GC_SUN = "#8AAE60", GC_SHADE = "#4A6A38";
+      for (let i = 0; i < leafN; i++) {
+        const ang = (Math.PI * 2 / leafN) * i + rndGc() * 0.3;
+        const rad = 0.35 + rndGc() * 0.55;
+        const lx = ground.ix + Math.cos(ang) * crownR * rad;
+        const ly = ground.iy + Math.sin(ang) * crownRy * rad;
+        const lRx = Math.max(2.4, crownR * 0.16);
+        const lRy = Math.max(1.4, crownR * 0.09);
+        const rot = ang * 180 / Math.PI + 90 + (rndGc() - 0.5) * 30;
+        const onSun = Math.cos(ang) >= (sunX < ground.ix ? -0.1 : 0.1);
+        const col = shiftHueHex(onSun ? GC_SUN : GC_SHADE, (rndGc() - 0.5) * 16);
+        clumps.push(`<g transform="rotate(${rot.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})">` +
+          `<ellipse cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" rx="${lRx.toFixed(1)}" ry="${lRy.toFixed(1)}" fill="${col}" stroke="rgba(48,60,32,0.55)" stroke-width="0.4"/>` +
+          `<line x1="${lx.toFixed(1)}" y1="${(ly - lRx * 0.85).toFixed(1)}" x2="${lx.toFixed(1)}" y2="${(ly + lRx * 0.85).toFixed(1)}" stroke="rgba(48,60,32,0.45)" stroke-width="0.3"/>` +
+          `</g>`);
       }
-      crown = `
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 1.05).toFixed(1)}" ry="${(crownRy * 1.05).toFixed(1)}" fill="${p.color}"/>
-        ${speckle.join("")}
-        <ellipse class="crown-hit" cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 1.1).toFixed(1)}" ry="${(crownRy * 1.1).toFixed(1)}" fill="none" stroke="transparent" stroke-width="0"/>`;
+      crown = baseEll + clumps.join("") +
+        `<ellipse class="crown-hit" cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 1.1).toFixed(1)}" ry="${(crownRy * 1.1).toFixed(1)}" fill="none" stroke="transparent" stroke-width="0"/>`;
     } else {
       // broadleaf / shrub — full cloudy-crown treatment
       crown = cloudyCrown(ground.ix, cyCrown, crownR, crownRy, p.color, sunX);
