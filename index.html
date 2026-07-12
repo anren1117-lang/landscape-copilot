@@ -20540,12 +20540,67 @@ function render3D(layers, recs, allRecs) {
     }
 
     if (p.tier === "W") {
-      crown = `
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 1.05).toFixed(1)}" ry="${(crownRy * 1.05).toFixed(1)}" fill="rgba(70,130,170,0.22)"/>
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="rgba(70,130,170,0.40)"/>
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${ground.iy.toFixed(1)}" rx="${(crownR * 0.65).toFixed(1)}" ry="${(crownRy * 0.55).toFixed(1)}" fill="rgba(120,170,200,0.30)"/>
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy - 1).toFixed(1)}" rx="${(crownR * 0.35).toFixed(1)}" ry="${(crownRy * 0.28).toFixed(1)}" fill="rgba(255,255,255,0.45)"/>
-        <circle cx="${ground.ix.toFixed(1)}" cy="${(ground.iy - 3).toFixed(1)}" r="${(crownR * 0.32).toFixed(1)}" fill="${p.color}"/>`;
+      // R164: water tier redesigned from 4 concentric blue ellipses into
+      // a drawn pond with visible lily pads. Each pad has a V-notch on
+      // the outward side + radial vein lines + rim stroke; the central
+      // flower is a 5-petal starburst. Reads as botanical pond plate,
+      // not a blue disc.
+      const pondSeed = (p.id || "w").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+      const rndW = pseudoRand(pondSeed);
+      // Pond surface — base + darker interior + 2 ripple rings
+      const pondBg =
+        `<ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 3).toFixed(1)}" rx="${(crownR * 1.05).toFixed(1)}" ry="${(crownRy * 1.05).toFixed(1)}" fill="rgba(70,130,170,0.22)" stroke="rgba(50,80,100,0.60)" stroke-width="0.9"/>` +
+        `<ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 3).toFixed(1)}" rx="${crownR.toFixed(1)}" ry="${crownRy.toFixed(1)}" fill="rgba(70,130,170,0.42)"/>` +
+        `<ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 3).toFixed(1)}" rx="${(crownR * 0.62).toFixed(1)}" ry="${(crownRy * 0.55).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="0.6"/>` +
+        `<ellipse cx="${ground.ix.toFixed(1)}" cy="${(ground.iy + 3).toFixed(1)}" rx="${(crownR * 0.38).toFixed(1)}" ry="${(crownRy * 0.32).toFixed(1)}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="0.5"/>`;
+      // 3 lily pads at seeded positions
+      const padCount = 3;
+      const pads = [];
+      for (let i = 0; i < padCount; i++) {
+        const ang = (Math.PI * 2 / padCount) * i + rndW() * 0.6;
+        const dist = crownR * (0.30 + rndW() * 0.35);
+        const distY = crownRy * (0.30 + rndW() * 0.35);
+        const px = ground.ix + Math.cos(ang) * dist;
+        const py = (ground.iy + 3) + Math.sin(ang) * distY;
+        const padR = Math.max(4, crownR * 0.32);
+        const padRy = Math.max(2.4, crownRy * 0.30);
+        // Notch on the outward side
+        const notchAng = ang;
+        const notchDepth = padR * 0.28;
+        const nCx = px + Math.cos(notchAng) * padR;
+        const nCy = py + Math.sin(notchAng) * padRy;
+        // Two flank points for the V-notch
+        const nAx = px + Math.cos(notchAng - 0.35) * padR;
+        const nAy = py + Math.sin(notchAng - 0.35) * padRy;
+        const nBx = px + Math.cos(notchAng + 0.35) * padR;
+        const nBy = py + Math.sin(notchAng + 0.35) * padRy;
+        // Pad ellipse
+        pads.push(`<ellipse cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" rx="${padR.toFixed(1)}" ry="${padRy.toFixed(1)}" fill="#7A9E58" stroke="rgba(48,66,36,0.65)" stroke-width="0.7"/>`);
+        // Notch cutout — small triangle in water color from midpoint
+        const notchInnerX = px + Math.cos(notchAng) * padR * 0.20;
+        const notchInnerY = py + Math.sin(notchAng) * padRy * 0.20;
+        pads.push(`<path d="M${nAx.toFixed(1)},${nAy.toFixed(1)} L${nCx.toFixed(1)},${nCy.toFixed(1)} L${nBx.toFixed(1)},${nBy.toFixed(1)} L${notchInnerX.toFixed(1)},${notchInnerY.toFixed(1)} Z" fill="rgba(70,130,170,0.55)" stroke="rgba(48,66,36,0.5)" stroke-width="0.4"/>`);
+        // Radial veins from pad center (5 lines from opposite of notch)
+        for (let v = 0; v < 5; v++) {
+          const va = notchAng + Math.PI + (v - 2) * 0.55;
+          const vx = px + Math.cos(va) * padR * 0.80;
+          const vy = py + Math.sin(va) * padRy * 0.80;
+          pads.push(`<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${vx.toFixed(1)}" y2="${vy.toFixed(1)}" stroke="rgba(48,66,36,0.42)" stroke-width="0.35"/>`);
+        }
+      }
+      // Central lily flower — 5-petal starburst on top of the water
+      const flower = [];
+      const flowerCx = ground.ix, flowerCy = (ground.iy - 2);
+      const petalN = 5, petalR = Math.max(3.5, crownR * 0.28);
+      for (let i = 0; i < petalN; i++) {
+        const ang = (Math.PI * 2 / petalN) * i - Math.PI / 2;
+        const px = flowerCx + Math.cos(ang) * petalR;
+        const py = flowerCy + Math.sin(ang) * petalR;
+        const rot = (ang * 180 / Math.PI) + 90;
+        flower.push(`<ellipse cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" rx="${(petalR * 0.55).toFixed(1)}" ry="${(petalR * 0.30).toFixed(1)}" fill="${p.color}" opacity="0.94" stroke="rgba(80,50,60,0.55)" stroke-width="0.4" transform="rotate(${rot.toFixed(1)} ${px.toFixed(1)} ${py.toFixed(1)})"/>`);
+      }
+      flower.push(`<circle cx="${flowerCx.toFixed(1)}" cy="${flowerCy.toFixed(1)}" r="1.8" fill="#F4C766" stroke="rgba(120,80,20,0.65)" stroke-width="0.4"/>`);
+      crown = pondBg + pads.join("") + flower.join("");
     } else if (shape === "palm") {
       const fx = ground.ix, fy = cyCrown + crownRy * 0.4;
       const frondLen = crownR * 1.05;
