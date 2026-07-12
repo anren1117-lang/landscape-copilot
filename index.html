@@ -20399,22 +20399,14 @@ function render3D(layers, recs, allRecs) {
       d += " Z";
 
       const shadeColor = shiftHueHex(baseColor, 6);
-      // Rim stroke — thick enough to read as etched illustration outline
-      // rather than colored blob edge.
-      const body = `<path d="${d}" fill="${baseColor}" stroke="rgba(58,70,52,0.75)" stroke-width="1.2" stroke-linejoin="round"/>`;
-
-      // Shade-side crescent — under the canopy dome away from the sun.
-      const shadeCx = cx - sunSign * rx * 0.28;
-      const shadeCy = cy + ry * 0.10;
-      const shadeSvg = `<ellipse cx="${shadeCx.toFixed(1)}" cy="${shadeCy.toFixed(1)}" rx="${(rx * 0.55).toFixed(1)}" ry="${(ry * 0.45).toFixed(1)}" fill="${shadeColor}" opacity="0.42"/>`;
-
-      // Sun-side highlight — bright leaf-catch on the sun-facing dome.
-      const hlCx = cx + sunSign * rx * 0.32;
-      const hlCy = cy - ry * 0.28;
-      const highlightSvg = `<ellipse cx="${hlCx.toFixed(1)}" cy="${hlCy.toFixed(1)}" rx="${(rx * 0.36).toFixed(1)}" ry="${(ry * 0.26).toFixed(1)}" fill="rgba(255,250,225,0.32)"/>`;
+      // Faint base fill — this is BACKGROUND now, not the crown itself.
+      // The leaves become the crown. Base is 45% opacity so drawn leaves
+      // read as being ON TOP of a lit canopy interior, not on empty white.
+      const body = `<path d="${d}" fill="${baseColor}" fill-opacity="0.45" stroke="rgba(58,70,52,0.75)" stroke-width="1.2" stroke-linejoin="round"/>`;
 
       // Interior venation — 4 radial branch hints from crown center to
-      // near-perimeter points. Classic botanical-plate structural marks.
+      // near-perimeter points. Classic botanical-plate structural marks,
+      // drawn UNDER the leaves.
       const veinN = 4;
       const veins = [];
       for (let i = 0; i < veinN; i++) {
@@ -20425,31 +20417,49 @@ function render3D(layers, recs, allRecs) {
         veins.push(`<path d="M${cx.toFixed(1)},${cy.toFixed(1)} L${vx.toFixed(1)},${vy.toFixed(1)}" stroke="rgba(58,70,52,0.28)" stroke-width="0.6" fill="none" stroke-linecap="round"/>`);
       }
 
-      // Visible individual leaves — 10 rotated ovate leaves scattered
-      // around the perimeter, size scaled to crown so they stay visible
-      // at every render scale. Each leaf gets a rim stroke + a midvein
-      // line so it reads as a real drawn leaf, not a color chip.
-      const leafN = 10;
-      const leafRx = Math.max(3.6, rx * 0.16);
-      const leafRy = Math.max(1.8, rx * 0.08);
-      const leaves = [];
+      // ─────────────────────────────────────────────────────────────
+      // The crown IS a cluster of drawn leaves. 20 individual leaves,
+      // clustered inside the silhouette (not just the perimeter), each
+      // rotated tangent to the center. Sun-side leaves rendered LAST so
+      // they sit on top of shade-side leaves (painter's algorithm within
+      // the crown). This makes the canopy visibly leafy at every scale.
+      // ─────────────────────────────────────────────────────────────
+      const leafN = 20;
+      const leafRx = Math.max(3.8, rx * 0.19);
+      const leafRy = Math.max(1.7, rx * 0.09);
+      const leafSpecs = [];
       for (let i = 0; i < leafN; i++) {
-        const la = (Math.PI * 2 / leafN) * i + rndP() * 0.3;
-        const lRad = 0.86 + rndP() * 0.14; // just inside → slightly outside rim
+        // Spread leaves in polar coords: angle uniformly around, radius
+        // biased toward the outer 60-100% of the crown so the interior
+        // reads as full but center still shows the venation.
+        const la = (Math.PI * 2 / leafN) * i + rndP() * 0.4;
+        const lRad = 0.35 + rndP() * 0.65;
         const lx = cx + Math.cos(la) * rx * lRad;
         const ly = cy + Math.sin(la) * ry * lRad;
-        const rot = la * 180 / Math.PI + 90;
-        // sun-side leaves lighter, shade-side leaves darker
+        const rot = (la * 180 / Math.PI + 90) + (rndP() - 0.5) * 30;
         const onSun = (sunSign > 0 ? Math.cos(la) >= 0 : Math.cos(la) <= 0);
-        const leafCol = shiftHueHex(baseColor, (rndP() - 0.5) * 14 + (onSun ? 4 : -4));
-        // midvein — a short line down the leaf's long axis, drawn in the
-        // rotated coordinate space around the leaf center
-        leaves.push(`<g transform="rotate(${rot.toFixed(1)} ${lx.toFixed(1)} ${ly.toFixed(1)})"><ellipse cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" rx="${leafRx.toFixed(1)}" ry="${leafRy.toFixed(1)}" fill="${leafCol}" stroke="rgba(58,70,52,0.6)" stroke-width="0.5"/><line x1="${lx.toFixed(1)}" y1="${(ly - leafRx * 0.85).toFixed(1)}" x2="${lx.toFixed(1)}" y2="${(ly + leafRx * 0.85).toFixed(1)}" stroke="rgba(58,70,52,0.5)" stroke-width="0.35"/></g>`);
+        const hueShift = (rndP() - 0.5) * 16 + (onSun ? 6 : -6);
+        const leafCol = shiftHueHex(baseColor, hueShift);
+        leafSpecs.push({ lx, ly, rot, leafCol, onSun, depthKey: (onSun ? 1 : 0) * 100 + rndP() });
       }
+      // Painter's algorithm — shade-side leaves first, sun-side last
+      leafSpecs.sort((a, b) => a.depthKey - b.depthKey);
+      const leaves = leafSpecs.map(s =>
+        `<g transform="rotate(${s.rot.toFixed(1)} ${s.lx.toFixed(1)} ${s.ly.toFixed(1)})">` +
+          `<ellipse cx="${s.lx.toFixed(1)}" cy="${s.ly.toFixed(1)}" rx="${leafRx.toFixed(1)}" ry="${leafRy.toFixed(1)}" fill="${s.leafCol}" stroke="rgba(58,70,52,0.55)" stroke-width="0.45"/>` +
+          `<line x1="${s.lx.toFixed(1)}" y1="${(s.ly - leafRx * 0.8).toFixed(1)}" x2="${s.lx.toFixed(1)}" y2="${(s.ly + leafRx * 0.8).toFixed(1)}" stroke="rgba(58,70,52,0.45)" stroke-width="0.3"/>` +
+        `</g>`
+      ).join("");
+
+      // Sun-side highlight — bright leaf-catch, drawn last so it lifts
+      // the sun-facing dome without hiding leaf detail.
+      const hlCx = cx + sunSign * rx * 0.32;
+      const hlCy = cy - ry * 0.28;
+      const highlightSvg = `<ellipse cx="${hlCx.toFixed(1)}" cy="${hlCy.toFixed(1)}" rx="${(rx * 0.30).toFixed(1)}" ry="${(ry * 0.22).toFixed(1)}" fill="rgba(255,250,225,0.22)" pointer-events="none"/>`;
 
       // invisible hit-target ellipse the hover CSS can highlight
       const hit = `<ellipse class="crown-hit" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(rx * 1.05).toFixed(1)}" ry="${(ry * 1.05).toFixed(1)}" fill="none" stroke="transparent" stroke-width="0"/>`;
-      return body + shadeSvg + highlightSvg + veins.join("") + leaves.join("") + hit;
+      return body + veins.join("") + leaves + highlightSvg + hit;
     }
 
     if (p.tier === "W") {
