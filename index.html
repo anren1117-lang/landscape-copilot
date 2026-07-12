@@ -19965,6 +19965,37 @@ function render3D(layers, recs, allRecs) {
       cracks.push(`<line x1="${a.ix.toFixed(1)}" y1="${a.iy.toFixed(1)}" x2="${b.ix.toFixed(1)}" y2="${b.iy.toFixed(1)}" stroke="rgba(120,108,88,0.18)" stroke-width="1" stroke-dasharray="14 6"/>`);
     }
     groundTexture = cracks.join("");
+  } else if (state.space === "balcony" || state.space === "indoor") {
+    // R160: balcony/indoor floors used to be a bare colored polygon —
+    // no illustration texture at all. Draw a few tile-grout / plank
+    // lines in the iso plane plus scattered ink specks, so the floor
+    // reads as a drawn tile or wood plank surface, not solid color.
+    const rnd = pseudoRand(state.space === "balcony" ? 29 : 41);
+    const parts = [];
+    // 4 evenly-spaced grout/plank lines running along the depth axis
+    for (let i = 1; i <= 4; i++) {
+      const x0 = (planeW / 5) * i;
+      const a = project(x0, 0);
+      const b = project(x0, planeH);
+      parts.push(`<line x1="${a.ix.toFixed(1)}" y1="${a.iy.toFixed(1)}" x2="${b.ix.toFixed(1)}" y2="${b.iy.toFixed(1)}" stroke="rgba(90,72,52,0.16)" stroke-width="0.7" stroke-dasharray="6 4"/>`);
+    }
+    // 2 cross-plank lines running along the width axis
+    for (let i = 1; i <= 2; i++) {
+      const y0 = (planeH / 3) * i;
+      const a = project(0, y0);
+      const b = project(planeW, y0);
+      parts.push(`<line x1="${a.ix.toFixed(1)}" y1="${a.iy.toFixed(1)}" x2="${b.ix.toFixed(1)}" y2="${b.iy.toFixed(1)}" stroke="rgba(90,72,52,0.14)" stroke-width="0.6" stroke-dasharray="10 5"/>`);
+    }
+    // ~14 scattered ink specks — small pigment marks the way a
+    // botanical plate shows floor texture / dust.
+    for (let i = 0; i < 14; i++) {
+      const sx = rnd() * planeW;
+      const sy = rnd() * planeH;
+      const g = project(sx, sy, 0);
+      const jitter = rnd() > 0.5 ? 0.35 : 0.22;
+      parts.push(`<circle cx="${g.ix.toFixed(1)}" cy="${g.iy.toFixed(1)}" r="0.7" fill="rgba(58,44,28,${jitter.toFixed(2)})"/>`);
+    }
+    groundTexture = parts.join("");
   }
 
   // ── Back wall / railing for balcony & indoor ───────────────
