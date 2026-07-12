@@ -20019,11 +20019,48 @@ function render3D(layers, recs, allRecs) {
         <line x1="${((winX1 + winX2) / 2).toFixed(1)}" y1="${winY1.toFixed(1)}" x2="${((winX1 + winX2) / 2).toFixed(1)}" y2="${winY2.toFixed(1)}" stroke="#A88A6A" stroke-width="1"/>
         <line x1="${winX1.toFixed(1)}" y1="${((winY1 + winY2) / 2).toFixed(1)}" x2="${winX2.toFixed(1)}" y2="${((winY1 + winY2) / 2).toFixed(1)}" stroke="#A88A6A" stroke-width="1"/>`;
     } else {
+      // R162: balcony walls get drawn balustrade detail — 2 mid rails +
+      // 8 vertical pickets on each face, so the balcony reads as
+      // illustrated railing rather than a colored polygon slice.
+      const midR1_l = 0.35, midR2_l = 0.68;
+      // Points along wall left (from c0/c0t to c3/c3t)
+      const lerpP = (a, b, t) => ({ix: a.ix + (b.ix - a.ix) * t, iy: a.iy + (b.iy - a.iy) * t});
+      const railL_a1 = lerpP(c0, c3, midR1_l);
+      const railL_b1 = lerpP(c0t, c3t, midR1_l);
+      const railL_a2 = lerpP(c0, c3, midR2_l);
+      const railL_b2 = lerpP(c0t, c3t, midR2_l);
+      // Vertical pickets on left wall
+      const picketsL = [];
+      const picketN = 6;
+      for (let i = 1; i < picketN; i++) {
+        const t = i / picketN;
+        const bot = lerpP(c0, c3, t);
+        const top = lerpP(c0t, c3t, t);
+        picketsL.push(`<line x1="${bot.ix.toFixed(1)}" y1="${bot.iy.toFixed(1)}" x2="${top.ix.toFixed(1)}" y2="${top.iy.toFixed(1)}" stroke="#5C4520" stroke-width="0.7" opacity="0.65"/>`);
+      }
+      // Same for right wall
+      const railR_a1 = lerpP(c0, c1, midR1_l);
+      const railR_b1 = lerpP(c0t, c1t, midR1_l);
+      const railR_a2 = lerpP(c0, c1, midR2_l);
+      const railR_b2 = lerpP(c0t, c1t, midR2_l);
+      const picketsR = [];
+      for (let i = 1; i < picketN; i++) {
+        const t = i / picketN;
+        const bot = lerpP(c0, c1, t);
+        const top = lerpP(c0t, c1t, t);
+        picketsR.push(`<line x1="${bot.ix.toFixed(1)}" y1="${bot.iy.toFixed(1)}" x2="${top.ix.toFixed(1)}" y2="${top.iy.toFixed(1)}" stroke="#5C4520" stroke-width="0.7" opacity="0.6"/>`);
+      }
       backWall = `
-        <polygon points="${wallLeft}"  fill="#A88A6A" opacity="0.55" stroke="#8C6F4E" stroke-width="0.8"/>
-        <polygon points="${wallRight}" fill="#8C6F4E" opacity="0.55" stroke="#6E5638" stroke-width="0.8"/>
-        <line x1="${c0t.ix.toFixed(1)}" y1="${c0t.iy.toFixed(1)}" x2="${c1t.ix.toFixed(1)}" y2="${c1t.iy.toFixed(1)}" stroke="#6E5638" stroke-width="1.5"/>
-        <line x1="${c0t.ix.toFixed(1)}" y1="${c0t.iy.toFixed(1)}" x2="${c3t.ix.toFixed(1)}" y2="${c3t.iy.toFixed(1)}" stroke="#6E5638" stroke-width="1.5"/>`;
+        <polygon points="${wallLeft}"  fill="#A88A6A" opacity="0.55" stroke="#5C4520" stroke-width="1.0" stroke-linejoin="round"/>
+        <polygon points="${wallRight}" fill="#8C6F4E" opacity="0.55" stroke="#5C4520" stroke-width="1.0" stroke-linejoin="round"/>
+        ${picketsL.join("")}
+        ${picketsR.join("")}
+        <line x1="${railL_a1.ix.toFixed(1)}" y1="${railL_a1.iy.toFixed(1)}" x2="${railL_b1.ix.toFixed(1)}" y2="${railL_b1.iy.toFixed(1)}" stroke="#5C4520" stroke-width="1.0" opacity="0.75"/>
+        <line x1="${railL_a2.ix.toFixed(1)}" y1="${railL_a2.iy.toFixed(1)}" x2="${railL_b2.ix.toFixed(1)}" y2="${railL_b2.iy.toFixed(1)}" stroke="#5C4520" stroke-width="1.0" opacity="0.75"/>
+        <line x1="${railR_a1.ix.toFixed(1)}" y1="${railR_a1.iy.toFixed(1)}" x2="${railR_b1.ix.toFixed(1)}" y2="${railR_b1.iy.toFixed(1)}" stroke="#5C4520" stroke-width="1.0" opacity="0.75"/>
+        <line x1="${railR_a2.ix.toFixed(1)}" y1="${railR_a2.iy.toFixed(1)}" x2="${railR_b2.ix.toFixed(1)}" y2="${railR_b2.iy.toFixed(1)}" stroke="#5C4520" stroke-width="1.0" opacity="0.75"/>
+        <line x1="${c0t.ix.toFixed(1)}" y1="${c0t.iy.toFixed(1)}" x2="${c1t.ix.toFixed(1)}" y2="${c1t.iy.toFixed(1)}" stroke="#4A3620" stroke-width="1.8"/>
+        <line x1="${c0t.ix.toFixed(1)}" y1="${c0t.iy.toFixed(1)}" x2="${c3t.ix.toFixed(1)}" y2="${c3t.iy.toFixed(1)}" stroke="#4A3620" stroke-width="1.8"/>`;
     }
   }
 
