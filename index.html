@@ -20627,10 +20627,33 @@ function render3D(layers, recs, allRecs) {
       ];
       const potIdx = ((p.id || "p").split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % potPalettes.length;
       const potCol = potPalettes[potIdx];
-      pot = `
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${(potY + potH).toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="${potCol.base}"/>
-        <path d="M${(ground.ix - potW).toFixed(1)},${potY.toFixed(1)} L${(ground.ix - potW * 0.85).toFixed(1)},${(potY + potH).toFixed(1)} L${(ground.ix + potW * 0.85).toFixed(1)},${(potY + potH).toFixed(1)} L${(ground.ix + potW).toFixed(1)},${potY.toFixed(1)} Z" fill="${potCol.side}" stroke="${potCol.rim}" stroke-width="0.8"/>
-        <ellipse cx="${ground.ix.toFixed(1)}" cy="${potY.toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="${potCol.rim}"/>`;
+      // R162: pot rendered as a drawn terracotta piece — base ellipse with
+      // rim outline, tapered side with darker rim stroke, rim ellipse with
+      // a shadow strip inside + a highlight arc on the lit face + 3 fine
+      // vertical striations suggesting pot relief. Reads as illustrated
+      // pottery, not colored blocks.
+      const lx = ground.ix - potW * 0.85, rx0 = ground.ix + potW * 0.85;
+      const lxTop = ground.ix - potW, rxTop = ground.ix + potW;
+      // Side + strong rim outline
+      const sidePath = `<path d="M${lxTop.toFixed(1)},${potY.toFixed(1)} L${lx.toFixed(1)},${(potY + potH).toFixed(1)} L${rx0.toFixed(1)},${(potY + potH).toFixed(1)} L${rxTop.toFixed(1)},${potY.toFixed(1)} Z" fill="${potCol.side}" stroke="rgba(38,26,16,0.75)" stroke-width="1.0" stroke-linejoin="round"/>`;
+      // Vertical striations — 3 short lines suggesting terracotta ridges,
+      // slightly inset from the sides so they read as relief.
+      const striations = potW > 12 ? [
+        `<line x1="${(ground.ix - potW * 0.42).toFixed(1)}" y1="${(potY + 2).toFixed(1)}" x2="${(ground.ix - potW * 0.34).toFixed(1)}" y2="${(potY + potH - 2).toFixed(1)}" stroke="rgba(38,26,16,0.35)" stroke-width="0.6"/>`,
+        `<line x1="${ground.ix.toFixed(1)}" y1="${(potY + 2).toFixed(1)}" x2="${ground.ix.toFixed(1)}" y2="${(potY + potH - 2).toFixed(1)}" stroke="rgba(38,26,16,0.28)" stroke-width="0.5"/>`,
+        `<line x1="${(ground.ix + potW * 0.42).toFixed(1)}" y1="${(potY + 2).toFixed(1)}" x2="${(ground.ix + potW * 0.34).toFixed(1)}" y2="${(potY + potH - 2).toFixed(1)}" stroke="rgba(38,26,16,0.35)" stroke-width="0.6"/>`,
+      ].join("") : "";
+      // Highlight arc on the sun-facing side — a subtle bright curve
+      const hlSide = sunX < ground.ix ? -1 : 1;
+      const hlX1 = ground.ix + hlSide * potW * 0.55, hlY1 = potY + 1;
+      const hlX2 = ground.ix + hlSide * potW * 0.45, hlY2 = potY + potH - 1;
+      const highlightArc = `<path d="M${hlX1.toFixed(1)},${hlY1.toFixed(1)} Q${(hlX1 + hlSide).toFixed(1)},${(potY + potH * 0.5).toFixed(1)} ${hlX2.toFixed(1)},${hlY2.toFixed(1)}" stroke="rgba(255,240,214,0.35)" stroke-width="1.2" fill="none" stroke-linecap="round"/>`;
+      // Base ellipse (bottom of pot, seen through iso perspective)
+      const baseEll = `<ellipse cx="${ground.ix.toFixed(1)}" cy="${(potY + potH).toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="${potCol.base}" stroke="rgba(38,26,16,0.65)" stroke-width="0.7"/>`;
+      // Rim (top ellipse) + inner shadow strip
+      const rimEll = `<ellipse cx="${ground.ix.toFixed(1)}" cy="${potY.toFixed(1)}" rx="${potW.toFixed(1)}" ry="${(potW * 0.32).toFixed(1)}" fill="${potCol.rim}" stroke="rgba(38,26,16,0.85)" stroke-width="0.9"/>`;
+      const innerShadow = `<ellipse cx="${ground.ix.toFixed(1)}" cy="${(potY + 1.4).toFixed(1)}" rx="${(potW * 0.82).toFixed(1)}" ry="${(potW * 0.22).toFixed(1)}" fill="rgba(38,26,16,0.30)"/>`;
+      pot = baseEll + sidePath + striations + highlightArc + rimEll + innerShadow;
     }
 
     // ── MASS-PLANTING DRIFT (priority 2) ──────────────────────
