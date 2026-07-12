@@ -20320,10 +20320,35 @@ function render3D(layers, recs, allRecs) {
     const shOffX = (sunDx / sunDist) * shadowOffsetMag;
     const shOffY = Math.max(2, (sunDy / sunDist) * shadowOffsetMag * 0.4); // keep positive so shadow falls "down"
     const shCx = ground.ix + shOffX;
+    // R161: shadow is now a soft ellipse + hatched fill (7 short parallel
+    // strokes) instead of 3 stacked ellipses. Reads as drawn ink hatching
+    // — the classic botanical-plate way to show a cast shadow — rather
+    // than a photorealistic gradient blur.
+    const shHatchCx = shCx;
+    const shHatchCy = ground.iy + shOffY + 3;
+    const shHatchRx = crownR * 1.15;
+    const shHatchRy = crownR * 0.34;
+    const shHatchLines = [];
+    // Direction of hatching = perpendicular to sun angle so the shadow
+    // looks lit consistently. Simplify by using ~30° tilt from horizontal.
+    const hatchAngle = Math.PI / 6;
+    const cosH = Math.cos(hatchAngle);
+    const sinH = Math.sin(hatchAngle);
+    for (let i = -3; i <= 3; i++) {
+      const t = i / 3;
+      const spanY = shHatchRy * 0.85 * (1 - Math.abs(t) * 0.35);
+      const cxLine = shHatchCx + t * shHatchRx * 0.75;
+      const x1 = cxLine - spanY * cosH;
+      const y1 = shHatchCy - spanY * sinH;
+      const x2 = cxLine + spanY * cosH;
+      const y2 = shHatchCy + spanY * sinH;
+      const alpha = 0.14 + (1 - Math.abs(t)) * 0.10;
+      shHatchLines.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(44,53,38,${alpha.toFixed(2)})" stroke-width="1.1" stroke-linecap="round"/>`);
+    }
     const shadow = `
-      <ellipse cx="${shCx.toFixed(1)}" cy="${(ground.iy + shOffY + 4).toFixed(1)}" rx="${(crownR * 1.35).toFixed(1)}" ry="${(crownR * 0.42).toFixed(1)}" fill="rgba(44,53,38,0.08)"/>
-      <ellipse cx="${shCx.toFixed(1)}" cy="${(ground.iy + shOffY + 3).toFixed(1)}" rx="${(crownR * 1.10).toFixed(1)}" ry="${(crownR * 0.32).toFixed(1)}" fill="rgba(44,53,38,0.15)"/>
-      <ellipse cx="${(ground.ix + shOffX * 0.4).toFixed(1)}" cy="${(ground.iy + 2).toFixed(1)}" rx="${(crownR * 0.85).toFixed(1)}" ry="${(crownR * 0.22).toFixed(1)}" fill="rgba(44,53,38,0.22)"/>`;
+      <ellipse cx="${shCx.toFixed(1)}" cy="${(ground.iy + shOffY + 4).toFixed(1)}" rx="${(crownR * 1.35).toFixed(1)}" ry="${(crownR * 0.42).toFixed(1)}" fill="rgba(44,53,38,0.10)"/>
+      ${shHatchLines.join("")}
+      <ellipse cx="${(ground.ix + shOffX * 0.4).toFixed(1)}" cy="${(ground.iy + 2).toFixed(1)}" rx="${(crownR * 0.75).toFixed(1)}" ry="${(crownR * 0.20).toFixed(1)}" fill="rgba(44,53,38,0.24)"/>`;
 
     let trunk = "";
     if (trunkH > 0 && trunkW > 0) {
@@ -20798,12 +20823,20 @@ function render3D(layers, recs, allRecs) {
 
   // ── Sun marker + rays — sun position computed above for shadow direction ─
   // R29: At night we draw a moon (crescent) instead of a sun disc.
+  // R161: sun rays alternate long/short for the classic radiant sun-emblem
+  // look — 16 rays, longer rays every other one. Reads as drawn radiance,
+  // not a uniform starburst.
   const rays = [];
   if (!tod.isMoon) {
-    for (let i = 0; i < 12; i++) {
-      const ang = (Math.PI * 2 / 12) * i;
-      const r1 = 30, r2 = 44;
-      rays.push(`<line x1="${(Math.cos(ang) * r1).toFixed(1)}" y1="${(Math.sin(ang) * r1).toFixed(1)}" x2="${(Math.cos(ang) * r2).toFixed(1)}" y2="${(Math.sin(ang) * r2).toFixed(1)}" stroke="${tod.sun}" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>`);
+    const rayN = 16;
+    for (let i = 0; i < rayN; i++) {
+      const ang = (Math.PI * 2 / rayN) * i;
+      const long = i % 2 === 0;
+      const r1 = long ? 28 : 30;
+      const r2 = long ? 52 : 40;
+      const width = long ? 1.5 : 1.0;
+      const opacity = long ? 0.78 : 0.55;
+      rays.push(`<line x1="${(Math.cos(ang) * r1).toFixed(1)}" y1="${(Math.sin(ang) * r1).toFixed(1)}" x2="${(Math.cos(ang) * r2).toFixed(1)}" y2="${(Math.sin(ang) * r2).toFixed(1)}" stroke="${tod.sun}" stroke-width="${width}" stroke-linecap="round" opacity="${opacity}"/>`);
     }
   }
   // Bloom halo — 4 concentric circles with decreasing opacity radiate from
