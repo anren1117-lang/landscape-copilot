@@ -19942,21 +19942,38 @@ function render3D(layers, recs, allRecs) {
       const h = 3 + rnd() * 3;
       tufts.push(`<g opacity="0.55"><line x1="${g.ix.toFixed(1)}" y1="${g.iy.toFixed(1)}" x2="${g.ix.toFixed(1)}" y2="${(g.iy - h).toFixed(1)}" stroke="#8A9A7B" stroke-width="1"/><line x1="${(g.ix - 1.5).toFixed(1)}" y1="${g.iy.toFixed(1)}" x2="${(g.ix - 2).toFixed(1)}" y2="${(g.iy - h * 0.7).toFixed(1)}" stroke="#7E8E6F" stroke-width="0.9"/><line x1="${(g.ix + 1.5).toFixed(1)}" y1="${g.iy.toFixed(1)}" x2="${(g.ix + 2).toFixed(1)}" y2="${(g.iy - h * 0.7).toFixed(1)}" stroke="#7E8E6F" stroke-width="0.9"/></g>`);
     }
-    // R14 #10: scatter a few wild flower dots + 2 small rocks for ground variety.
+    // R165: wild flowers upgraded from plain circles to 5-petal
+    // starbursts with a golden center — reads as drawn wildflower
+    // heads, not colored pixels.
     const flowerCols = ["#F6A6C1", "#F5D547", "#E8C7E4", "#FFFFFF"];
     for (let i = 0; i < 9; i++) {
       const fx = rnd() * planeW;
       const fy = rnd() * planeH;
       const g = project(fx, fy, 0);
       const fc = flowerCols[i % flowerCols.length];
-      tufts.push(`<circle cx="${g.ix.toFixed(1)}" cy="${(g.iy - 0.5).toFixed(1)}" r="1.4" fill="${fc}" opacity="0.78"/>`);
+      // 5-petal starburst — 5 small ellipses around a golden center
+      const petalR = 1.2;
+      const petals = [];
+      for (let pi = 0; pi < 5; pi++) {
+        const ang = (Math.PI * 2 / 5) * pi - Math.PI / 2;
+        const px = g.ix + Math.cos(ang) * petalR;
+        const py = (g.iy - 0.5) + Math.sin(ang) * petalR * 0.7;
+        petals.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="0.9" fill="${fc}" stroke="rgba(80,60,40,0.35)" stroke-width="0.25"/>`);
+      }
+      tufts.push(`<g opacity="0.88">${petals.join("")}<circle cx="${g.ix.toFixed(1)}" cy="${(g.iy - 0.5).toFixed(1)}" r="0.7" fill="#E9B44C" stroke="rgba(120,80,20,0.55)" stroke-width="0.3"/></g>`);
     }
+    // R165: rocks upgraded with a small crack line + moss dot for drawn
+    // texture instead of a flat colored oval.
     for (let i = 0; i < 2; i++) {
       const rx0 = 0.15 + rnd() * 0.70;
       const ry0 = 0.15 + rnd() * 0.70;
       const g = project(planeW * rx0, planeH * ry0, 0);
-      tufts.push(`<ellipse cx="${g.ix.toFixed(1)}" cy="${g.iy.toFixed(1)}" rx="3.2" ry="1.6" fill="#A8A292" stroke="#80795F" stroke-width="0.5" opacity="0.85"/>`);
+      tufts.push(`<ellipse cx="${g.ix.toFixed(1)}" cy="${g.iy.toFixed(1)}" rx="3.2" ry="1.6" fill="#A8A292" stroke="#5C5548" stroke-width="0.65" opacity="0.88"/>`);
       tufts.push(`<ellipse cx="${(g.ix - 0.8).toFixed(1)}" cy="${(g.iy - 0.4).toFixed(1)}" rx="1.6" ry="0.8" fill="rgba(255,255,255,0.35)"/>`);
+      // Small hairline crack across the rock face
+      tufts.push(`<line x1="${(g.ix - 1.4).toFixed(1)}" y1="${(g.iy + 0.2).toFixed(1)}" x2="${(g.ix + 1.0).toFixed(1)}" y2="${(g.iy - 0.1).toFixed(1)}" stroke="rgba(60,55,45,0.55)" stroke-width="0.35"/>`);
+      // Moss dot on the sun-facing edge
+      tufts.push(`<circle cx="${(g.ix + 1.6).toFixed(1)}" cy="${(g.iy + 0.4).toFixed(1)}" r="0.6" fill="#6E8850" opacity="0.75"/>`);
     }
     groundTexture = tufts.join("");
   } else if (state.space === "rooftop") {
