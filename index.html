@@ -20046,16 +20046,36 @@ function render3D(layers, recs, allRecs) {
     const wallRight = `${c0.ix.toFixed(1)},${c0.iy.toFixed(1)} ${c1.ix.toFixed(1)},${c1.iy.toFixed(1)} ${c1t.ix.toFixed(1)},${c1t.iy.toFixed(1)} ${c0t.ix.toFixed(1)},${c0t.iy.toFixed(1)}`;
     const wallLeft  = `${c0.ix.toFixed(1)},${c0.iy.toFixed(1)} ${c3.ix.toFixed(1)},${c3.iy.toFixed(1)} ${c3t.ix.toFixed(1)},${c3t.iy.toFixed(1)} ${c0t.ix.toFixed(1)},${c0t.iy.toFixed(1)}`;
     if (state.space === "indoor") {
-      const winX1 = (c0.ix + c1.ix) / 2 - 22;
-      const winX2 = (c0.ix + c1.ix) / 2 + 22;
-      const winY1 = (c0.iy + c1.iy) / 2 - wallH + 12;
+      // R166: indoor window redesigned from a plain rect with a plus-sign
+      // cross into a drawn window with sill + frame + 4 panes + curtain
+      // hints on the sides. Reads as illustrated architecture, not just
+      // a colored rectangle.
+      const winX1 = (c0.ix + c1.ix) / 2 - 26;
+      const winX2 = (c0.ix + c1.ix) / 2 + 26;
+      const winY1 = (c0.iy + c1.iy) / 2 - wallH + 10;
       const winY2 = (c0.iy + c1.iy) / 2 - 12;
+      const winW = winX2 - winX1, winH = winY2 - winY1;
+      const winMidX = (winX1 + winX2) / 2, winMidY = (winY1 + winY2) / 2;
+      const sillY = winY2 + 3;
+      // Curtain fold hints — 3 short vertical strokes on each side
+      const curtainL = [];
+      const curtainR = [];
+      for (let i = 0; i < 3; i++) {
+        const cx1 = winX1 - 6 + i * 1.8;
+        const cx2 = winX2 + 6 - i * 1.8;
+        curtainL.push(`<line x1="${cx1.toFixed(1)}" y1="${(winY1 - 2).toFixed(1)}" x2="${(cx1 + 0.5).toFixed(1)}" y2="${(winY2 + 2).toFixed(1)}" stroke="rgba(120,90,60,0.42)" stroke-width="0.7"/>`);
+        curtainR.push(`<line x1="${cx2.toFixed(1)}" y1="${(winY1 - 2).toFixed(1)}" x2="${(cx2 - 0.5).toFixed(1)}" y2="${(winY2 + 2).toFixed(1)}" stroke="rgba(120,90,60,0.42)" stroke-width="0.7"/>`);
+      }
       backWall = `
-        <polygon points="${wallLeft}"  fill="#E8E3D2" stroke="#B49676" stroke-width="0.8" opacity="0.92"/>
-        <polygon points="${wallRight}" fill="#DFD9C7" stroke="#B49676" stroke-width="0.8" opacity="0.92"/>
-        <rect x="${winX1.toFixed(1)}" y="${winY1.toFixed(1)}" width="${(winX2 - winX1).toFixed(1)}" height="${(winY2 - winY1).toFixed(1)}" fill="url(#skyGrad)" stroke="#A88A6A" stroke-width="1.4" opacity="0.9"/>
-        <line x1="${((winX1 + winX2) / 2).toFixed(1)}" y1="${winY1.toFixed(1)}" x2="${((winX1 + winX2) / 2).toFixed(1)}" y2="${winY2.toFixed(1)}" stroke="#A88A6A" stroke-width="1"/>
-        <line x1="${winX1.toFixed(1)}" y1="${((winY1 + winY2) / 2).toFixed(1)}" x2="${winX2.toFixed(1)}" y2="${((winY1 + winY2) / 2).toFixed(1)}" stroke="#A88A6A" stroke-width="1"/>`;
+        <polygon points="${wallLeft}"  fill="#E8E3D2" stroke="#8C6F52" stroke-width="1.0" stroke-linejoin="round" opacity="0.92"/>
+        <polygon points="${wallRight}" fill="#DFD9C7" stroke="#8C6F52" stroke-width="1.0" stroke-linejoin="round" opacity="0.92"/>
+        ${curtainL.join("")}${curtainR.join("")}
+        <rect x="${(winX1 - 3).toFixed(1)}" y="${(winY1 - 3).toFixed(1)}" width="${(winW + 6).toFixed(1)}" height="${(winH + 6).toFixed(1)}" fill="none" stroke="#6E5236" stroke-width="1.6"/>
+        <rect x="${winX1.toFixed(1)}" y="${winY1.toFixed(1)}" width="${winW.toFixed(1)}" height="${winH.toFixed(1)}" fill="url(#skyGrad)" stroke="#8C6F52" stroke-width="1.2" opacity="0.9"/>
+        <line x1="${winMidX.toFixed(1)}" y1="${winY1.toFixed(1)}" x2="${winMidX.toFixed(1)}" y2="${winY2.toFixed(1)}" stroke="#6E5236" stroke-width="1.2"/>
+        <line x1="${winX1.toFixed(1)}" y1="${winMidY.toFixed(1)}" x2="${winX2.toFixed(1)}" y2="${winMidY.toFixed(1)}" stroke="#6E5236" stroke-width="1.2"/>
+        <rect x="${(winX1 - 5).toFixed(1)}" y="${(winY2 + 1).toFixed(1)}" width="${(winW + 10).toFixed(1)}" height="4" fill="#8C6F52" stroke="#4A3620" stroke-width="0.7"/>
+        <line x1="${(winX1 - 5).toFixed(1)}" y1="${sillY.toFixed(1)}" x2="${(winX2 + 5).toFixed(1)}" y2="${sillY.toFixed(1)}" stroke="rgba(255,240,214,0.35)" stroke-width="0.6"/>`;
     } else {
       // R162: balcony walls get drawn balustrade detail — 2 mid rails +
       // 8 vertical pickets on each face, so the balcony reads as
@@ -21022,8 +21042,12 @@ function render3D(layers, recs, allRecs) {
     ? `
       <circle r="60" fill="${tod.sun}" opacity="0.10"/>
       <circle r="40" fill="${tod.sun}" opacity="0.18"/>
+      <circle r="26" fill="none" stroke="${tod.sunRing}" stroke-width="0.6" opacity="0.55" stroke-dasharray="2 3"/>
       <circle r="22" fill="${tod.sun}" stroke="${tod.sunRing}" stroke-width="1.4" opacity="0.95"/>
-      <circle r="20" cx="6" fill="${tod.skyTop}" opacity="0.95"/>`
+      <circle r="20" cx="6" fill="${tod.skyTop}" opacity="0.95"/>
+      <circle cx="-8" cy="-6" r="2" fill="${tod.sunRing}" opacity="0.25"/>
+      <circle cx="-5" cy="4" r="1.4" fill="${tod.sunRing}" opacity="0.28"/>
+      <circle cx="-11" cy="2" r="0.9" fill="${tod.sunRing}" opacity="0.22"/>`
     : `
       <circle r="92" fill="${tod.sun}" opacity="0.08"/>
       <circle r="70" fill="${tod.sun}" opacity="0.12"/>
