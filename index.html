@@ -20941,11 +20941,18 @@ function render3D(layers, recs, allRecs) {
       }
     }
 
+    // R165: plant labels get a thin drawn underline stroke — classic
+    // botanical plate caption geometry. English/Latin names render
+    // italic; Chinese stays upright since italic Chinese looks wrong.
     const labelY = ground.iy + (pot ? 22 : 18);
     const labelEn = p.en.length > 22 ? p.en.slice(0, 20) + "…" : p.en;
     const labelText = state.lang === "zh" ? p.zh : labelEn;
     const bloomTag = isBlooming ? ` <tspan fill="#C85F8A" font-style="italic">· ${t("花期","in bloom")}</tspan>` : "";
-    const label = `<text x="${ground.ix.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="11" font-family="Noto Serif TC" fill="#3F4A37" font-weight="600">${labelText}${bloomTag}</text>`;
+    const labelItalic = state.lang === "en" ? ' font-style="italic"' : '';
+    const labelWidth = Math.max(30, labelText.length * (state.lang === "zh" ? 12 : 6.5));
+    const labelUnderY = labelY + 3;
+    const label = `<text x="${ground.ix.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" font-size="11" font-family="Noto Serif TC" fill="#3F4A37" font-weight="600"${labelItalic}>${labelText}${bloomTag}</text>` +
+      `<line x1="${(ground.ix - labelWidth / 2).toFixed(1)}" y1="${labelUnderY.toFixed(1)}" x2="${(ground.ix + labelWidth / 2).toFixed(1)}" y2="${labelUnderY.toFixed(1)}" stroke="rgba(80,88,68,0.45)" stroke-width="0.6"/>`;
 
     // R14 #1: atmospheric perspective — back plants get a subtle whitish wash.
     // Depth = 0 (nearest) → 1 (farthest). 5–12% alpha. Skip indoor.
