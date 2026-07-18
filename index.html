@@ -20678,13 +20678,32 @@ function render3D(layers, recs, allRecs) {
       }
       crown = `${fronds}<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="3" fill="#4A3320"/>`;
     } else if (shape === "conifer") {
+      // R171: conifers had 2 flat polygons + 2 shading polygons, no
+      // outline. Now the 2 tier polygons get a dark rim stroke so the
+      // triangular silhouette reads as a drawn conifer plate, and each
+      // tier gets 4 short horizontal needle-cluster tick marks
+      // suggesting the classic spruce/fir layered needle look.
       const baseY = ground.iy - trunkH * 0.6;
       const topY  = ground.iy - trunkH - crownRy * 2.2;
       const w1 = crownR * 1.1;
       const midY = (baseY + topY) / 2;
+      const needleTicks = [];
+      const tickN = 4;
+      for (let i = 0; i < tickN; i++) {
+        const t = (i + 1) / (tickN + 1);
+        // Upper tier ticks
+        const uy = topY + (midY - topY) * t;
+        const uw = w1 * 0.55 * t;
+        needleTicks.push(`<line x1="${(ground.ix - uw).toFixed(1)}" y1="${uy.toFixed(1)}" x2="${(ground.ix + uw).toFixed(1)}" y2="${uy.toFixed(1)}" stroke="rgba(40,58,32,0.35)" stroke-width="0.5"/>`);
+        // Lower tier ticks
+        const ly2 = midY + (baseY - midY) * t;
+        const lw = w1 * t;
+        needleTicks.push(`<line x1="${(ground.ix - lw).toFixed(1)}" y1="${ly2.toFixed(1)}" x2="${(ground.ix + lw).toFixed(1)}" y2="${ly2.toFixed(1)}" stroke="rgba(40,58,32,0.30)" stroke-width="0.5"/>`);
+      }
       crown = `
-        <polygon points="${ground.ix.toFixed(1)},${topY.toFixed(1)} ${(ground.ix - w1 * 0.55).toFixed(1)},${midY.toFixed(1)} ${(ground.ix + w1 * 0.55).toFixed(1)},${midY.toFixed(1)}" fill="${p.color}"/>
-        <polygon points="${ground.ix.toFixed(1)},${(midY - 6).toFixed(1)} ${(ground.ix - w1).toFixed(1)},${baseY.toFixed(1)} ${(ground.ix + w1).toFixed(1)},${baseY.toFixed(1)}" fill="${p.color}"/>
+        <polygon points="${ground.ix.toFixed(1)},${topY.toFixed(1)} ${(ground.ix - w1 * 0.55).toFixed(1)},${midY.toFixed(1)} ${(ground.ix + w1 * 0.55).toFixed(1)},${midY.toFixed(1)}" fill="${p.color}" stroke="rgba(40,58,32,0.70)" stroke-width="0.9" stroke-linejoin="round"/>
+        <polygon points="${ground.ix.toFixed(1)},${(midY - 6).toFixed(1)} ${(ground.ix - w1).toFixed(1)},${baseY.toFixed(1)} ${(ground.ix + w1).toFixed(1)},${baseY.toFixed(1)}" fill="${p.color}" stroke="rgba(40,58,32,0.70)" stroke-width="0.9" stroke-linejoin="round"/>
+        ${needleTicks.join("")}
         <polygon points="${ground.ix.toFixed(1)},${topY.toFixed(1)} ${(ground.ix - w1 * 0.30).toFixed(1)},${((midY + topY)/2).toFixed(1)} ${ground.ix.toFixed(1)},${midY.toFixed(1)}" fill="rgba(255,255,255,0.22)"/>
         <polygon points="${(ground.ix + w1 * 0.3).toFixed(1)},${midY.toFixed(1)} ${(ground.ix + w1).toFixed(1)},${baseY.toFixed(1)} ${ground.ix.toFixed(1)},${baseY.toFixed(1)}" fill="rgba(0,0,0,0.15)"/>`;
     } else if (shape === "bamboo") {
