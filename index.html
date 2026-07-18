@@ -19919,14 +19919,22 @@ function render3D(layers, recs, allRecs) {
 
   // Subtle grid lines on the iso plane — 8 divisions
   const N = 8;
+  // R168: grid lines strengthened from rgba(0,0,0,0.05) invisible → a
+  // subtle drawn measurement grid. Every 4th line is a full sepia line
+  // (major grid mark); the rest are lighter dashed lines (minor grid
+  // marks). Reads as botanical-plate field grid, not an accidental noise
+  // pattern.
   let gridLines = "";
   for (let i = 1; i < N; i++) {
     const a = project((planeW / N) * i, 0);
     const b = project((planeW / N) * i, planeH);
     const c = project(0, (planeH / N) * i);
     const d = project(planeW, (planeH / N) * i);
-    gridLines += `<line x1="${a.ix.toFixed(1)}" y1="${a.iy.toFixed(1)}" x2="${b.ix.toFixed(1)}" y2="${b.iy.toFixed(1)}" stroke="rgba(0,0,0,0.05)" stroke-width="1"/>`;
-    gridLines += `<line x1="${c.ix.toFixed(1)}" y1="${c.iy.toFixed(1)}" x2="${d.ix.toFixed(1)}" y2="${d.iy.toFixed(1)}" stroke="rgba(0,0,0,0.05)" stroke-width="1"/>`;
+    const isMajor = i === N / 2;
+    const stroke = isMajor ? "rgba(90,72,52,0.20)" : "rgba(90,72,52,0.10)";
+    const dash = isMajor ? "" : ' stroke-dasharray="3 5"';
+    gridLines += `<line x1="${a.ix.toFixed(1)}" y1="${a.iy.toFixed(1)}" x2="${b.ix.toFixed(1)}" y2="${b.iy.toFixed(1)}" stroke="${stroke}" stroke-width="0.6"${dash}/>`;
+    gridLines += `<line x1="${c.ix.toFixed(1)}" y1="${c.iy.toFixed(1)}" x2="${d.ix.toFixed(1)}" y2="${d.iy.toFixed(1)}" stroke="${stroke}" stroke-width="0.6"${dash}/>`;
   }
 
   // ── Space-specific ground texture ──────────────────────────
