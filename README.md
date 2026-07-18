@@ -24,7 +24,7 @@
 |---|---|
 | **實景參考 · Realistic** | 3 AI-generated photorealistic landscape previews via pollinations.ai (free, no API key) |
 | **俯瞰平面圖 · Plan** | Top-down SVG using your real width × depth, with orientation-aware sun marker |
-| **3D 視角 · 3D View** | 30° isometric SVG with cylindrical trunks, crown ellipses, ground shadows, sun time-of-day, native overlay, and a 🎨 **Art view** toggle that renders the scene as a watercolor botanical illustration |
+| **3D 視角 · 3D View** | 30° isometric SVG drawn as a botanical illustration plate in its geometry: lobed Bezier crowns full of individual green leaves with midveins, tapered trunks with root flare + bark striations, hatched-ink shadows, drawn balustrades on balcony walls, tile-grid floors, lily pads with V-notches + radial veins for water plants, alternating long/short sun rays, drawn clouds with rim strokes + soft undersides, and a "Ho, A. · pl. NNN · YYYY" plate signature. A 🎨 **Art view** toggle cycles 4 filter variants over the geometry — watercolor, ink wash, cyanotype, woodblock (木刻) |
 | **復層配置 · Layered Design** | Vertical section diagram — canopy → shrub → ground → water → climber |
 | **花期月曆 · Bloom Calendar** | 12-month grid of bloom × fruit timing across recommended plants |
 | **養護月曆 · Care Calendar** | Auto-generated month-by-month tasks: prune, fertilize, pest watch, seasonal warnings |
@@ -68,6 +68,8 @@ Every plant drawer carries a **📚 Sources & citations** block that credits eac
 ## Design language
 
 The whole app extends a **botanical illustration book** aesthetic: parchment cream palette (`#F1E6CB`) with sepia accents (`#7A5F42`), italic serif for chapter titles and captions, upright sepia serif small-caps for eyebrows, forest gradient for primary actions and active states, sepia gradient for warm secondary actions. Watercolor imagery (corner ornaments, botanical banner, space patterns, tier silhouettes, home wallpaper) is generated once via pollinations.ai and committed to `assets/` so the runtime is fully self-contained.
+
+The 3D scene is drawn as illustration in its **geometry**, not just applied as a filter overlay. Turn every art filter off and each canopy visibly reads as 20 individual drawn leaves with midveins and radial venation inside a lobed Bezier silhouette. Trunks taper with root flare and bark striations; shadows are hatched ink strokes not soft blurs; balcony walls are drawn balustrades with pickets; pots have rim + striations + inner shadow; water plants render as botanical lily pads with V-notches, radial vein lines, and a 5-petal starburst flower; ground cover renders as scattered leaf clumps; wildflowers are 5-petal starbursts with golden centers. The classic bottom-right plate signature (`Ho, A. · pl. NNN · YYYY`) uses a stable per-design hash so the same design always shows the same plate number.
 
 ## Tech
 
