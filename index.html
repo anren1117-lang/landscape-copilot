@@ -9783,6 +9783,41 @@ async function fetchPlantPhoto(plant) {
   return rec;
 }
 
+// R182: prefetch photos for EVERY plant in the DB on app-idle so the
+// dictionary (paginated 30-per-page) + shopping list + drawer all render
+// from cache on first open, no matter which species. Prevents the
+// "只看到 30 個植物有圖片" complaint.
+// - Runs once per page load, after the first user interaction settles.
+// - Uses requestIdleCallback so it doesn't compete with paint.
+// - Concurrency 4 so Wikipedia's REST API isn't hammered by 233 parallel
+//   requests. Total warm-up completes in ~1-2 minutes on a decent
+//   connection; cached hits then live 30 days.
+// - Skips plants that already have a cache entry — cheap idempotent
+//   re-runs, no harm calling multiple times.
+let __photoPrefetchStarted = false;
+function prefetchAllPlantPhotos() {
+  if (__photoPrefetchStarted) return;
+  __photoPrefetchStarted = true;
+  if (typeof PLANTS === "undefined" || !Array.isArray(PLANTS)) return;
+  const queue = PLANTS.filter(p => !getCachedPlantPhoto(p));
+  let running = 0, idx = 0;
+  const CAP = 4;
+  const kick = () => {
+    while (running < CAP && idx < queue.length) {
+      const plant = queue[idx++];
+      running++;
+      fetchPlantPhoto(plant).finally(() => { running--; kick(); });
+    }
+  };
+  // Wait for idle so we don't compete with initial paint / wizard
+  const start = () => kick();
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(start, { timeout: 5000 });
+  } else {
+    setTimeout(start, 2500);
+  }
+}
+
 // R179: after any surface renders .rec-swatch elements for plants, walk
 // them and backfill Wikipedia photos in parallel (with a soft
 // concurrency cap of 6) so lists like the result page + dictionary +
@@ -25221,7 +25256,7 @@ window.openAboutModal = function () {
         <div style="margin-top:6px;line-height:1.65;font-size:13px;">
           <div style="margin-bottom:4px;">• <b>植物物種資料</b>：彙整自台灣維管束植物簡誌、林業試驗所植物誌、台灣植物資訊整合查詢系統 (TaiBIF)；許多條目為普遍植物學常識，無單一引用。</div>
           <div style="margin-bottom:4px;">• <b>原住民傳統與料理應用</b>：《台灣島嶼植物生活圖譜 100 選》（atlas）— 內附詳細條目皆會在植物詳細視窗的「🍽 餐桌搭配」區塊註明出處。其餘文化條目（EXPERT_META.cultural_zh）標明族群或地區出處（泰雅族、布農族、排灣族、客家、閩南等），如無明確出處則為一般民俗知識。</div>
-          <div style="margin-bottom:4px;">• <b>植物照片（R178/R179 起）</b>：每個植物右上方的方塊與清單縮圖不再只是純色，而是用該植物拉丁學名向 <b>Wikipedia REST API</b>（en.wikipedia.org → zh.wikipedia.org → 屬名 fallback）即時查詢真實植物照片。照片來自 Wikimedia Commons 攝影師（各張授權見 Wikipedia 頁面）。查到的照片會快取在瀏覽器 30 天，重複打開同一植物即刻顯示。清單頁（結果推薦、植物字典、採購清單）以每次 6 個平行的節流方式背景載入，避免打爆 API。若查無資料則保留原本樹型代表色作為 fallback。</div>
+          <div style="margin-bottom:4px;">• <b>植物照片（R178/R179/R181/R182 起）</b>：每個植物字典卡片頂部都有一張全寬 Wikipedia 植物照片橫幅（R181），植物抽屜也有 140×140 大圖。照片來源：拉丁學名向 <b>Wikipedia REST API</b>（en.wikipedia.org → zh.wikipedia.org → 屬名 fallback）查詢，取自 Wikimedia Commons 攝影師（各張授權見 Wikipedia 頁面）。快取 30 天。<b>R182 起：頁面載入後會在 idle 時背景預抓全部 233 種植物照片</b>（節流 4 個並行），約 1-2 分鐘完成，之後翻到字典任何一頁都是即時顯示。</div>
           <div style="margin-bottom:4px;">• <b>採購清單即時 AI 查價（R176 起）</b>：每次打開採購清單，AI agent（pollinations.ai）會針對清單上每種植物的規格（見下面「售價與規格」）向 Shopee 蝦皮 / 露天 / BigGo / PChome / 花市查詢 2026 年當前售價，7 天快取。查詢中顯示前次估算，AI 回傳後即時替換。查詢失敗保留估算並標 ⚠。</div>
           <div style="margin-bottom:4px;">• <b>售價與規格（R173/R174 起）</b>：<b>所有售價皆為估算</b>，但每筆售價都附上對應的<b>規格</b>，讓數字有意義。R174 把 243 種植物依「樹型 × 類別」自動分成 13 個類別，每一類的預設規格都是根據實際搜尋 Shopee 蝦皮、露天拍賣、BigGo 比價網、FindPrice、Yahoo 拍賣、飛比價格等台灣線上通路 2026 年清單所定：<b>台灣原生喬木</b>→7吋盆 · 苗高 150cm；<b>果樹（含龍眼、芒果、番石榴等）</b>→4–5吋盆 · 嫁接苗；<b>特有針葉樹（紅檜、肖楠、樟）</b>→8吋美植袋 · 苗高 100cm；<b>海岸/防風</b>→5加侖盆 · 苗高 60–90cm；<b>觀葉室內</b>→6吋盆；<b>蘭花</b>→3.5吋開花株；<b>多肉</b>→3吋盆；<b>香草</b>→3吋盆；<b>草皮</b>→一才 (30×30cm)；<b>觀賞地被</b>→3吋盆；<b>水生</b>→8吋水生盆；<b>攀緣</b>→5吋盆附支柱。個別物種若標註「Shopee/露天 2026 查詢」表示該物種有針對性單獨查價。實際價格依苗圃、季節、地區而異 — 建議向當地苗圃或廠商詢價。</div>
           <div style="margin-bottom:4px;">• <b>花期與結果期</b>：台灣平地一般時間範圍，高山或寒流年份會偏移 ±1 個月。</div>
@@ -25682,6 +25717,12 @@ window.printResultBundle = function () {
 tryRestoreDashboard();
 updateLineShare();
 render();
+// R182: kick off background prefetch of Wikipedia photos for every plant
+// in the DB so ALL 233 species have thumbnails ready before the user
+// scrolls to page 8 of the dictionary or opens a rare drawer. Uses
+// requestIdleCallback + concurrency cap 4 so it never fights initial
+// paint or scroll.
+if (typeof prefetchAllPlantPhotos === "function") prefetchAllPlantPhotos();
 </script>
 </body>
 </html>
