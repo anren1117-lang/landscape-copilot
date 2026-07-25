@@ -5171,7 +5171,7 @@ const PLANTS = [
     spaces:["yard"], container_ok:false, zones:["N","C","E"],
     role_zh:"焦點花樹", role_en:"Focal flowering tree",
     bloom:[1,2,3], fruit:[5,6],
-    color:"#C75A8F", cost:1800,
+    color:"#C75A8F", cost:1800, cost_spec_zh:"7吋盆 · 苗高 150cm（Shopee/露天 2026 查詢）", cost_spec_en:'7" pot · 150cm sapling (Shopee/Ruten 2026 lookup)',
     note_zh:"台灣特有的鐘形深粉紅櫻花，是中海拔生態系的關鍵蜜源，吸引綠繡眼、五色鳥與蝴蝶。",
     note_en:"Taiwan-endemic bell-shaped cherry. A keystone nectar source — attracts white-eyes, barbets, and butterflies.",
     care_zh:"全日照，排水良好的酸性土壤，春開後可輕修。冬季略乾旱促花。",
@@ -6554,7 +6554,7 @@ const PLANTS = [
     spaces:["balcony","yard","indoor"], container_ok:true,
     role_zh:"國蘭花皇", role_en:"Queen of orchids",
     bloom:[1,2,3,4,5,11,12], fruit:[],
-    color:"#F4EFE8", cost:600,
+    color:"#F4EFE8", cost:600, cost_spec_zh:"3.5吋開花株（Shopee 2026 查詢）", cost_spec_en:'3.5" pot flowering plant (Shopee 2026 lookup)',
     note_zh:"台灣特有的「台灣阿嬤」蝴蝶蘭，是世界蝴蝶蘭育種的原始母本。台灣是全球最大蝴蝶蘭出口國，農場集中於台南。",
     note_en:"The Taiwan-endemic 'Taiwan Amma' Phalaenopsis is the ancestral mother of the world's moth orchid breeding. Taiwan is the world's largest exporter; farms cluster in Tainan.",
     care_zh:"半日照至遮陰，附生於樹皮或盆中木屑。夏季每 5-7 日澆水，冬季每 10 日。",
@@ -9593,6 +9593,30 @@ function plantZoneAdvisoryHTML(plant) {
 // Auto-suggest sun for indoor (no choice — it's always part/shade)
 function autoApplySpaceDefaults() {
   if (state.space === "indoor" && !state.sun) state.sun = "shade";
+}
+
+// R173: every price NT$ needs a size/pot spec so it's meaningful.
+// Per-plant explicit spec (cost_spec_zh / cost_spec_en) wins; otherwise
+// we fall back to a tier default that reflects the size a Taipei/Yilan
+// nursery would actually sell at the quoted price.
+//
+// Tier defaults come from web searches of shopee.tw / ruten / findprice
+// / biggo.com.tw / native tree platforms — a 5-gal pot 1.2m tree, a
+// 5-gal 60cm shrub, a 3" pot herb/ground cover, a small water pot.
+// Individual entries with published sizes should override this via
+// cost_spec_zh / cost_spec_en on the plant record.
+const COST_SPEC_TIER_DEFAULT = {
+  T: { zh: "5加侖盆 · 苗高 1.2m", en: '5-gal pot · 1.2m sapling' },
+  S: { zh: "5加侖盆 · 苗高 60cm", en: '5-gal pot · 60cm shrub' },
+  H: { zh: "3吋盆",              en: '3" pot' },
+  G: { zh: "3吋盆",              en: '3" pot' },
+  W: { zh: "水生盆",             en: 'aquatic pot' },
+};
+function plantCostSpec(p, lang) {
+  const explicit = lang === "en" ? p.cost_spec_en : p.cost_spec_zh;
+  if (explicit) return explicit;
+  const def = COST_SPEC_TIER_DEFAULT[p.tier] || COST_SPEC_TIER_DEFAULT.S;
+  return lang === "en" ? def.en : def.zh;
 }
 
 // Scoring engine — uses space + climate zone + coastal + goals.
@@ -22988,7 +23012,13 @@ function renderShopping(recs) {
             <button class="shop-qty-btn" data-act="inc" data-id="${p.id}">+</button>
           </div>
         </td>
-        <td class="right">NT$ ${p.cost.toLocaleString()}</td>
+        <td class="right">
+          <div>NT$ ${p.cost.toLocaleString()}</div>
+          <div style="font-size:10.5px;color:var(--ink-soft);font-style:italic;margin-top:2px;"
+               data-zh="${escapeHtml(plantCostSpec(p, "zh"))}"
+               data-en="${escapeHtml(plantCostSpec(p, "en"))}"
+               title="${escapeHtml(t('售價對應規格 · 詳見「關於」資料來源', 'Price is for this size/pot spec · see About → Sources'))}">${escapeHtml(plantCostSpec(p, state.lang || "zh"))}</div>
+        </td>
         <td class="right" style="font-weight:600;color:var(--forest);">NT$ ${sub.toLocaleString()}</td>
       </tr>`;
   }).join("");
@@ -22996,8 +23026,8 @@ function renderShopping(recs) {
   return `
     <h2 class="subtitle" data-zh="採購清單" data-en="Shopping List">採購清單</h2>
     <p class="lead-small"
-       data-zh="調整每種植物的數量，估算總成本。價格為一般花市/苗圃參考價，依規格與季節變動。"
-       data-en="Adjust quantities to estimate total cost. Prices reflect typical nursery/market reference rates and vary by size and season.">
+       data-zh="調整每種植物的數量，估算總成本。價格為一般花市/苗圃參考價，每筆售價都附上對應規格（盆大小 / 苗高），實際依季節、產地、供應狀況變動。"
+       data-en="Adjust quantities to estimate total cost. Prices reflect typical nursery/market reference rates; each price shows the size/pot spec it corresponds to. Actual price varies by season, source, and supply.">
        調整每種植物的數量，估算總成本。價格為一般花市/苗圃參考價，依規格與季節變動。</p>
     <div class="shop-frame">
       <table class="shop-table">
@@ -23718,6 +23748,9 @@ function openDrawer(id) {
           <div class="meta-cell">
             <div class="meta-label" data-zh="估算售價 ⓘ" data-en="Est. price ⓘ">估算售價 ⓘ</div>
             <div class="meta-val" title="${escapeHtml(t('台北苗圃 2025 一般估算 · 詳見「關於」資料來源', 'Taipei nursery 2025 estimate · see About → Sources'))}">NT$ ${plant.cost.toLocaleString()}</div>
+            <div style="font-size:10.5px;color:var(--ink-soft);font-style:italic;margin-top:2px;"
+                 data-zh="${escapeHtml(plantCostSpec(plant, "zh"))}"
+                 data-en="${escapeHtml(plantCostSpec(plant, "en"))}">${escapeHtml(plantCostSpec(plant, state.lang || "zh"))}</div>
           </div>` : `
           <div class="meta-cell">
             <div class="meta-label" data-zh="估算售價" data-en="Est. price">估算售價</div>
@@ -24759,7 +24792,7 @@ window.openAboutModal = function () {
         <div style="margin-top:6px;line-height:1.65;font-size:13px;">
           <div style="margin-bottom:4px;">• <b>植物物種資料</b>：彙整自台灣維管束植物簡誌、林業試驗所植物誌、台灣植物資訊整合查詢系統 (TaiBIF)；許多條目為普遍植物學常識，無單一引用。</div>
           <div style="margin-bottom:4px;">• <b>原住民傳統與料理應用</b>：《台灣島嶼植物生活圖譜 100 選》（atlas）— 內附詳細條目皆會在植物詳細視窗的「🍽 餐桌搭配」區塊註明出處。其餘文化條目（EXPERT_META.cultural_zh）標明族群或地區出處（泰雅族、布農族、排灣族、客家、閩南等），如無明確出處則為一般民俗知識。</div>
-          <div style="margin-bottom:4px;">• <b>售價</b>：<b>所有售價皆為估算</b>。植物以台北地區一般苗圃 2025 年常見售價估算，元素以線上零售平均估算。實際價格依規格、苗圃、季節、地區而異 — 建議向當地苗圃或廠商實際詢價。</div>
+          <div style="margin-bottom:4px;">• <b>售價與規格（R173 起）</b>：<b>所有售價皆為估算</b>，但每筆售價都附上對應的<b>規格</b>（例如「5加侖盆 · 苗高 1.2m」「3.5吋開花株」「3吋盆」），讓數字有意義。個別物種若標註「Shopee/露天 2026 查詢」表示已用搜尋引擎（Shopee 蝦皮、露天拍賣、BigGo 比價網、FindPrice、Yahoo 拍賣）實際比對過該規格的常見價位；其餘物種以樹型 (tier) 對應的一般苗圃規格作為預設 — 喬木 T：5加侖盆 苗高 1.2m；灌木 S：5加侖盆 苗高 60cm；草本 H / 地被 G：3吋盆；水生 W：水生盆。元素以線上零售平均估算。實際價格依苗圃、季節、地區而異 — 建議向當地苗圃或廠商詢價。</div>
           <div style="margin-bottom:4px;">• <b>花期與結果期</b>：台灣平地一般時間範圍，高山或寒流年份會偏移 ±1 個月。</div>
           <div style="margin-bottom:4px;">• <b>養護日曆</b>：以台灣平地氣候為基準，與實際微氣候可能有差異。</div>
           <div style="margin-bottom:4px;">• <b>氣候區判定 (北/中/南/東/離島)</b>：以中央氣象局氣候資料為基礎；地址查詢時依縣市對應氣候區。</div>
@@ -24784,7 +24817,7 @@ window.openAboutModal = function () {
         <div style="margin-top:6px;line-height:1.65;font-size:13px;">
           <div style="margin-bottom:4px;">• <b>Plant species data</b>: aggregated from Taiwan vascular plant references, Forestry Research Institute publications, and TaiBIF; many entries are general botanical knowledge with no single citation.</div>
           <div style="margin-bottom:4px;">• <b>Indigenous tradition + culinary applications</b>: 《Taiwan Island Plant Life Atlas 100 Selections》— individual entries are cited inline in the plant drawer's "🍽 At the table" section. Other cultural notes (EXPERT_META.cultural_zh) name the tribe or region of origin (Atayal, Bunun, Paiwan, Hakka, Hokkien); where no clear origin exists, it's general folk knowledge.</div>
-          <div style="margin-bottom:4px;">• <b>Prices</b>: <b>all prices are estimates</b>. Plants are estimated from typical Taipei-area 2025 nursery quotes; elements from average online retail. Real prices vary by specimen, vendor, season, and region — verify with local nurseries or suppliers.</div>
+          <div style="margin-bottom:4px;">• <b>Prices + specs (since R173)</b>: <b>all prices are estimates</b>, but every price shows the <b>size/pot spec</b> it corresponds to (e.g. "5-gal pot · 1.2m sapling", "3.5&Prime; flowering plant", "3&Prime; pot") so the number is meaningful. Individual species tagged "Shopee/Ruten 2026 lookup" have been checked against real listings on Shopee, Ruten, BigGo, FindPrice, and Yahoo Auctions for that spec; other species use a tier-default spec (T canopy: 5-gal pot 1.2m sapling; S shrub: 5-gal pot 60cm; H/G herb + ground: 3&Prime; pot; W water: aquatic pot). Elements are estimated from average online retail. Actual prices vary by vendor, season, and region — verify with local nurseries or suppliers.</div>
           <div style="margin-bottom:4px;">• <b>Bloom + fruit months</b>: general timing for Taiwan lowlands; shifts ±1 month at altitude or in cold-snap years.</div>
           <div style="margin-bottom:4px;">• <b>Care calendar</b>: tuned to Taiwan lowland climate; may differ from your local microclimate.</div>
           <div style="margin-bottom:4px;">• <b>Climate zone classification (N/C/S/E/island)</b>: based on Central Weather Administration climate data; address lookups map county → zone.</div>
