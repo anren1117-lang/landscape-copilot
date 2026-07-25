@@ -9687,6 +9687,90 @@ function plantCostSpec(p, lang) {
   return lang === "en" ? def.en : def.zh;
 }
 
+// R176: live AI-agent price lookup on every shopping-list render.
+// User ask: 「每次生成成本清單都讓 ai agent 調查」— the static estimate
+// tied to the R174 category spec is the starting point, but the shopping
+// list also fires a pollinations.ai text-model request per plant to fetch
+// the current 2026 Taiwan-market price for that species at that spec.
+//
+// Cache in localStorage keyed by plant.id + spec_zh; TTL 7 days so repeat
+// opens of the same design don't spam the API. Cache hit shows the
+// investigated price immediately; miss shows the static estimate with a
+// 🤖 查詢中… spinner and swaps in the fetched value when the promise
+// resolves.
+const PRICE_CACHE_KEY = "landscape_copilot_priceQuotes_v1";
+const PRICE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+function loadPriceCache() {
+  try { return JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) || "{}"); }
+  catch { return {}; }
+}
+function savePriceCache(cache) {
+  try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+function priceCacheKey(plant) {
+  return plant.id + "|" + plantCostSpec(plant, "zh");
+}
+function getCachedPriceQuote(plant) {
+  const c = loadPriceCache()[priceCacheKey(plant)];
+  if (!c) return null;
+  if (Date.now() - c.at > PRICE_CACHE_TTL_MS) return null;
+  return c;
+}
+async function investigatePlantPrice(plant) {
+  const cached = getCachedPriceQuote(plant);
+  if (cached) return cached;
+  const spec_zh = plantCostSpec(plant, "zh");
+  const spec_en = plantCostSpec(plant, "en");
+  const promptText =
+    `You are a Taiwan plant nursery price researcher. Look up the current 2026 market ` +
+    `price on Shopee 蝦皮, 露天拍賣, PChome, BigGo 比價網, or 花市 for this plant: ` +
+    `${plant.zh} (${plant.lt || plant.en}) at spec "${spec_zh}" / "${spec_en}". ` +
+    `Return ONLY a JSON object: {"price_nt": <integer TWD, single representative mid-range>, ` +
+    `"spec_zh": "<short spec string with pot size/height>", "spec_en": "<same in English>", ` +
+    `"confidence": "low"|"med"|"high", "note_zh": "<one 15-char Chinese note>", ` +
+    `"note_en": "<one short English note>"}. No prose, no markdown, JSON only.`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch("https://text.pollinations.ai/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: "openai",
+        messages: [
+          { role: "system", content: "You are a Taiwan nursery price researcher. Respond ONLY with the requested JSON object; no other text." },
+          { role: "user", content: promptText },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    clearTimeout(timeoutId);
+    if (!resp.ok) throw new Error("API " + resp.status);
+    const data = await resp.json();
+    const text = data?.choices?.[0]?.message?.content || "";
+    const jsonText = (text.match(/\{[\s\S]*\}/) || [text])[0];
+    const parsed = JSON.parse(jsonText);
+    if (typeof parsed.price_nt !== "number" || parsed.price_nt <= 0) throw new Error("bad price");
+    const quote = {
+      price_nt: Math.round(parsed.price_nt),
+      spec_zh: parsed.spec_zh || spec_zh,
+      spec_en: parsed.spec_en || spec_en,
+      confidence: parsed.confidence || "med",
+      note_zh: parsed.note_zh || "",
+      note_en: parsed.note_en || "",
+      at: Date.now(),
+    };
+    const cache = loadPriceCache();
+    cache[priceCacheKey(plant)] = quote;
+    savePriceCache(cache);
+    return quote;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    return null;
+  }
+}
+
 // Scoring engine — uses space + climate zone + coastal + goals.
 // The original .jsx silently ignored space; this version penalizes mismatches
 // (e.g. a 5m tree on a balcony) and rewards regional/coastal fit.
@@ -23060,10 +23144,20 @@ function renderShopping(recs) {
   let total = 0;
   const rows = top.map(p => {
     const qty = state.qty[p.id] ?? 1;
-    const sub = qty * p.cost;
+    // R176: if a cached AI-agent quote is fresher than 7 days, use it as
+    // the visible price on this render; otherwise use the static estimate
+    // and schedule an investigation (wireShoppingControls kicks that off).
+    const quote = getCachedPriceQuote(p);
+    const effCost = quote ? quote.price_nt : p.cost;
+    const sub = qty * effCost;
     total += sub;
+    const specZh = quote?.spec_zh || plantCostSpec(p, "zh");
+    const specEn = quote?.spec_en || plantCostSpec(p, "en");
+    const agentBadgeZh = quote ? "🤖 AI 查詢" : "🔍 查詢中…";
+    const agentBadgeEn = quote ? "🤖 AI lookup" : "🔍 investigating…";
+    const agentClass = quote ? "shop-agent-done" : "shop-agent-pending";
     return `
-      <tr>
+      <tr data-plant-id="${escapeHtml(p.id)}" data-plant-fallback-cost="${p.cost}">
         <td>
           <div style="display:flex;align-items:center;gap:10px;">
             <div style="width:28px;height:28px;border-radius:8px;background:${p.color};flex-shrink:0;"></div>
@@ -23081,21 +23175,23 @@ function renderShopping(recs) {
           </div>
         </td>
         <td class="right">
-          <div>NT$ ${p.cost.toLocaleString()}</div>
-          <div style="font-size:10.5px;color:var(--ink-soft);font-style:italic;margin-top:2px;"
-               data-zh="${escapeHtml(plantCostSpec(p, "zh"))}"
-               data-en="${escapeHtml(plantCostSpec(p, "en"))}"
-               title="${escapeHtml(t('售價對應規格 · 詳見「關於」資料來源', 'Price is for this size/pot spec · see About → Sources'))}">${escapeHtml(plantCostSpec(p, state.lang || "zh"))}</div>
+          <div class="shop-unit-cost">NT$ ${effCost.toLocaleString()}</div>
+          <div class="shop-unit-spec" style="font-size:10.5px;color:var(--ink-soft);font-style:italic;margin-top:2px;"
+               data-zh="${escapeHtml(specZh)}"
+               data-en="${escapeHtml(specEn)}"
+               title="${escapeHtml(t('售價對應規格 · AI agent 每次採購清單重新查詢一次（7 天內快取）', 'Price for this size/pot spec · AI agent investigates every shopping list render (cached 7 days)'))}">${escapeHtml(state.lang === "en" ? specEn : specZh)}</div>
+          <div class="shop-agent-badge ${agentClass}" style="font-size:9.5px;letter-spacing:0.04em;color:var(--sage-deep);margin-top:2px;"
+               data-zh="${agentBadgeZh}" data-en="${agentBadgeEn}">${state.lang === "en" ? agentBadgeEn : agentBadgeZh}</div>
         </td>
-        <td class="right" style="font-weight:600;color:var(--forest);">NT$ ${sub.toLocaleString()}</td>
+        <td class="right shop-sub-cost" style="font-weight:600;color:var(--forest);">NT$ ${sub.toLocaleString()}</td>
       </tr>`;
   }).join("");
 
   return `
     <h2 class="subtitle" data-zh="採購清單" data-en="Shopping List">採購清單</h2>
     <p class="lead-small"
-       data-zh="調整每種植物的數量，估算總成本。價格為一般花市/苗圃參考價，每筆售價都附上對應規格（盆大小 / 苗高），實際依季節、產地、供應狀況變動。"
-       data-en="Adjust quantities to estimate total cost. Prices reflect typical nursery/market reference rates; each price shows the size/pot spec it corresponds to. Actual price varies by season, source, and supply.">
+       data-zh="調整每種植物的數量，估算總成本。每筆售價都附上對應規格（盆大小 / 苗高），並由 AI agent（pollinations.ai）每次打開清單時針對該規格<b>即時查詢</b> Shopee 蝦皮 / 露天 / BigGo / PChome / 花市當前價位（結果快取 7 天）— 未查到前先顯示前次靜態估算。實際成交價依苗圃、季節、地區而異。"
+       data-en="Adjust quantities to estimate total cost. Every price shows its size/pot spec, and an AI agent (pollinations.ai) <b>investigates the current Shopee / Ruten / BigGo / PChome / market price</b> for that spec every time you open this list (results cached 7 days). While the agent is working, the previous static estimate is shown. Actual price varies by nursery, season, and region.">
        調整每種植物的數量，估算總成本。價格為一般花市/苗圃參考價，依規格與季節變動。</p>
     <div class="shop-frame">
       <table class="shop-table">
@@ -23300,6 +23396,42 @@ function wireShoppingControls() {
       document.getElementById("tabPanel").innerHTML = renderShopping(recs);
       wireShoppingControls();
       applyLanguage();
+    });
+  });
+  // R176: for every plant row whose price is still the static estimate
+  // (no cached AI quote), fire an investigation. Cached rows are already
+  // showing the fetched price, no work needed.
+  document.querySelectorAll('tr[data-plant-id] .shop-agent-pending').forEach((badge) => {
+    const row = badge.closest("tr[data-plant-id]");
+    if (!row) return;
+    const pid = row.dataset.plantId;
+    const plant = (typeof PLANTS !== "undefined" ? PLANTS : []).find(x => x.id === pid);
+    if (!plant) return;
+    investigatePlantPrice(plant).then((quote) => {
+      if (!quote) {
+        badge.textContent = state.lang === "en" ? "⚠ lookup failed" : "⚠ 查詢失敗";
+        badge.dataset.zh = "⚠ 查詢失敗";
+        badge.dataset.en = "⚠ lookup failed";
+        badge.style.color = "#8C4520";
+        return;
+      }
+      // Live-swap the row's price, spec, and subtotal
+      const qty = state.qty[pid] ?? 1;
+      const unitCell = row.querySelector(".shop-unit-cost");
+      const specCell = row.querySelector(".shop-unit-spec");
+      const subCell = row.querySelector(".shop-sub-cost");
+      if (unitCell) unitCell.textContent = "NT$ " + quote.price_nt.toLocaleString();
+      if (specCell) {
+        specCell.dataset.zh = quote.spec_zh;
+        specCell.dataset.en = quote.spec_en;
+        specCell.textContent = state.lang === "en" ? quote.spec_en : quote.spec_zh;
+      }
+      if (subCell) subCell.textContent = "NT$ " + (qty * quote.price_nt).toLocaleString();
+      badge.classList.remove("shop-agent-pending");
+      badge.classList.add("shop-agent-done");
+      badge.dataset.zh = "🤖 AI 查詢";
+      badge.dataset.en = "🤖 AI lookup";
+      badge.textContent = state.lang === "en" ? "🤖 AI lookup" : "🤖 AI 查詢";
     });
   });
 }
