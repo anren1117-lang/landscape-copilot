@@ -19531,8 +19531,8 @@ function renderPlan(layers, recs) {
     </g>`;
 
   const ground = `
-    <rect x="20" y="20" width="${dims.w - 40}" height="${dims.h - 40}" rx="14"
-          fill="rgba(196,184,144,0.18)" stroke="#B49676" stroke-width="1.2" stroke-dasharray="6 4"/>`;
+    <rect x="20" y="20" width="${dims.w - 40}" height="${dims.h - 40}" rx="6"
+          fill="rgba(196,184,144,0.18)" stroke="#8C6F52" stroke-width="1.4"/>`;
 
   const labelBar = `
     <text x="32" y="46" font-size="11" letter-spacing="0.18em" fill="#8C6F52" font-weight="600">
@@ -19542,15 +19542,98 @@ function renderPlan(layers, recs) {
       ${t(dims.label_zh, dims.label_en)}
     </text>`;
 
-  const plantCircles = plan.map((p, i) => {
-    const r = Math.max(18, Math.min(46, (p.spread[1] || 1) * 22));
-    const fontSize = r > 30 ? 12.5 : 11.5;
+  // R177: plan tab redesigned from floating circles into a proper
+  // landscape design plan — plants become filled grid-cell BEDS
+  // partitioned across the ground rectangle. Each species gets a
+  // rectangular cell with (a) a distinct hatch/dot fill pattern that
+  // encodes its tier, (b) a dashed sepia bed outline, (c) a bilingual
+  // label with an italic Latin name centered inside. Reads as a
+  // real garden plan, not a scatter chart.
+  //
+  // Partitioning: within the 20px-padded ground rect, split by tier
+  // rows (T at back, S middle, G front, W optional pond, C on side),
+  // then split each row into equal-width cells per species in that
+  // tier. Cell count preserves species diversity within row.
+  const bedPad = 30;
+  const bedX0 = 30, bedY0 = 56;
+  const bedW = dims.w - 60;
+  const bedH = dims.h - 88;
+  // Tier ordering top→bottom: T (back / far from viewer) → S → G / W → C on side
+  const tiersPresent = ["T","S","G","W","C"].filter(t => plantsForPlan.some(p => p.tier === t));
+  // Give each tier a proportional row height; T bigger than G
+  const tierWeight = { T: 3, S: 2.2, G: 1.6, W: 1.4, C: 1.2 };
+  const totalWeight = tiersPresent.reduce((sum, t) => sum + (tierWeight[t] || 1), 0);
+  // Hatch pattern per tier — pattern id built from tier so filters/re-renders share
+  const hatchDefs = tiersPresent.map(tier => {
+    const p = plantsForPlan.find(pp => pp.tier === tier);
+    const col = p ? p.color : "#7E9E5A";
+    // Different hatch styles per tier so a colour-blind user can still tell
+    // rows apart. T = 45° dense hatch, S = 90° verticals, G = dots,
+    // W = horizontal waves, C = 135° diagonals.
+    if (tier === "G") {
+      return `<pattern id="planHatch_${tier}" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="${col}" fill-opacity="0.14"/><circle cx="4" cy="4" r="1.1" fill="${col}" fill-opacity="0.55"/></pattern>`;
+    }
+    if (tier === "W") {
+      return `<pattern id="planHatch_${tier}" width="12" height="6" patternUnits="userSpaceOnUse"><rect width="12" height="6" fill="${col}" fill-opacity="0.22"/><path d="M0,3 Q3,0 6,3 T12,3" fill="none" stroke="${col}" stroke-width="0.9" stroke-opacity="0.75"/></pattern>`;
+    }
+    const rot = tier === "T" ? 45 : tier === "S" ? 90 : 135;
+    const spacing = tier === "T" ? 5 : 6;
+    return `<pattern id="planHatch_${tier}" width="${spacing * 2}" height="${spacing * 2}" patternUnits="userSpaceOnUse" patternTransform="rotate(${rot})"><rect width="${spacing * 2}" height="${spacing * 2}" fill="${col}" fill-opacity="0.16"/><line x1="0" y1="${spacing}" x2="${spacing * 2}" y2="${spacing}" stroke="${col}" stroke-width="1.4" stroke-opacity="0.65"/></pattern>`;
+  }).join("");
+
+  const cellCells = [];
+  let cursorY = bedY0;
+  tiersPresent.forEach(tier => {
+    const rowH = bedH * (tierWeight[tier] || 1) / totalWeight;
+    const tierPlants = plantsForPlan.filter(p => p.tier === tier);
+    // Water tier gets a smaller left-side pond bed; others fill the row
+    if (tier === "W") {
+      const p = tierPlants[0];
+      const pw = Math.min(bedW * 0.32, 140);
+      cellCells.push({p, x: bedX0, y: cursorY, w: pw, h: rowH - 6, tier});
+      // Fill rest of row with a "path/mulch" placeholder to make it clear
+      cellCells.push({p: null, x: bedX0 + pw + 6, y: cursorY, w: bedW - pw - 6, h: rowH - 6, tier: "PATH"});
+    } else if (tier === "C") {
+      // Climber: run along the top edge as a thin strip
+      tierPlants.forEach((p, i) => {
+        const cellW = (bedW / tierPlants.length) - 4;
+        cellCells.push({p, x: bedX0 + i * (cellW + 4), y: cursorY, w: cellW, h: rowH - 6, tier});
+      });
+    } else {
+      const cellW = (bedW / Math.max(1, tierPlants.length)) - 4;
+      tierPlants.forEach((p, i) => {
+        cellCells.push({p, x: bedX0 + i * (cellW + 4), y: cursorY, w: cellW, h: rowH - 6, tier});
+      });
+    }
+    cursorY += rowH;
+  });
+
+  const plantCircles = cellCells.map(cell => {
+    if (cell.tier === "PATH") {
+      return `<rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
+        fill="rgba(196,184,144,0.10)" stroke="#B49676" stroke-width="0.8" stroke-dasharray="3 4"/>
+        <text x="${(cell.x + cell.w / 2).toFixed(1)}" y="${(cell.y + cell.h / 2 + 4).toFixed(1)}" text-anchor="middle"
+              font-size="11" font-style="italic" fill="#8C6F52" font-family="Noto Serif TC">
+          ${t("步道 / mulch 覆蓋", "path / mulch")}
+        </text>`;
+    }
+    const p = cell.p;
+    const cx = cell.x + cell.w / 2;
+    const cy = cell.y + cell.h / 2;
+    const labelZh = p.zh;
+    const labelSize = cell.w < 80 ? 11 : cell.w < 130 ? 12 : 13;
+    const latinSize = Math.max(9, labelSize - 3);
+    // Only show latin if there's room
+    const showLatin = cell.h > 46 && cell.w > 90;
     return `
       <g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">
-        <circle cx="${p.x}" cy="${p.y}" r="${r + 4}" fill="${p.color}" opacity="0.18"/>
-        <circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${p.color}" opacity="0.5" stroke="${p.color}" stroke-width="2"/>
-        <text x="${p.x}" y="${p.y - 2}" text-anchor="middle" font-size="${fontSize}" font-family="Noto Serif TC" font-weight="600" fill="#2C3526">${p.zh}</text>
-        <text x="${p.x}" y="${p.y + 12}" text-anchor="middle" font-size="10" fill="#5A5C50" font-style="italic" font-family="Noto Serif TC">${p.lt}</text>
+        <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
+              fill="url(#planHatch_${cell.tier})"
+              stroke="${p.color}" stroke-width="1.4" stroke-dasharray="4 2" rx="4"/>
+        <text x="${cx.toFixed(1)}" y="${(cy - (showLatin ? 4 : -2)).toFixed(1)}" text-anchor="middle"
+              font-size="${labelSize}" font-family="Noto Serif TC" font-weight="700" fill="#2C3526">${labelZh}</text>
+        ${showLatin ? `<text x="${cx.toFixed(1)}" y="${(cy + 10).toFixed(1)}" text-anchor="middle"
+              font-size="${latinSize}" font-style="italic" fill="#5A5C50" font-family="Noto Serif TC">${p.lt}</text>` : ""}
       </g>`;
   }).join("");
 
@@ -19567,11 +19650,12 @@ function renderPlan(layers, recs) {
 
   return `
     <h2 class="subtitle" data-zh="俯瞰平面圖 · Top View" data-en="Top View — Garden Plan">俯瞰平面圖 · Top View</h2>
-    <p class="lead-small" data-zh="點擊任一植物查看詳細養護指南。圓圈大小相對於成株時的冠幅。"
-       data-en="Tap a plant to see full care guide. Circle size is roughly proportional to mature spread.">
-       點擊任一植物查看詳細養護指南。圓圈大小相對於成株時的冠幅。</p>
+    <p class="lead-small" data-zh="像景觀設計平面圖一樣以格子方式呈現，每種植物是一塊帶紋理的花床。點擊任一格查看詳細養護指南。"
+       data-en="Rendered like a real landscape design plan — each species is a hatched bed cell, not a scatter dot. Tap any cell for the full care guide.">
+       像景觀設計平面圖一樣以格子方式呈現，每種植物是一塊帶紋理的花床。點擊任一格查看詳細養護指南。</p>
     <div class="plan-frame">
       <svg class="plan-svg" viewBox="0 0 ${dims.w} ${dims.h}" preserveAspectRatio="xMidYMid meet">
+        <defs>${hatchDefs}</defs>
         ${ground}
         ${labelBar}
         ${sunArrow}
