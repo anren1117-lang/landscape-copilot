@@ -19680,119 +19680,129 @@ function renderPlan(layers, recs) {
       ${t(dims.label_zh, dims.label_en)}
     </text>`;
 
-  // R183: plan redesigned with an ADAPTIVE cell layout. R177's fixed
-  // "1 row per tier, all species get equal-width cells" broke on narrow
-  // balcony spaces (3m × 1m → 600 × 200 viewBox, each of the 5 tier
-  // rows was ~30-40px tall, cells wafer-thin and unreadable). Now:
+  // R184: plan rendered as a proper GRAPH-PAPER grid — every cell is
+  // the same size (like real landscape design paper), and each species
+  // occupies one or more adjacent cells based on its allocated area
+  // weight. Users perceive a matrix, not a mosaic. Feels like a real
+  // architectural plan.
   //
-  // 1. Pick a per-tier row-vs-column layout based on the space aspect.
-  //    Wide-flat spaces (aspect ≥ 2, e.g. balcony) get COLUMNS — one
-  //    column per species, running full height so labels + hatch read.
-  //    Balanced/tall spaces (aspect < 2, e.g. yard) get the original
-  //    tier ROWS with species split across the row width.
-  // 2. Cap species per tier at 4 — beyond that, the smaller-weight
-  //    plants merge into a shared "混植 / mixed" cell so no single
-  //    cell falls under a readable minimum. Users see everything via
-  //    the plant drawer regardless.
-  // 3. Only render W bed if it's at least 40px on both axes; skip
-  //    "path/mulch" filler on narrow layouts (was wasted visual space).
+  // Algorithm:
+  //   1. Pick a grid dimension (cols × rows) that matches the space's
+  //      real aspect ratio, targeting square-ish cells around 40-70px.
+  //   2. Each species gets an integer cell count derived from its
+  //      tier weight (canopy occupies more cells than ground cover).
+  //   3. Cells are filled in scan order (back rows first for canopy,
+  //      front rows for ground cover) so tiers stay spatially coherent.
   const bedX0 = 30, bedY0 = 56;
   const bedW = dims.w - 60;
   const bedH = dims.h - 88;
-  const spaceAspect = bedW / bedH;
-  const useColumns = spaceAspect >= 2;
+
+  // Pick grid dims: target cell size ~55px, min 3×2, max 8×6
+  const targetCell = 55;
+  let cols = Math.max(3, Math.min(8, Math.round(bedW / targetCell)));
+  let rows = Math.max(2, Math.min(6, Math.round(bedH / targetCell)));
+  // If cell would be too tall/short, adjust
+  const cellW = bedW / cols;
+  const cellH = bedH / rows;
+  const totalCells = cols * rows;
+
   const tiersPresent = ["T","S","G","W","C"].filter(t => plantsForPlan.some(p => p.tier === t));
 
-  // Merge species >4 per tier into a "mixed" bucket so cells stay legible
-  const MAX_CELLS_PER_TIER = 4;
-  function tierCells(tier) {
-    const list = plantsForPlan.filter(p => p.tier === tier);
-    if (list.length <= MAX_CELLS_PER_TIER) return list.map(p => ({p, mixed: false, count: 1}));
-    return list.slice(0, MAX_CELLS_PER_TIER - 1)
-      .map(p => ({p, mixed: false, count: 1}))
-      .concat([{p: list[MAX_CELLS_PER_TIER - 1], mixed: true, count: list.length - MAX_CELLS_PER_TIER + 1}]);
+  // Tier area weights (relative). Canopy takes more area than ground cover.
+  const tierAreaWeight = { T: 3.0, S: 2.2, G: 1.6, W: 1.4, C: 0.9 };
+  // Compute per-species cell count: sum weights, allocate totalCells proportionally
+  const speciesEntries = [];
+  plantsForPlan.forEach(p => {
+    speciesEntries.push({ p, tier: p.tier, weight: tierAreaWeight[p.tier] || 1 });
+  });
+  const totalWeight = speciesEntries.reduce((s, e) => s + e.weight, 0) || 1;
+  // Give each species at least 1 cell; distribute remainder by weight
+  speciesEntries.forEach(e => {
+    e.cellCount = Math.max(1, Math.round(totalCells * e.weight / totalWeight));
+  });
+  // Clamp so total ≤ totalCells (trim from largest first if we overshot)
+  let allocated = speciesEntries.reduce((s, e) => s + e.cellCount, 0);
+  while (allocated > totalCells) {
+    const idx = speciesEntries.reduce((maxI, e, i, arr) => e.cellCount > arr[maxI].cellCount ? i : maxI, 0);
+    speciesEntries[idx].cellCount--;
+    allocated--;
+  }
+  while (allocated < totalCells) {
+    const idx = speciesEntries.reduce((maxI, e, i, arr) => e.weight > arr[maxI].weight ? i : maxI, 0);
+    speciesEntries[idx].cellCount++;
+    allocated++;
   }
 
-  // Hatch pattern per tier — same as R177 but only for tiers used
+  // Tier per-cell layer: rows 0..N-1 top→bottom = back→front (T→S→W→C→G)
+  // Sort species by tier order so canopy fills back rows, ground fills front
+  const tierBackToFront = ["T","W","S","C","G"];
+  speciesEntries.sort((a, b) => tierBackToFront.indexOf(a.tier) - tierBackToFront.indexOf(b.tier));
+
+  // Flatten into a linear cell array with (species → cell index range)
+  // then assign to grid positions in row-major back-to-front order.
+  const cellSpecs = [];
+  let ci = 0;
+  speciesEntries.forEach(e => {
+    for (let n = 0; n < e.cellCount; n++) {
+      const r = Math.floor(ci / cols);
+      const c = ci % cols;
+      cellSpecs.push({
+        p: e.p, tier: e.tier,
+        x: bedX0 + c * cellW,
+        y: bedY0 + r * cellH,
+        w: cellW, h: cellH,
+        gridR: r, gridC: c,
+      });
+      ci++;
+    }
+  });
+
+  // Hatch pattern per tier — subtle background so cell color reads
   const hatchDefs = tiersPresent.map(tier => {
     const p = plantsForPlan.find(pp => pp.tier === tier);
     const col = p ? p.color : "#7E9E5A";
     if (tier === "G") {
-      return `<pattern id="planHatch_${tier}" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="${col}" fill-opacity="0.16"/><circle cx="5" cy="5" r="1.4" fill="${col}" fill-opacity="0.60"/></pattern>`;
+      return `<pattern id="planHatch_${tier}" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="${col}" fill-opacity="0.18"/><circle cx="5" cy="5" r="1.4" fill="${col}" fill-opacity="0.62"/></pattern>`;
     }
     if (tier === "W") {
-      return `<pattern id="planHatch_${tier}" width="14" height="7" patternUnits="userSpaceOnUse"><rect width="14" height="7" fill="${col}" fill-opacity="0.25"/><path d="M0,3.5 Q3.5,0 7,3.5 T14,3.5" fill="none" stroke="${col}" stroke-width="1" stroke-opacity="0.80"/></pattern>`;
+      return `<pattern id="planHatch_${tier}" width="14" height="7" patternUnits="userSpaceOnUse"><rect width="14" height="7" fill="${col}" fill-opacity="0.28"/><path d="M0,3.5 Q3.5,0 7,3.5 T14,3.5" fill="none" stroke="${col}" stroke-width="1" stroke-opacity="0.82"/></pattern>`;
     }
     const rot = tier === "T" ? 45 : tier === "S" ? 90 : 135;
     const spacing = tier === "T" ? 6 : 7;
-    return `<pattern id="planHatch_${tier}" width="${spacing * 2}" height="${spacing * 2}" patternUnits="userSpaceOnUse" patternTransform="rotate(${rot})"><rect width="${spacing * 2}" height="${spacing * 2}" fill="${col}" fill-opacity="0.18"/><line x1="0" y1="${spacing}" x2="${spacing * 2}" y2="${spacing}" stroke="${col}" stroke-width="1.6" stroke-opacity="0.72"/></pattern>`;
+    return `<pattern id="planHatch_${tier}" width="${spacing * 2}" height="${spacing * 2}" patternUnits="userSpaceOnUse" patternTransform="rotate(${rot})"><rect width="${spacing * 2}" height="${spacing * 2}" fill="${col}" fill-opacity="0.20"/><line x1="0" y1="${spacing}" x2="${spacing * 2}" y2="${spacing}" stroke="${col}" stroke-width="1.6" stroke-opacity="0.75"/></pattern>`;
   }).join("");
 
-  // Build cells: either rows-per-tier (yard) or columns-per-tier (balcony)
-  const cellSpecs = [];
-  if (useColumns) {
-    // COLUMN layout: tiers left→right (T at right = back, G at left = front),
-    // each tier column occupies full bed height. Species within tier stacked
-    // vertically inside the column.
-    const tierWeight = { T: 2.2, S: 1.8, G: 1.4, W: 1.6, C: 0.8 };
-    const totalWeight = tiersPresent.reduce((s, t) => s + (tierWeight[t] || 1), 0);
-    let cursorX = bedX0;
-    // Front→back: G, C, S, W, T (viewer perspective: canopy furthest, ground nearest)
-    const orderedTiers = tiersPresent.slice().sort((a, b) => "GCSWT".indexOf(a) - "GCSWT".indexOf(b));
-    orderedTiers.forEach(tier => {
-      const colW = bedW * (tierWeight[tier] || 1) / totalWeight - 4;
-      const list = tierCells(tier);
-      const cellH = (bedH / list.length) - 4;
-      list.forEach((entry, i) => {
-        cellSpecs.push({...entry, x: cursorX, y: bedY0 + i * (cellH + 4), w: colW, h: cellH, tier});
-      });
-      cursorX += colW + 4;
-    });
-  } else {
-    // ROW layout: tiers back→front, species split across row width
-    const tierWeight = { T: 2.6, S: 2, G: 1.6, W: 1.4, C: 1 };
-    const totalWeight = tiersPresent.reduce((s, t) => s + (tierWeight[t] || 1), 0);
-    let cursorY = bedY0;
-    tiersPresent.forEach(tier => {
-      const rowH = bedH * (tierWeight[tier] || 1) / totalWeight - 4;
-      const list = tierCells(tier);
-      const cellW = (bedW / list.length) - 4;
-      list.forEach((entry, i) => {
-        cellSpecs.push({...entry, x: bedX0 + i * (cellW + 4), y: cursorY, w: cellW, h: rowH, tier});
-      });
-      cursorY += rowH + 4;
-    });
-  }
+  // Track first cell per species so we only render the label once
+  // (on the first cell), preventing repeated names inside the same
+  // species patch that spans multiple grid cells.
+  const speciesFirstIdx = {};
+  cellSpecs.forEach((cell, i) => {
+    if (speciesFirstIdx[cell.p.id] === undefined) speciesFirstIdx[cell.p.id] = i;
+  });
 
-  const plantCircles = cellSpecs.map(cell => {
+  const plantCircles = cellSpecs.map((cell, i) => {
     const p = cell.p;
+    const isFirst = speciesFirstIdx[p.id] === i;
     const cx = cell.x + cell.w / 2;
     const cy = cell.y + cell.h / 2;
-    const zh = cell.mixed ? `${p.zh} +${cell.count - 1}` : p.zh;
-    // Font size scales with the shorter cell dimension; skip label if cell too tiny
     const minDim = Math.min(cell.w, cell.h);
-    if (minDim < 22) {
-      // Cell too small for text — render just the hatch + border, still clickable
-      return `
-        <g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">
-          <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
-                fill="url(#planHatch_${cell.tier})" stroke="${p.color}" stroke-width="1.4" rx="3"/>
-          <title>${zh} · ${p.lt}</title>
-        </g>`;
-    }
-    const labelSize = Math.min(14, Math.max(10, Math.round(minDim / 5)));
-    const showLatin = cell.h > 48 && cell.w > 85 && !cell.mixed;
+    const labelSize = Math.min(13, Math.max(10, Math.round(minDim / 4.5)));
+    const showLatin = isFirst && cell.h > 48 && cell.w > 80;
     return `
       <g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">
         <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
               fill="url(#planHatch_${cell.tier})"
-              stroke="${p.color}" stroke-width="1.6" stroke-dasharray="4 2" rx="4"/>
+              stroke="#8C6F52" stroke-width="0.6"/>
+        ${isFirst ? `
         <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? -4 : 4)).toFixed(1)}" text-anchor="middle"
-              font-size="${labelSize}" font-family="Noto Serif TC" font-weight="700" fill="#2C3526">${zh}</text>
+              font-size="${labelSize}" font-family="Noto Serif TC" font-weight="700" fill="#2C3526">${p.zh}</text>
         ${showLatin ? `<text x="${cx.toFixed(1)}" y="${(cy + labelSize).toFixed(1)}" text-anchor="middle"
-              font-size="${Math.max(9, labelSize - 3)}" font-style="italic" fill="#5A5C50" font-family="Noto Serif TC">${p.lt}</text>` : ""}
+              font-size="${Math.max(9, labelSize - 3)}" font-style="italic" fill="#5A5C50" font-family="Noto Serif TC">${p.lt}</text>` : ""}` : ""}
+        <title>${p.zh} · ${p.lt}</title>
       </g>`;
-  }).join("");
+  }).join("") +
+  // Outer grid border on top of everything for the crisp "graph paper" edge
+  `<rect x="${bedX0.toFixed(1)}" y="${bedY0.toFixed(1)}" width="${bedW.toFixed(1)}" height="${bedH.toFixed(1)}" fill="none" stroke="#6E5236" stroke-width="1.4"/>`;
 
   // Legend: tier color key
   const tiersInPlan = [...new Set(plantsForPlan.map(p => p.tier))];
