@@ -24149,15 +24149,16 @@ function renderDictionary() {
     return true;
   });
 
-  // ── R52 pagination ──
-  // Cap state.dictShown to the filtered length, then slice. When the filter
-  // result is small (<= page size) we render everything and skip the button.
-  // Print/export paths bypass renderDictionary(), so all plants still print.
-  const pageSize = state.dictPageSize || 30;
-  if (typeof state.dictShown !== "number" || state.dictShown < pageSize) state.dictShown = pageSize;
-  const shownCount = Math.min(state.dictShown, filtered.length);
-  const visible = filtered.slice(0, shownCount);
-  const remaining = Math.max(0, filtered.length - shownCount);
+  // ── R191 (user: 所有植物) — show ALL filtered plants at once ──
+  // Previous R52 pagination hid 200+ prefetched Wikipedia photos behind
+  // a "load more" click. Since every plant now has a cached photo (R182)
+  // and cards render synchronously from cache, showing the full 233 in
+  // one grid is fine — modern browsers handle 233 <img>/<div> nodes
+  // without breaking a sweat, and the dict-photo lazy-loading via IMG
+  // fallback still applies for uncached species during first-load.
+  const shownCount = filtered.length;
+  const visible = filtered;
+  const remaining = 0;
 
   const tierKey = (k) => ({ all:t("全部","All"), T:t("喬木","Canopy"), S:t("灌木","Shrub"), G:t("地被","Ground"), W:t("水生","Water"), C:t("藤本","Climber") })[k];
 
