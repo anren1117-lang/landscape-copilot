@@ -20064,8 +20064,21 @@ function wirePlanInteractions() {
     if (p && typeof fetchPlantPhoto === "function" && !getCachedPlantPhoto(p)) pending.add(p);
   });
   if (pending.size) {
-    let anySucceeded = false;
-    let done = 0;
+    // Re-render at most every 800ms as fetches succeed, so cells populate
+    // progressively without thrashing the DOM. First success schedules
+    // the timer; later successes coalesce into the same tick.
+    let rerenderPending = false;
+    const scheduleRerender = () => {
+      if (rerenderPending) return;
+      rerenderPending = true;
+      setTimeout(() => {
+        rerenderPending = false;
+        if (state.resultTab === "plan") {
+          __tabCache.clear();
+          render();
+        }
+      }, 800);
+    };
     const CAP = 4;
     const queue = [...pending];
     let idx = 0, running = 0;
@@ -20073,16 +20086,8 @@ function wirePlanInteractions() {
       while (running < CAP && idx < queue.length) {
         const p = queue[idx++];
         running++;
-        fetchPlantPhoto(p).then((rec) => { if (rec && rec.url) anySucceeded = true; })
-          .finally(() => {
-            running--; done++;
-            if (done === queue.length && anySucceeded && state.resultTab === "plan") {
-              __tabCache.clear();
-              render();
-            } else {
-              kick();
-            }
-          });
+        fetchPlantPhoto(p).then((rec) => { if (rec && rec.url) scheduleRerender(); })
+          .finally(() => { running--; kick(); });
       }
     };
     kick();
