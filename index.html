@@ -19702,14 +19702,24 @@ function renderPlan(layers, recs) {
   const bedW = dims.w - 60;
   const bedH = dims.h - 88;
 
-  // Pick grid dims: target cell size ~55px, min 3×2, max 8×6
-  const targetCell = 55;
-  let cols = Math.max(3, Math.min(8, Math.round(bedW / targetCell)));
-  let rows = Math.max(2, Math.min(6, Math.round(bedH / targetCell)));
-  // If cell would be too tall/short, adjust
+  // R187: pick grid dims by REAL WORLD size — each cell targets ~1 m²
+  // (down-sampling on tiny spaces, up-sampling on big yards) so users
+  // read cell count as m². For a 5m × 4m rooftop that's 5 × 4 = 20 cells,
+  // one per m². Falls back to a screen-size fallback so pixel-cells
+  // don't get too tiny to see on very small designs.
+  const realArea = realW * realD;
+  let cols = Math.max(3, Math.min(10, Math.round(realW)));
+  let rows = Math.max(2, Math.min(8, Math.round(realD)));
+  // Screen-size guard: if resulting pixel cell < 40px, drop grid density
+  while ((bedW / cols) < 40 && cols > 3) cols--;
+  while ((bedH / rows) < 40 && rows > 2) rows--;
   const cellW = bedW / cols;
   const cellH = bedH / rows;
   const totalCells = cols * rows;
+  // Real m² per cell — used for the scale legend + per-species area annotations
+  const cellMetreW = realW / cols;
+  const cellMetreH = realD / rows;
+  const cellRealArea = cellMetreW * cellMetreH;
 
   const tiersPresent = ["T","S","G","W","C"].filter(t => plantsForPlan.some(p => p.tier === t));
 
@@ -19777,12 +19787,13 @@ function renderPlan(layers, recs) {
     return `<pattern id="planHatch_${tier}" width="${spacing * 2}" height="${spacing * 2}" patternUnits="userSpaceOnUse" patternTransform="rotate(${rot})"><rect width="${spacing * 2}" height="${spacing * 2}" fill="${col}" fill-opacity="0.20"/><line x1="0" y1="${spacing}" x2="${spacing * 2}" y2="${spacing}" stroke="${col}" stroke-width="1.6" stroke-opacity="0.75"/></pattern>`;
   }).join("");
 
-  // Track first cell per species so we only render the label once
-  // (on the first cell), preventing repeated names inside the same
-  // species patch that spans multiple grid cells.
+  // Track first cell per species + count cells per species so we can
+  // show one label per patch AND display the species' total m² area.
   const speciesFirstIdx = {};
+  const speciesCellCount = {};
   cellSpecs.forEach((cell, i) => {
     if (speciesFirstIdx[cell.p.id] === undefined) speciesFirstIdx[cell.p.id] = i;
+    speciesCellCount[cell.p.id] = (speciesCellCount[cell.p.id] || 0) + 1;
   });
 
   const plantCircles = cellSpecs.map((cell, i) => {
@@ -19792,22 +19803,45 @@ function renderPlan(layers, recs) {
     const cy = cell.y + cell.h / 2;
     const minDim = Math.min(cell.w, cell.h);
     const labelSize = Math.min(13, Math.max(10, Math.round(minDim / 4.5)));
-    const showLatin = isFirst && cell.h > 48 && cell.w > 80;
+    const showLatin = isFirst && cell.h > 52 && cell.w > 80;
+    // R187: per-species area total shown on first cell of each patch
+    const speciesArea = (speciesCellCount[p.id] * cellRealArea).toFixed(1);
+    // R187: cell-corner m² marker (only if cell big enough not to clutter)
+    const showCellDim = cell.w > 44 && cell.h > 38;
+    const cellDimLabel = cellRealArea >= 1 ? `${cellMetreW.toFixed(1)}×${cellMetreH.toFixed(1)}m` : `${(cellRealArea * 10000).toFixed(0)}cm²`;
     return `
       <g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">
         <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
               fill="url(#planHatch_${cell.tier})"
               stroke="#8C6F52" stroke-width="0.6"/>
+        ${showCellDim ? `<text x="${(cell.x + 3).toFixed(1)}" y="${(cell.y + 10).toFixed(1)}"
+              font-size="8" font-family="Noto Serif TC" fill="#8C6F52" opacity="0.55" font-style="italic">${cellDimLabel}</text>` : ""}
         ${isFirst ? `
-        <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? -4 : 4)).toFixed(1)}" text-anchor="middle"
+        <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? -8 : 0)).toFixed(1)}" text-anchor="middle"
               font-size="${labelSize}" font-family="Noto Serif TC" font-weight="700" fill="#2C3526">${p.zh}</text>
-        ${showLatin ? `<text x="${cx.toFixed(1)}" y="${(cy + labelSize).toFixed(1)}" text-anchor="middle"
-              font-size="${Math.max(9, labelSize - 3)}" font-style="italic" fill="#5A5C50" font-family="Noto Serif TC">${p.lt}</text>` : ""}` : ""}
-        <title>${p.zh} · ${p.lt}</title>
+        ${showLatin ? `<text x="${cx.toFixed(1)}" y="${(cy + 4).toFixed(1)}" text-anchor="middle"
+              font-size="${Math.max(9, labelSize - 3)}" font-style="italic" fill="#5A5C50" font-family="Noto Serif TC">${p.lt}</text>` : ""}
+        <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? 16 : 12)).toFixed(1)}" text-anchor="middle"
+              font-size="${Math.max(9, labelSize - 3)}" font-family="Noto Serif TC" fill="#6E5236" font-weight="600">${speciesArea} m²</text>` : ""}
+        <title>${p.zh} · ${p.lt} · ${speciesArea} m² (${speciesCellCount[p.id]} 格 / cell${speciesCellCount[p.id] === 1 ? "" : "s"})</title>
       </g>`;
   }).join("") +
   // Outer grid border on top of everything for the crisp "graph paper" edge
-  `<rect x="${bedX0.toFixed(1)}" y="${bedY0.toFixed(1)}" width="${bedW.toFixed(1)}" height="${bedH.toFixed(1)}" fill="none" stroke="#6E5236" stroke-width="1.4"/>`;
+  `<rect x="${bedX0.toFixed(1)}" y="${bedY0.toFixed(1)}" width="${bedW.toFixed(1)}" height="${bedH.toFixed(1)}" fill="none" stroke="#6E5236" stroke-width="1.4"/>` +
+  // R187: scale bar at the bottom-left of the bed — 1m ruler tick so users
+  // read the grid in real-world units. Placed just above the label bar.
+  (() => {
+    const scaleX = bedX0 + 4;
+    const scaleY = bedY0 + bedH - 10;
+    const oneMpx = (bedW / realW).toFixed(1);
+    return `
+      <g class="plan-scale" pointer-events="none">
+        <line x1="${scaleX}" y1="${scaleY}" x2="${(scaleX + parseFloat(oneMpx))}" y2="${scaleY}" stroke="#6E5236" stroke-width="2" stroke-linecap="round"/>
+        <line x1="${scaleX}" y1="${(scaleY - 3)}" x2="${scaleX}" y2="${(scaleY + 3)}" stroke="#6E5236" stroke-width="1.4"/>
+        <line x1="${(scaleX + parseFloat(oneMpx))}" y1="${(scaleY - 3)}" x2="${(scaleX + parseFloat(oneMpx))}" y2="${(scaleY + 3)}" stroke="#6E5236" stroke-width="1.4"/>
+        <text x="${(scaleX + parseFloat(oneMpx) / 2)}" y="${(scaleY - 6)}" text-anchor="middle" font-size="9" font-family="Noto Serif TC" fill="#6E5236" font-style="italic">1 m</text>
+      </g>`;
+  })();
 
   // Legend: tier color key
   const tiersInPlan = [...new Set(plantsForPlan.map(p => p.tier))];
@@ -19822,9 +19856,9 @@ function renderPlan(layers, recs) {
 
   return `
     <h2 class="subtitle" data-zh="俯瞰平面圖 · Top View" data-en="Top View — Garden Plan">俯瞰平面圖 · Top View</h2>
-    <p class="lead-small" data-zh="像景觀設計平面圖一樣以格子方式呈現，每種植物是一塊帶紋理的花床。點擊任一格查看詳細養護指南。"
-       data-en="Rendered like a real landscape design plan — each species is a hatched bed cell, not a scatter dot. Tap any cell for the full care guide.">
-       像景觀設計平面圖一樣以格子方式呈現，每種植物是一塊帶紋理的花床。點擊任一格查看詳細養護指南。</p>
+    <p class="lead-small" data-zh="每格約 1 m²（依你輸入的實際尺寸自動計算），每種植物顯示佔用的總面積與規格。點擊任一格查看詳細養護指南。"
+       data-en="Each cell ≈ 1 m² (auto-computed from your real width × depth). Each species patch shows its total allocated area. Tap any cell for the full care guide.">
+       每格約 1 m²（依你輸入的實際尺寸自動計算），每種植物顯示佔用的總面積與規格。點擊任一格查看詳細養護指南。</p>
     <div class="plan-frame">
       <svg class="plan-svg" viewBox="0 0 ${dims.w} ${dims.h}" preserveAspectRatio="xMidYMid meet">
         <defs>${hatchDefs}</defs>
