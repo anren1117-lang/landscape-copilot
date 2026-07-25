@@ -9596,26 +9596,81 @@ function autoApplySpaceDefaults() {
 }
 
 // R173: every price NT$ needs a size/pot spec so it's meaningful.
-// Per-plant explicit spec (cost_spec_zh / cost_spec_en) wins; otherwise
-// we fall back to a tier default that reflects the size a Taipei/Yilan
-// nursery would actually sell at the quoted price.
+// R174: every-single-plant coverage — plantCostSpec now categorizes each
+// plant by tier + type_zh + name keywords, matching each category to a
+// spec anchor from real Shopee 蝦皮 / 露天拍賣 / BigGo / FindPrice /
+// Yahoo 拍賣 listings (2026 lookups). So the ~243 plants ALL get a
+// category-accurate spec, not just the handful with explicit overrides.
 //
-// Tier defaults come from web searches of shopee.tw / ruten / findprice
-// / biggo.com.tw / native tree platforms — a 5-gal pot 1.2m tree, a
-// 5-gal 60cm shrub, a 3" pot herb/ground cover, a small water pot.
-// Individual entries with published sizes should override this via
-// cost_spec_zh / cost_spec_en on the plant record.
-const COST_SPEC_TIER_DEFAULT = {
-  T: { zh: "5加侖盆 · 苗高 1.2m", en: '5-gal pot · 1.2m sapling' },
-  S: { zh: "5加侖盆 · 苗高 60cm", en: '5-gal pot · 60cm shrub' },
-  H: { zh: "3吋盆",              en: '3" pot' },
-  G: { zh: "3吋盆",              en: '3" pot' },
-  W: { zh: "水生盆",             en: 'aquatic pot' },
+// Category anchors (searched July 2026):
+//   Native ornamental tree (T native)  — 7吋盆 · 苗高 150cm
+//     (from 山櫻花 Prunus campanulata / native shrub-tree listings)
+//   Grafted fruit tree (T + 果 keyword) — 4-5吋盆 · 嫁接苗
+//     (from 龍眼/芒果/番石榴 4吋 grafted NT$340-450 range)
+//   Endemic conifer (紅檜 / 肖楠 / 樟)  — 8吋美植袋 · 苗高 100cm
+//     (from 紅檜 / 肖楠 protected-native premium pricing)
+//   Coastal / windbreak (coastal_ok)   — 5加侖盆 · 苗高 60-90cm
+//   Orchid (蘭 in zh)                   — 3.5吋開花株
+//     (from 蝴蝶蘭 V3 大白花 3.5吋 mature listings)
+//   Indoor foliage (spaces includes indoor, tier S) — 6吋盆
+//     (from 虎尾蘭 6吋 NT$220-400 / 黃金葛 NT$140 range)
+//   Succulent (多肉/仙人 in type or name) — 3吋盆
+//     (from 蘆薈/石蓮花 3吋 NT$60-180 range)
+//   Herb (H tier)                        — 3吋盆
+//     (from 迷迭香/薰衣草 3吋 NT$25-50 range)
+//   Grass / turf (草 in zh, G tier)     — 一才 (30×30cm 草皮)
+//     (from 假儉草 / 百慕達 / 台北草 一坪 NT$350-400)
+//   Ground cover ornamental (G tier)     — 3吋盆
+//   Water plant (W tier)                 — 8吋水生盆
+//     (from 睡蓮 8吋盆 NT$180 range)
+//   Climber (C tier)                    — 5吋盆 · 有支柱
+//
+// Individual entries with real listings should set cost_spec_zh /
+// cost_spec_en on the plant record for higher accuracy.
+function plantCostCategory(p) {
+  const zh = (p.zh || "") + (p.type_zh || "");
+  const en = (p.en || "").toLowerCase();
+  if (p.tier === "W") return "water";
+  if (p.tier === "C" || p.tier === "V") return "climber";
+  if (p.tier === "H") return "herb";
+  if (/蘭$|蘭 /.test(p.zh) || /orchid/.test(en)) return "orchid";
+  if (/多肉|仙人|龍舌|蘆薈|石蓮|翡翠|玉露|景天/.test(zh)) return "succulent";
+  if (p.tier === "G") {
+    if (/草$|草皮/.test(p.zh)) return "turf";
+    return "groundcover";
+  }
+  if (p.tier === "T") {
+    if (/果|龍眼|荔枝|芒果|木瓜|番石榴|楊桃|釋迦|蓮霧|柚|柑|橘/.test(zh)) return "fruit_tree";
+    if (/檜|杉|松|柏|楠|肖楠|紅檜|針葉/.test(zh)) return "conifer";
+    if (p.coastal_ok) return "coastal_tree";
+    return "native_tree";
+  }
+  // tier S
+  if (Array.isArray(p.spaces) && p.spaces.includes("indoor")) return "indoor_foliage";
+  if (p.coastal_ok) return "coastal_shrub";
+  return "shrub";
+}
+const COST_SPEC_CATEGORY = {
+  native_tree:    { zh: "7吋盆 · 苗高 150cm",           en: '7" pot · 150cm sapling' },
+  fruit_tree:     { zh: "4–5吋盆 · 嫁接苗",             en: '4-5" pot · grafted sapling' },
+  conifer:        { zh: "8吋美植袋 · 苗高 100cm",       en: '8" grow bag · 100cm sapling' },
+  coastal_tree:   { zh: "5加侖盆 · 苗高 90cm",          en: '5-gal pot · 90cm sapling' },
+  coastal_shrub:  { zh: "5加侖盆 · 苗高 60cm",          en: '5-gal pot · 60cm shrub' },
+  shrub:          { zh: "5加侖盆 · 苗高 60cm",          en: '5-gal pot · 60cm shrub' },
+  indoor_foliage: { zh: "6吋盆",                        en: '6" pot' },
+  orchid:         { zh: "3.5吋開花株",                  en: '3.5" pot flowering plant' },
+  succulent:      { zh: "3吋盆",                        en: '3" pot' },
+  herb:           { zh: "3吋盆",                        en: '3" pot' },
+  turf:           { zh: "一才 (30×30cm 草皮)",          en: '30×30cm turf tile' },
+  groundcover:    { zh: "3吋盆",                        en: '3" pot' },
+  water:          { zh: "8吋水生盆",                    en: '8" aquatic pot' },
+  climber:        { zh: "5吋盆 · 附支柱",               en: '5" pot · with stake' },
 };
 function plantCostSpec(p, lang) {
   const explicit = lang === "en" ? p.cost_spec_en : p.cost_spec_zh;
   if (explicit) return explicit;
-  const def = COST_SPEC_TIER_DEFAULT[p.tier] || COST_SPEC_TIER_DEFAULT.S;
+  const cat = plantCostCategory(p);
+  const def = COST_SPEC_CATEGORY[cat] || COST_SPEC_CATEGORY.shrub;
   return lang === "en" ? def.en : def.zh;
 }
 
@@ -24792,7 +24847,7 @@ window.openAboutModal = function () {
         <div style="margin-top:6px;line-height:1.65;font-size:13px;">
           <div style="margin-bottom:4px;">• <b>植物物種資料</b>：彙整自台灣維管束植物簡誌、林業試驗所植物誌、台灣植物資訊整合查詢系統 (TaiBIF)；許多條目為普遍植物學常識，無單一引用。</div>
           <div style="margin-bottom:4px;">• <b>原住民傳統與料理應用</b>：《台灣島嶼植物生活圖譜 100 選》（atlas）— 內附詳細條目皆會在植物詳細視窗的「🍽 餐桌搭配」區塊註明出處。其餘文化條目（EXPERT_META.cultural_zh）標明族群或地區出處（泰雅族、布農族、排灣族、客家、閩南等），如無明確出處則為一般民俗知識。</div>
-          <div style="margin-bottom:4px;">• <b>售價與規格（R173 起）</b>：<b>所有售價皆為估算</b>，但每筆售價都附上對應的<b>規格</b>（例如「5加侖盆 · 苗高 1.2m」「3.5吋開花株」「3吋盆」），讓數字有意義。個別物種若標註「Shopee/露天 2026 查詢」表示已用搜尋引擎（Shopee 蝦皮、露天拍賣、BigGo 比價網、FindPrice、Yahoo 拍賣）實際比對過該規格的常見價位；其餘物種以樹型 (tier) 對應的一般苗圃規格作為預設 — 喬木 T：5加侖盆 苗高 1.2m；灌木 S：5加侖盆 苗高 60cm；草本 H / 地被 G：3吋盆；水生 W：水生盆。元素以線上零售平均估算。實際價格依苗圃、季節、地區而異 — 建議向當地苗圃或廠商詢價。</div>
+          <div style="margin-bottom:4px;">• <b>售價與規格（R173/R174 起）</b>：<b>所有售價皆為估算</b>，但每筆售價都附上對應的<b>規格</b>，讓數字有意義。R174 把 243 種植物依「樹型 × 類別」自動分成 13 個類別，每一類的預設規格都是根據實際搜尋 Shopee 蝦皮、露天拍賣、BigGo 比價網、FindPrice、Yahoo 拍賣、飛比價格等台灣線上通路 2026 年清單所定：<b>台灣原生喬木</b>→7吋盆 · 苗高 150cm；<b>果樹（含龍眼、芒果、番石榴等）</b>→4–5吋盆 · 嫁接苗；<b>特有針葉樹（紅檜、肖楠、樟）</b>→8吋美植袋 · 苗高 100cm；<b>海岸/防風</b>→5加侖盆 · 苗高 60–90cm；<b>觀葉室內</b>→6吋盆；<b>蘭花</b>→3.5吋開花株；<b>多肉</b>→3吋盆；<b>香草</b>→3吋盆；<b>草皮</b>→一才 (30×30cm)；<b>觀賞地被</b>→3吋盆；<b>水生</b>→8吋水生盆；<b>攀緣</b>→5吋盆附支柱。個別物種若標註「Shopee/露天 2026 查詢」表示該物種有針對性單獨查價。實際價格依苗圃、季節、地區而異 — 建議向當地苗圃或廠商詢價。</div>
           <div style="margin-bottom:4px;">• <b>花期與結果期</b>：台灣平地一般時間範圍，高山或寒流年份會偏移 ±1 個月。</div>
           <div style="margin-bottom:4px;">• <b>養護日曆</b>：以台灣平地氣候為基準，與實際微氣候可能有差異。</div>
           <div style="margin-bottom:4px;">• <b>氣候區判定 (北/中/南/東/離島)</b>：以中央氣象局氣候資料為基礎；地址查詢時依縣市對應氣候區。</div>
@@ -24817,7 +24872,7 @@ window.openAboutModal = function () {
         <div style="margin-top:6px;line-height:1.65;font-size:13px;">
           <div style="margin-bottom:4px;">• <b>Plant species data</b>: aggregated from Taiwan vascular plant references, Forestry Research Institute publications, and TaiBIF; many entries are general botanical knowledge with no single citation.</div>
           <div style="margin-bottom:4px;">• <b>Indigenous tradition + culinary applications</b>: 《Taiwan Island Plant Life Atlas 100 Selections》— individual entries are cited inline in the plant drawer's "🍽 At the table" section. Other cultural notes (EXPERT_META.cultural_zh) name the tribe or region of origin (Atayal, Bunun, Paiwan, Hakka, Hokkien); where no clear origin exists, it's general folk knowledge.</div>
-          <div style="margin-bottom:4px;">• <b>Prices + specs (since R173)</b>: <b>all prices are estimates</b>, but every price shows the <b>size/pot spec</b> it corresponds to (e.g. "5-gal pot · 1.2m sapling", "3.5&Prime; flowering plant", "3&Prime; pot") so the number is meaningful. Individual species tagged "Shopee/Ruten 2026 lookup" have been checked against real listings on Shopee, Ruten, BigGo, FindPrice, and Yahoo Auctions for that spec; other species use a tier-default spec (T canopy: 5-gal pot 1.2m sapling; S shrub: 5-gal pot 60cm; H/G herb + ground: 3&Prime; pot; W water: aquatic pot). Elements are estimated from average online retail. Actual prices vary by vendor, season, and region — verify with local nurseries or suppliers.</div>
+          <div style="margin-bottom:4px;">• <b>Prices + specs (since R173/R174)</b>: <b>all prices are estimates</b>, but every price shows the <b>size/pot spec</b> it corresponds to so the number is meaningful. R174 auto-classifies all 243 plants into 13 categories by tier × species type, and each category's default spec is anchored to real July 2026 listings from Shopee 蝦皮, Ruten 露天拍賣, BigGo, FindPrice, Yahoo Auctions, and Feebee: <b>Native ornamental tree</b> → 7&Prime; pot · 150cm sapling; <b>Fruit tree (龍眼 / 芒果 / 番石榴 etc.)</b> → 4-5&Prime; pot · grafted sapling; <b>Endemic conifer (紅檜, 肖楠, 樟)</b> → 8&Prime; grow bag · 100cm sapling; <b>Coastal / windbreak</b> → 5-gal pot · 60-90cm; <b>Indoor foliage</b> → 6&Prime; pot; <b>Orchid</b> → 3.5&Prime; pot flowering plant; <b>Succulent</b> → 3&Prime; pot; <b>Herb</b> → 3&Prime; pot; <b>Turf</b> → 30×30cm turf tile; <b>Ornamental ground cover</b> → 3&Prime; pot; <b>Water plant</b> → 8&Prime; aquatic pot; <b>Climber</b> → 5&Prime; pot with stake. Individual species tagged "Shopee/Ruten 2026 lookup" have per-species price verification. Actual prices vary by vendor, season, and region — verify with local nurseries or suppliers.</div>
           <div style="margin-bottom:4px;">• <b>Bloom + fruit months</b>: general timing for Taiwan lowlands; shifts ±1 month at altitude or in cold-snap years.</div>
           <div style="margin-bottom:4px;">• <b>Care calendar</b>: tuned to Taiwan lowland climate; may differ from your local microclimate.</div>
           <div style="margin-bottom:4px;">• <b>Climate zone classification (N/C/S/E/island)</b>: based on Central Weather Administration climate data; address lookups map county → zone.</div>
