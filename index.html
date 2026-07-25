@@ -2985,6 +2985,11 @@
   .drawer-close:hover { background: rgba(122,95,66,0.10); }
   .drawer-close:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
   .drawer-swatch { width: 140px; height: 140px; border-radius: 14px; margin-bottom: 22px; background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: 0 4px 18px -4px rgba(58,44,28,0.25); position: relative; }
+  /* R188: plan-tab edit-mode visual — every cell gets a subtle dashed
+     overlay + pulse animation so the user knows the surface is now interactive. */
+  .plan-frame.plan-frame-edit .plan-cell rect { animation: plan-cell-pulse 1.6s ease-in-out infinite; }
+  @keyframes plan-cell-pulse { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: 0.35; } }
+  .plan-frame.plan-frame-edit .plan-cell:hover rect { stroke: var(--sage); stroke-width: 2.5; animation: none; }
   .drawer-swatch-credit { position: absolute; bottom: 4px; right: 6px; font-size: 9.5px; color: rgba(255,250,240,0.9); text-shadow: 0 1px 2px rgba(0,0,0,0.55); font-style: italic; }
   /* R181: full-width photo banner at the top of every dictionary card so the
      Wikipedia image is actually visible. Card corners rounded to match parent.
@@ -9298,6 +9303,11 @@ const state = {
   resultTab: "plan",
   selectedPlantId: null,
   qty: {},
+  // R188: plan-tab cell overrides — user can click any grid cell to
+  // choose which plant lives there. Keyed by "r-c" (grid row-col).
+  planCellOverrides: {},
+  planEditMode: false,
+  planPickerCellKey: null,
   nativeOnly: false,     // filter recommendations to native plants only
   // R102 B7: explicit defaults for R99 design preferences. Without these
   // the fresh wizard flow had state.style/etc. = undefined, and although
@@ -10520,6 +10530,9 @@ function snapshotState() {
     // so a re-opened design doesn't re-show a banner the user already dismissed.
     resultTab: state.resultTab || "preview",
     wizardPhotoSuggestActed: { ...(state.wizardPhotoSuggestActed || {}) },
+    // R188: plan-tab cell overrides — user's manual plant placements survive
+    // reload and travel with shared links so a design's layout is intentional.
+    planCellOverrides: { ...(state.planCellOverrides || {}) },
     savedAt: Date.now(),
   };
   // Belt-and-suspenders: if anyone ever assigns photoDataUrl to the literal
@@ -10601,6 +10614,16 @@ function applySnapshot(snap) {
   state.wizardPhotoSuggestActed = (snap.wizardPhotoSuggestActed && typeof snap.wizardPhotoSuggestActed === "object")
     ? { ...snap.wizardPhotoSuggestActed }
     : {};
+  // R188: restore user's manual cell overrides on the plan tab. Whitelisted
+  // as a plain string-map so hand-crafted #d= URLs can't inject weird data.
+  state.planCellOverrides = {};
+  if (snap.planCellOverrides && typeof snap.planCellOverrides === "object") {
+    Object.entries(snap.planCellOverrides).forEach(([k, v]) => {
+      if (typeof k === "string" && typeof v === "string" && k.length < 12 && v.length < 40) {
+        state.planCellOverrides[k] = v;
+      }
+    });
+  }
   state.savedAt = snap.savedAt || Date.now();
   return true;
 }
@@ -19772,6 +19795,25 @@ function renderPlan(layers, recs) {
     }
   });
 
+  // R188: apply user cell overrides — state.planCellOverrides maps
+  // "r-c" to a plantId that replaces whatever the auto-fill placed
+  // there. Keeps cell x/y/w/h intact; just swaps the .p reference.
+  const overrides = state.planCellOverrides || {};
+  cellSpecs.forEach(cell => {
+    const key = `${cell.gridR}-${cell.gridC}`;
+    if (overrides[key]) {
+      const overridden = PLANT_BY_ID[overrides[key]];
+      if (overridden) {
+        cell.p = overridden;
+        cell.tier = overridden.tier;
+        // Ensure hatch defs cover this new tier
+        if (!tiersPresent.includes(overridden.tier)) tiersPresent.push(overridden.tier);
+        cell.overridden = true;
+      }
+    }
+    cell.cellKey = key;
+  });
+
   // Hatch pattern per tier — subtle background so cell color reads
   const hatchDefs = tiersPresent.map(tier => {
     const p = plantsForPlan.find(pp => pp.tier === tier);
@@ -19810,7 +19852,7 @@ function renderPlan(layers, recs) {
     const showCellDim = cell.w > 44 && cell.h > 38;
     const cellDimLabel = cellRealArea >= 1 ? `${cellMetreW.toFixed(1)}×${cellMetreH.toFixed(1)}m` : `${(cellRealArea * 10000).toFixed(0)}cm²`;
     return `
-      <g class="plan-plant" data-id="${p.id}" style="cursor:pointer;">
+      <g class="plan-plant plan-cell" data-id="${p.id}" data-cell-key="${cell.cellKey}" data-cell-tier="${cell.tier}" style="cursor:pointer;">
         <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
               fill="url(#planHatch_${cell.tier})"
               stroke="#8C6F52" stroke-width="0.6"/>
@@ -19854,12 +19896,31 @@ function renderPlan(layers, recs) {
       }).join("")}
     </div>`;
 
+  // R188: cell edit-mode toggle + picker overlay
+  const editOn = !!state.planEditMode;
+  const overrideCount = Object.keys(state.planCellOverrides || {}).length;
+  const editControls = `
+    <div class="plan-edit-controls" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 6px;">
+      <button id="planEditToggle" class="est-toggle" style="${editOn ? 'background:var(--sage);color:#fff;' : ''}"
+              data-zh="${editOn ? '✓ 編輯中（點格子選植物）' : '🖊 編輯格子（換植物）'}"
+              data-en="${editOn ? '✓ Edit mode ON (tap cell to swap)' : '🖊 Edit cells (swap plants)'}">
+        ${editOn ? (state.lang === "en" ? "✓ Edit mode ON (tap cell to swap)" : "✓ 編輯中（點格子選植物）") : (state.lang === "en" ? "🖊 Edit cells (swap plants)" : "🖊 編輯格子（換植物）")}
+      </button>
+      ${overrideCount ? `<button id="planClearOverrides" class="est-toggle"
+          data-zh="重置 ${overrideCount} 個手動修改" data-en="Reset ${overrideCount} manual edit${overrideCount === 1 ? '' : 's'}">
+          重置 ${overrideCount} 個手動修改
+        </button>` : ""}
+      ${editOn ? `<span style="font-size:11.5px;color:var(--ink-soft);font-style:italic;"
+        data-zh="點任一格 → 從清單選植物 · 再點按鈕退出編輯"
+        data-en="Tap any cell → pick a plant · click button again to exit">點任一格 → 從清單選植物 · 再點按鈕退出編輯</span>` : ""}
+    </div>`;
   return `
     <h2 class="subtitle" data-zh="俯瞰平面圖 · Top View" data-en="Top View — Garden Plan">俯瞰平面圖 · Top View</h2>
-    <p class="lead-small" data-zh="每格約 1 m²（依你輸入的實際尺寸自動計算），每種植物顯示佔用的總面積與規格。點擊任一格查看詳細養護指南。"
-       data-en="Each cell ≈ 1 m² (auto-computed from your real width × depth). Each species patch shows its total allocated area. Tap any cell for the full care guide.">
-       每格約 1 m²（依你輸入的實際尺寸自動計算），每種植物顯示佔用的總面積與規格。點擊任一格查看詳細養護指南。</p>
-    <div class="plan-frame">
+    <p class="lead-small" data-zh="每格約 1 m²（依你輸入的實際尺寸自動計算），每種植物顯示佔用的總面積與規格。點擊任一格查看詳細養護指南；開啟「編輯格子」後點格子可改種其他植物。"
+       data-en="Each cell ≈ 1 m² (auto-computed from your real width × depth). Each species patch shows its total allocated area. Tap any cell for the care guide; enable ‘Edit cells’ to swap the plant in that cell.">
+       每格約 1 m²（依你輸入的實際尺寸自動計算），每種植物顯示佔用的總面積與規格。點擊任一格查看詳細養護指南；開啟「編輯格子」後點格子可改種其他植物。</p>
+    ${editControls}
+    <div class="plan-frame ${editOn ? 'plan-frame-edit' : ''}">
       <svg class="plan-svg" viewBox="0 0 ${dims.w} ${dims.h}" preserveAspectRatio="xMidYMid meet">
         <defs>${hatchDefs}</defs>
         ${ground}
@@ -19868,6 +19929,38 @@ function renderPlan(layers, recs) {
         ${plantCircles}
       </svg>
       ${legend}
+    </div>
+    ${state.planPickerCellKey ? renderPlanPicker(recs) : ""}`;
+}
+
+// R188: modal picker to swap a plant into the clicked cell.
+function renderPlanPicker(recs) {
+  const list = (recs || []).slice(0, 30);
+  const cellKey = state.planPickerCellKey;
+  return `
+    <div class="qr-overlay" id="planPickerOverlay" role="dialog" aria-modal="true">
+      <div class="qr-modal" onclick="event.stopPropagation()" style="max-width:520px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-family:var(--serif);font-size:16px;font-weight:700;color:var(--forest);"
+               data-zh="選植物放進格子 (${cellKey})"
+               data-en="Pick a plant for cell (${cellKey})">選植物放進格子 (${cellKey})</div>
+          <button class="drawer-close" id="planPickerClose" aria-label="Close" style="position:static;">✕</button>
+        </div>
+        <div style="max-height:60vh;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          ${list.map(p => {
+            const cp = typeof getCachedPlantPhoto === "function" ? getCachedPlantPhoto(p) : null;
+            return `<button class="plan-picker-plant" data-pid="${escapeHtml(p.id)}"
+              style="display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);
+                    border-radius:8px;background:rgba(255,250,235,0.6);cursor:pointer;text-align:left;">
+              <div style="width:42px;height:42px;border-radius:6px;background-color:${p.color};${cp ? `background-image:url('${escapeHtml(cp.url)}');background-size:cover;background-position:center;` : ''}flex-shrink:0;"></div>
+              <div style="min-width:0;">
+                <div style="font-weight:600;color:var(--forest);font-size:13px;" data-zh="${p.zh}" data-en="${p.en}">${p.zh}</div>
+                <div style="font-size:10.5px;color:var(--ink-soft);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.lt}</div>
+              </div>
+            </button>`;
+          }).join("")}
+        </div>
+      </div>
     </div>`;
 }
 
@@ -19941,8 +20034,68 @@ function layoutPlan(plants, dims, space) {
 
 function wirePlanInteractions() {
   document.querySelectorAll(".plan-plant").forEach((g) => {
-    g.addEventListener("click", () => openDrawer(g.dataset.id));
+    g.addEventListener("click", (e) => {
+      // R188: in edit mode, cell click opens picker to swap plant;
+      // otherwise opens the plant detail drawer (original behavior).
+      const cellKey = g.dataset.cellKey;
+      if (state.planEditMode && cellKey) {
+        e.stopPropagation();
+        state.planPickerCellKey = cellKey;
+        __tabCache.clear();
+        render();
+        return;
+      }
+      openDrawer(g.dataset.id);
+    });
   });
+
+  // R188: edit-mode toggle button
+  const editBtn = document.getElementById("planEditToggle");
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      state.planEditMode = !state.planEditMode;
+      __tabCache.clear();
+      render();
+    });
+  }
+
+  // R188: reset all cell overrides
+  const clearBtn = document.getElementById("planClearOverrides");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      state.planCellOverrides = {};
+      __tabCache.clear();
+      render();
+    });
+  }
+
+  // R188: picker overlay — pick a plant, assign to the pending cell
+  const overlay = document.getElementById("planPickerOverlay");
+  if (overlay) {
+    const close = () => {
+      state.planPickerCellKey = null;
+      __tabCache.clear();
+      render();
+    };
+    overlay.addEventListener("click", close);
+    const closeBtn = document.getElementById("planPickerClose");
+    if (closeBtn) closeBtn.addEventListener("click", (e) => { e.stopPropagation(); close(); });
+    document.querySelectorAll(".plan-picker-plant").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const pid = btn.dataset.pid;
+        const cellKey = state.planPickerCellKey;
+        if (cellKey && pid) {
+          state.planCellOverrides = state.planCellOverrides || {};
+          state.planCellOverrides[cellKey] = pid;
+        }
+        state.planPickerCellKey = null;
+        __tabCache.clear();
+        render();
+        saveToLocal();
+      });
+    });
+  }
 }
 
 // ── Sustainability roll-up — aggregates per-plant CO2, water, and ecological
