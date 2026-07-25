@@ -2984,7 +2984,8 @@
   }
   .drawer-close:hover { background: rgba(122,95,66,0.10); }
   .drawer-close:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
-  .drawer-swatch { width: 70px; height: 70px; border-radius: 18px; margin-bottom: 22px; }
+  .drawer-swatch { width: 140px; height: 140px; border-radius: 14px; margin-bottom: 22px; background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: 0 4px 18px -4px rgba(58,44,28,0.25); position: relative; }
+  .drawer-swatch-credit { position: absolute; bottom: 4px; right: 6px; font-size: 9.5px; color: rgba(255,250,240,0.9); text-shadow: 0 1px 2px rgba(0,0,0,0.55); font-style: italic; }
   .drawer-type { font-size: 12px; letter-spacing: 0.1em; color: var(--clay-deep); font-weight: 600; }
   .drawer-name { font-family: var(--serif); font-size: 32px; font-weight: 600; color: var(--forest); margin: 6px 0 2px; }
   .drawer-en { font-size: 13px; color: var(--ink-soft); margin-bottom: 2px; }
@@ -9716,6 +9717,63 @@ function getCachedPriceQuote(plant) {
   if (Date.now() - c.at > PRICE_CACHE_TTL_MS) return null;
   return c;
 }
+// R178: real botanical photo for every plant, sourced via Wikipedia REST
+// API using the Latin binomial (falls back to Chinese name). No API key
+// needed, CORS-friendly. Cached in localStorage 30 days keyed on plant.id.
+// User ask: 「每一個植物要幫她找照片」.
+const PHOTO_CACHE_KEY = "landscape_copilot_plantPhotos_v1";
+const PHOTO_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+function loadPhotoCache() {
+  try { return JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || "{}"); }
+  catch { return {}; }
+}
+function savePhotoCache(cache) {
+  try { localStorage.setItem(PHOTO_CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+function getCachedPlantPhoto(plant) {
+  const rec = loadPhotoCache()[plant.id];
+  if (!rec) return null;
+  // Even expired entries are shown while a fresh lookup happens in the
+  // background — a slightly-stale image beats a colored swatch.
+  return rec;
+}
+async function wikiSummary(host, title) {
+  const url = `https://${host}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/\s+/g, "_"))}`;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 8000);
+  try {
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(t);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    // Prefer originalimage (higher res) → thumbnail
+    const src = data?.originalimage?.source || data?.thumbnail?.source;
+    if (!src) return null;
+    return { url: src, source: `${host}.wikipedia.org`, credit: data?.description || data?.title || "" };
+  } catch { clearTimeout(t); return null; }
+}
+async function fetchPlantPhoto(plant) {
+  const fresh = getCachedPlantPhoto(plant);
+  const stale = fresh && (Date.now() - fresh.at > PHOTO_CACHE_TTL_MS);
+  if (fresh && !stale) return fresh;
+  // Try Latin binomial on English wiki first (best botanical hit rate),
+  // then Chinese wiki with the zh name, then fall back to a genus-only
+  // Latin query on English wiki.
+  let hit = null;
+  if (plant.lt) hit = await wikiSummary("en", plant.lt);
+  if (!hit && plant.zh) hit = await wikiSummary("zh", plant.zh);
+  if (!hit && plant.lt) {
+    const genus = plant.lt.split(/\s+/)[0];
+    if (genus && genus.length > 2) hit = await wikiSummary("en", genus);
+  }
+  if (!hit) return fresh || null; // keep stale rather than nothing
+  const rec = { ...hit, at: Date.now() };
+  const cache = loadPhotoCache();
+  cache[plant.id] = rec;
+  savePhotoCache(cache);
+  return rec;
+}
+
 async function investigatePlantPrice(plant) {
   const cached = getCachedPriceQuote(plant);
   if (cached) return cached;
@@ -23972,7 +24030,16 @@ function openDrawer(id) {
           ↔ <span data-zh="${state.plantCompareFirstId === plant.id ? "已選為 #1" : "比較植物"}" data-en="${state.plantCompareFirstId === plant.id ? "Selected #1" : "Compare"}">${state.plantCompareFirstId === plant.id ? "已選為 #1" : "比較植物"}</span>
         </button>
         <button class="drawer-close" id="drawerClose" aria-label="${t('關閉植物詳細資訊 / Close plant details','Close plant details / 關閉植物詳細資訊')}">✕</button>
-        <div class="drawer-swatch" style="background:${plant.color}"></div>
+        ${(() => {
+          const cached = getCachedPlantPhoto(plant);
+          const bg = cached
+            ? `background-color:${plant.color};background-image:url('${escapeHtml(cached.url)}');`
+            : `background-color:${plant.color};`;
+          const credit = cached
+            ? `<div class="drawer-swatch-credit">📷 ${escapeHtml(cached.source || "wiki")}</div>`
+            : "";
+          return `<div class="drawer-swatch" id="drawerPhoto" data-plant-id="${escapeHtml(plant.id)}" style="${bg}">${credit}</div>`;
+        })()}
         <div class="drawer-type" data-zh="${plant.type_zh}" data-en="${plant.type_en}">${plant.type_zh}</div>
         <h2 id="drawerName" class="drawer-name" data-zh="${plant.zh}" data-en="${plant.en}">${plant.zh}</h2>
         <div class="drawer-en" data-zh="${plant.en}" data-en="${plant.zh}">${plant.en}</div>
@@ -24323,6 +24390,24 @@ function openDrawer(id) {
     </div>`;
   document.getElementById("drawerOverlay").addEventListener("click", closeDrawer);
   document.getElementById("drawerClose").addEventListener("click", (e) => { e.stopPropagation(); closeDrawer(); });
+  // R178: if no cached photo, fetch one from Wikipedia and live-swap the
+  // swatch into a real botanical image. Cache 30 days so repeat drawer
+  // opens of the same plant don't re-hit the API.
+  (async () => {
+    const photoNode = document.getElementById("drawerPhoto");
+    if (!photoNode) return;
+    // Only fetch if the current swatch doesn't already carry an image.
+    if (photoNode.style.backgroundImage && photoNode.style.backgroundImage !== "none") return;
+    const rec = await fetchPlantPhoto(plant);
+    if (!rec || !rec.url) return;
+    // Guard: drawer may have closed / plant changed while awaiting.
+    const still = document.getElementById("drawerPhoto");
+    if (!still || still.dataset.plantId !== plant.id) return;
+    still.style.backgroundImage = `url('${rec.url.replace(/'/g, "%27")}')`;
+    still.style.backgroundSize = "cover";
+    still.style.backgroundPosition = "center";
+    still.innerHTML = `<div class="drawer-swatch-credit">📷 ${escapeHtml(rec.source || "wiki")}</div>`;
+  })();
   // ↔ "Compare plant" button — captures this plant as #1 and closes drawer
   // so the user can navigate to the dictionary / result page to pick #2.
   const dcBtn = document.getElementById("drawerCompareBtn");
