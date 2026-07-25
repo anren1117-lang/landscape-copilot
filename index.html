@@ -9633,14 +9633,27 @@ function plantCostCategory(p) {
   if (p.tier === "W") return "water";
   if (p.tier === "C" || p.tier === "V") return "climber";
   if (p.tier === "H") return "herb";
-  if (/蘭$|蘭 /.test(p.zh) || /orchid/.test(en)) return "orchid";
+  // R175: orchid check tightened. /蘭$/ on p.zh was a false-positive
+  // trap — 桔梗蘭 (Dianella), 香蘭 (Pandanus), 樹蘭 (Aglaia), 韭蘭
+  // (Zephyranthes) all end in 蘭 but none are Orchidaceae. Require
+  // English "orchid" AND NOT "orchid tree" (Bauhinia is called
+  // orchid tree in EN but it's Fabaceae), or type_zh explicitly
+  // says 蘭科/附生蘭/國蘭.
+  if ((/orchid/.test(en) && !/orchid tree/.test(en)) || /蘭科|附生蘭|國蘭/.test(p.type_zh || "")) return "orchid";
   if (/多肉|仙人|龍舌|蘆薈|石蓮|翡翠|玉露|景天/.test(zh)) return "succulent";
   if (p.tier === "G") {
-    if (/草$|草皮/.test(p.zh)) return "turf";
+    // R175: turf check tightened. /草$/ on p.zh was catching every herb
+    // whose Chinese name ends in 草 (薰衣草, 鼠尾草, 含羞草, 大花咸豐草).
+    // Whitelist actual Taiwan-market turf grass species instead.
+    if (/草皮|韓國草|百慕達|假儉草|台北草|地毯草|奧古斯汀|類地毯/.test(p.zh)) return "turf";
     return "groundcover";
   }
   if (p.tier === "T") {
-    if (/果|龍眼|荔枝|芒果|木瓜|番石榴|楊桃|釋迦|蓮霧|柚|柑|橘/.test(zh)) return "fruit_tree";
+    // R175: fruit_tree species whitelist. Single-char /桃/ was hitting
+    // 桃花心木 (mahogany, Swietenia) — not fruit. Single-char /杏/ was
+    // hitting 銀杏 (Ginkgo). Use full species names for the common
+    // Taiwan fruit-tree lineup instead.
+    if (/龍眼|荔枝|芒果|木瓜|番石榴|楊桃|釋迦|蓮霧|柚|柑|橘|果樹|水果|桃樹|桃子|李子|杏樹|杏仁|水梨|梨樹|柳丁|檸檬|香蕉|鳳梨|百香果|櫻桃|草莓|藍莓|覆盆子|棗子|枇杷|柿子|石榴|奇異果|哈密瓜/.test(zh)) return "fruit_tree";
     if (/檜|杉|松|柏|楠|肖楠|紅檜|針葉/.test(zh)) return "conifer";
     if (p.coastal_ok) return "coastal_tree";
     return "native_tree";
