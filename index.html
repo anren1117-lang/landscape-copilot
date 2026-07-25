@@ -2986,6 +2986,15 @@
   .drawer-close:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
   .drawer-swatch { width: 140px; height: 140px; border-radius: 14px; margin-bottom: 22px; background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: 0 4px 18px -4px rgba(58,44,28,0.25); position: relative; }
   .drawer-swatch-credit { position: absolute; bottom: 4px; right: 6px; font-size: 9.5px; color: rgba(255,250,240,0.9); text-shadow: 0 1px 2px rgba(0,0,0,0.55); font-style: italic; }
+  /* R181: full-width photo banner at the top of every dictionary card so the
+     Wikipedia image is actually visible. Card corners rounded to match parent.
+     Aspect ratio 5:3 keeps the composition readable even with weird crops. */
+  .dict-photo { width: calc(100% + 40px); margin: -18px -18px 12px -22px; height: 150px; border-radius: 15px 15px 0 0; background-size: cover; background-position: center; background-repeat: no-repeat; background-color: var(--sage); position: relative; }
+  /* R181: on cards that DO have a dict-photo banner, hide the tiny 40×40 corner
+     rec-swatch to reduce visual noise (still fine on shopping list + result page). */
+  .rec-card:has(.dict-photo) .rec-head .rec-swatch { display: none; }
+  .dict-photo-credit { position: absolute; bottom: 4px; right: 6px; font-size: 9.5px; color: rgba(255,250,240,0.92); text-shadow: 0 1px 2px rgba(0,0,0,0.55); font-style: italic; padding: 1px 5px; border-radius: 3px; }
+  .dict-photo-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.75); font-size: 11px; font-style: italic; }
   .drawer-type { font-size: 12px; letter-spacing: 0.1em; color: var(--clay-deep); font-weight: 600; }
   .drawer-name { font-family: var(--serif); font-size: 32px; font-weight: 600; color: var(--forest); margin: 6px 0 2px; }
   .drawer-en { font-size: 13px; color: var(--ink-soft); margin-bottom: 2px; }
@@ -9783,7 +9792,7 @@ async function fetchPlantPhoto(plant) {
 function backfillPlantPhotos(rootSel) {
   const root = typeof rootSel === "string" ? document.querySelector(rootSel) : (rootSel || document);
   if (!root) return;
-  const nodes = [...root.querySelectorAll(".rec-swatch[data-plant-id], .shop-swatch[data-plant-id]")]
+  const nodes = [...root.querySelectorAll(".rec-swatch[data-plant-id], .shop-swatch[data-plant-id], .dict-photo[data-plant-id]")]
     .filter(n => !(n.style.backgroundImage && n.style.backgroundImage !== "none"));
   if (!nodes.length) return;
   let running = 0, idx = 0;
@@ -23898,8 +23907,21 @@ function renderDictionary() {
           const isPinned = !!(state.prefs && state.prefs.pinned && state.prefs.pinned[p.id]);
           return `
         <button class="rec-card ${isPinned ? "pinned" : ""}" data-id="${p.id}">
+          ${(() => {
+            // R181: full-width photo banner across the card header so the
+            // Wikipedia image is actually visible (was invisible as a
+            // 40×40 corner swatch). Cached hit renders bg immediately;
+            // miss shows sage placeholder with "🔍 圖片查詢中…" hint.
+            const cp = getCachedPlantPhoto(p);
+            const bg = cp
+              ? `background-color:${p.color};background-image:url('${escapeHtml(cp.url)}');`
+              : `background-color:${p.color};`;
+            const credit = cp
+              ? `<div class="dict-photo-credit">📷 ${escapeHtml(cp.source || "wiki")}</div>`
+              : `<div class="dict-photo-loading" data-zh="🔍 圖片查詢中…" data-en="🔍 photo loading…">🔍 圖片查詢中…</div>`;
+            return `<div class="dict-photo" data-plant-id="${escapeHtml(p.id)}" style="${bg}">${credit}</div>`;
+          })()}
           <div class="rec-head">
-            ${(() => { const cp = getCachedPlantPhoto(p); return `<div class="rec-swatch" data-plant-id="${escapeHtml(p.id)}" style="background-color:${p.color};${cp ? `background-image:url('${escapeHtml(cp.url)}');background-size:cover;background-position:center;` : ""}"></div>`; })()}
             <div class="rec-match" style="font-size:14px; color:var(--clay-deep);">${({T:"喬木",S:"灌木",G:"地被",W:"水生",C:"藤本"})[p.tier]}</div>
           </div>
           <div class="rec-name" data-zh="${p.zh}" data-en="${p.en}">${p.zh}</div>
