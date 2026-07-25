@@ -10919,15 +10919,14 @@ function tryRestoreDashboard() {
   const fromHash = decodeHash(location.hash);
   const fromLocal = loadFromLocal();
 
-  if (fromHash && fromLocal && snapshotsDiffer(fromHash, fromLocal)) {
-    // Conflict — don't touch storage, don't change view. Let the homepage banner ask.
-    state.pendingSharedSnapshot = fromHash;
-    state.pendingSnapshot = fromLocal;
-    state.shareConflict = true;
-    state.restoredFrom = "conflict";
-    return true;
-  }
-
+  // R186 fix: URL hash ALWAYS wins when present. Old behavior treated
+  // (hash + differing local) as a "conflict" and applied NEITHER — the
+  // user just saw the home page with a banner. That meant a shared URL
+  // silently failed for anyone with prior local state. Now the hash
+  // always applies immediately; if local also exists we stash it as
+  // pendingSnapshot so the "return to your own design" banner can still
+  // offer a one-click switch back. The user's own state isn't lost —
+  // it's just paused behind the shared URL that brought them here.
   if (fromHash) {
     applySnapshot(fromHash);
     state.view = "wizard";
@@ -10935,6 +10934,12 @@ function tryRestoreDashboard() {
     state.resultTab = "preview";
     state.restoredFrom = "hash";
     initShoppingQty();
+    if (fromLocal && snapshotsDiffer(fromHash, fromLocal)) {
+      // Keep both refs so the banner can offer to switch back
+      state.pendingSharedSnapshot = fromHash;
+      state.pendingSnapshot = fromLocal;
+      state.shareConflict = true;
+    }
     return true;
   }
   if (fromLocal) {
