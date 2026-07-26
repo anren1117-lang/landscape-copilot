@@ -19851,27 +19851,102 @@ function renderPlan(layers, recs) {
     // R187: cell-corner m² marker (only if cell big enough not to clutter)
     const showCellDim = cell.w > 44 && cell.h > 38;
     const cellDimLabel = cellRealArea >= 1 ? `${cellMetreW.toFixed(1)}×${cellMetreH.toFixed(1)}m` : `${(cellRealArea * 10000).toFixed(0)}cm²`;
-    // R193 (user: 俯視圖不要照片): reverted R189 photo overlay. Cells go
-    // back to tier hatch + labels. Photos still on dict/drawer/recs/shop.
+    // R195 (user: 差不多): add landscape-architecture plant SYMBOLS per
+    // cell using industry-standard conventions so the plan reads as a
+    // real architect drawing, not just colored blocks:
+    //   T (canopy tree) → circle + cross (drip line + trunk marker)
+    //   S (shrub)       → double concentric ring
+    //   G (ground)      → dense stipple dots
+    //   W (water)       → concentric ripples
+    //   C (climber)     → spiral hint
+    //   H (herb)        → small circle cluster
+    const symR = Math.min(cell.w, cell.h) * 0.28;
+    const symCol = "rgba(50,60,40,0.75)";
+    let plantSymbol = "";
+    if (cell.tier === "T") {
+      plantSymbol = `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${symR.toFixed(1)}" fill="none" stroke="${symCol}" stroke-width="1"/>
+        <line x1="${(cx - symR * 0.7).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(cx + symR * 0.7).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${symCol}" stroke-width="0.8"/>
+        <line x1="${cx.toFixed(1)}" y1="${(cy - symR * 0.7).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${(cy + symR * 0.7).toFixed(1)}" stroke="${symCol}" stroke-width="0.8"/>
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="1.8" fill="${symCol}"/>`;
+    } else if (cell.tier === "S") {
+      plantSymbol = `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${symR.toFixed(1)}" fill="none" stroke="${symCol}" stroke-width="1"/>
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(symR * 0.55).toFixed(1)}" fill="none" stroke="${symCol}" stroke-width="0.7"/>`;
+    } else if (cell.tier === "G" || cell.tier === "H") {
+      const dots = [];
+      for (let d = 0; d < 7; d++) {
+        const ang = (Math.PI * 2 / 7) * d;
+        const dr = symR * (0.4 + (d % 2) * 0.35);
+        dots.push(`<circle cx="${(cx + Math.cos(ang) * dr).toFixed(1)}" cy="${(cy + Math.sin(ang) * dr).toFixed(1)}" r="1" fill="${symCol}"/>`);
+      }
+      dots.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="1" fill="${symCol}"/>`);
+      plantSymbol = dots.join("");
+    } else if (cell.tier === "W") {
+      plantSymbol = `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${symR.toFixed(1)}" fill="none" stroke="${symCol}" stroke-width="1"/>
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(symR * 0.65).toFixed(1)}" fill="none" stroke="${symCol}" stroke-width="0.8"/>
+        <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(symR * 0.30).toFixed(1)}" fill="none" stroke="${symCol}" stroke-width="0.7"/>`;
+    } else if (cell.tier === "C") {
+      // spiral approximation via 4 arcs
+      const spiral = [];
+      let sr = symR * 0.25;
+      let sa = 0;
+      const pts = [];
+      for (let k = 0; k < 24; k++) {
+        sr += symR * 0.03;
+        sa += Math.PI / 4;
+        pts.push(`${(cx + Math.cos(sa) * sr).toFixed(1)},${(cy + Math.sin(sa) * sr).toFixed(1)}`);
+      }
+      spiral.push(`<polyline points="${pts.join(" ")}" fill="none" stroke="${symCol}" stroke-width="0.9"/>`);
+      plantSymbol = spiral.join("");
+    }
     return `
       <g class="plan-plant plan-cell" data-id="${p.id}" data-cell-key="${cell.cellKey}" data-cell-tier="${cell.tier}" style="cursor:pointer;">
         <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
               fill="url(#planHatch_${cell.tier})"
               stroke="#8C6F52" stroke-width="0.6"/>
+        ${plantSymbol}
         ${showCellDim ? `<text x="${(cell.x + 3).toFixed(1)}" y="${(cell.y + 10).toFixed(1)}"
               font-size="8" font-family="Noto Serif TC" fill="#8C6F52" opacity="0.55" font-style="italic">${cellDimLabel}</text>` : ""}
         ${isFirst ? `
-        <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? -8 : 0)).toFixed(1)}" text-anchor="middle"
-              font-size="${labelSize}" font-family="Noto Serif TC" font-weight="700" fill="#2C3526">${p.zh}</text>
-        ${showLatin ? `<text x="${cx.toFixed(1)}" y="${(cy + 4).toFixed(1)}" text-anchor="middle"
-              font-size="${Math.max(9, labelSize - 3)}" font-style="italic" fill="#5A5C50" font-family="Noto Serif TC">${p.lt}</text>` : ""}
-        <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? 16 : 12)).toFixed(1)}" text-anchor="middle"
-              font-size="${Math.max(9, labelSize - 3)}" font-family="Noto Serif TC" fill="#6E5236" font-weight="600">${speciesArea} m²</text>` : ""}
+        <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? -18 : -12)).toFixed(1)}" text-anchor="middle"
+              font-size="${labelSize}" font-family="Noto Serif TC" font-weight="700" fill="#2C3526"
+              style="paint-order:stroke;stroke:rgba(255,250,235,0.9);stroke-width:2.5px;">${p.zh}</text>
+        ${showLatin ? `<text x="${cx.toFixed(1)}" y="${(cy - 8).toFixed(1)}" text-anchor="middle"
+              font-size="${Math.max(9, labelSize - 3)}" font-style="italic" fill="#5A5C50" font-family="Noto Serif TC"
+              style="paint-order:stroke;stroke:rgba(255,250,235,0.9);stroke-width:2px;">${p.lt}</text>` : ""}
+        <text x="${cx.toFixed(1)}" y="${(cy + symR + 12).toFixed(1)}" text-anchor="middle"
+              font-size="${Math.max(9, labelSize - 3)}" font-family="Noto Serif TC" fill="#6E5236" font-weight="600"
+              style="paint-order:stroke;stroke:rgba(255,250,235,0.9);stroke-width:2px;">${speciesArea} m²</text>` : ""}
         <title>${p.zh} · ${p.lt} · ${speciesArea} m² (${speciesCellCount[p.id]} 格 / cell${speciesCellCount[p.id] === 1 ? "" : "s"})</title>
       </g>`;
   }).join("") +
-  // Outer grid border on top of everything for the crisp "graph paper" edge
-  `<rect x="${bedX0.toFixed(1)}" y="${bedY0.toFixed(1)}" width="${bedW.toFixed(1)}" height="${bedH.toFixed(1)}" fill="none" stroke="#6E5236" stroke-width="1.4"/>` +
+  // R195: thicker outer border like architect drawings + perimeter
+  // dimension callouts (5m across top, 4m down right side) with tick marks.
+  // North arrow at bottom-right (opposite the sun) — standard N compass rose.
+  `<rect x="${bedX0.toFixed(1)}" y="${bedY0.toFixed(1)}" width="${bedW.toFixed(1)}" height="${bedH.toFixed(1)}" fill="none" stroke="#4A3620" stroke-width="1.8"/>` +
+  (() => {
+    // Top-edge dimension: width in metres
+    const tickY = bedY0 - 8;
+    const tickL = 4;
+    return `<g class="plan-dims" pointer-events="none" style="font-family:Noto Serif TC;">
+      <line x1="${bedX0}" y1="${tickY}" x2="${(bedX0 + bedW)}" y2="${tickY}" stroke="#6E5236" stroke-width="0.7"/>
+      <line x1="${bedX0}" y1="${(tickY - tickL)}" x2="${bedX0}" y2="${(tickY + tickL)}" stroke="#6E5236" stroke-width="0.9"/>
+      <line x1="${(bedX0 + bedW)}" y1="${(tickY - tickL)}" x2="${(bedX0 + bedW)}" y2="${(tickY + tickL)}" stroke="#6E5236" stroke-width="0.9"/>
+      <rect x="${(bedX0 + bedW / 2 - 18)}" y="${(tickY - 8)}" width="36" height="14" fill="rgba(255,250,235,0.92)"/>
+      <text x="${(bedX0 + bedW / 2)}" y="${(tickY + 3)}" text-anchor="middle" font-size="10" fill="#4A3620" font-style="italic">${realW} m</text>
+    </g>
+    <g class="plan-dims" pointer-events="none" style="font-family:Noto Serif TC;">
+      <line x1="${(bedX0 + bedW + 8)}" y1="${bedY0}" x2="${(bedX0 + bedW + 8)}" y2="${(bedY0 + bedH)}" stroke="#6E5236" stroke-width="0.7"/>
+      <line x1="${(bedX0 + bedW + 8 - tickL)}" y1="${bedY0}" x2="${(bedX0 + bedW + 8 + tickL)}" y2="${bedY0}" stroke="#6E5236" stroke-width="0.9"/>
+      <line x1="${(bedX0 + bedW + 8 - tickL)}" y1="${(bedY0 + bedH)}" x2="${(bedX0 + bedW + 8 + tickL)}" y2="${(bedY0 + bedH)}" stroke="#6E5236" stroke-width="0.9"/>
+      <rect x="${(bedX0 + bedW + 2)}" y="${(bedY0 + bedH / 2 - 7)}" width="14" height="14" fill="rgba(255,250,235,0.92)"/>
+      <text x="${(bedX0 + bedW + 9)}" y="${(bedY0 + bedH / 2 + 3)}" text-anchor="middle" font-size="10" fill="#4A3620" font-style="italic">${realD} m</text>
+    </g>
+    <g class="plan-north" pointer-events="none" transform="translate(${(bedX0 + bedW - 26)}, ${(bedY0 + bedH - 32)})">
+      <circle r="14" fill="rgba(255,250,235,0.85)" stroke="#4A3620" stroke-width="1"/>
+      <polygon points="0,-11 3.5,3 0,0.5 -3.5,3" fill="#4A3620"/>
+      <text x="0" y="-15" text-anchor="middle" font-size="9" font-family="Noto Serif TC" fill="#4A3620" font-weight="700">N</text>
+    </g>` ;
+  })() +
   // R187: scale bar at the bottom-left of the bed — 1m ruler tick so users
   // read the grid in real-world units. Placed just above the label bar.
   (() => {
