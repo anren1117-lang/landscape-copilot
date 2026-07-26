@@ -19851,38 +19851,22 @@ function renderPlan(layers, recs) {
     // R187: cell-corner m² marker (only if cell big enough not to clutter)
     const showCellDim = cell.w > 44 && cell.h > 38;
     const cellDimLabel = cellRealArea >= 1 ? `${cellMetreW.toFixed(1)}×${cellMetreH.toFixed(1)}m` : `${(cellRealArea * 10000).toFixed(0)}cm²`;
-    // R189: cell background is the plant's Wikipedia photo (semi-transparent
-    // so labels remain readable), with tier hatch as fallback. Uses an
-    // SVG <image> with cell coords + preserveAspectRatio=xMidYMid slice
-    // for cover fit + a soft cream overlay to keep text legible.
-    const photo = typeof getCachedPlantPhoto === "function" ? getCachedPlantPhoto(p) : null;
-    const photoLayer = photo ? `
-      <image href="${escapeHtml(photo.url)}" x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}"
-             width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
-             preserveAspectRatio="xMidYMid slice" opacity="0.78"/>
-      <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
-            fill="rgba(255,250,235,0.28)"/>
-    ` : "";
+    // R193 (user: 俯視圖不要照片): reverted R189 photo overlay. Cells go
+    // back to tier hatch + labels. Photos still on dict/drawer/recs/shop.
     return `
       <g class="plan-plant plan-cell" data-id="${p.id}" data-cell-key="${cell.cellKey}" data-cell-tier="${cell.tier}" style="cursor:pointer;">
         <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
               fill="url(#planHatch_${cell.tier})"
               stroke="#8C6F52" stroke-width="0.6"/>
-        ${photoLayer}
-        <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
-              fill="none" stroke="#8C6F52" stroke-width="0.6" pointer-events="none"/>
         ${showCellDim ? `<text x="${(cell.x + 3).toFixed(1)}" y="${(cell.y + 10).toFixed(1)}"
-              font-size="8" font-family="Noto Serif TC" fill="#3A2E1E" opacity="0.75" font-style="italic" style="paint-order:stroke;stroke:rgba(255,250,235,0.65);stroke-width:2px;">${cellDimLabel}</text>` : ""}
+              font-size="8" font-family="Noto Serif TC" fill="#8C6F52" opacity="0.55" font-style="italic">${cellDimLabel}</text>` : ""}
         ${isFirst ? `
         <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? -8 : 0)).toFixed(1)}" text-anchor="middle"
-              font-size="${labelSize}" font-family="Noto Serif TC" font-weight="700" fill="#2C3526"
-              style="paint-order:stroke;stroke:rgba(255,250,235,0.85);stroke-width:2.5px;">${p.zh}</text>
+              font-size="${labelSize}" font-family="Noto Serif TC" font-weight="700" fill="#2C3526">${p.zh}</text>
         ${showLatin ? `<text x="${cx.toFixed(1)}" y="${(cy + 4).toFixed(1)}" text-anchor="middle"
-              font-size="${Math.max(9, labelSize - 3)}" font-style="italic" fill="#3F4A37" font-family="Noto Serif TC"
-              style="paint-order:stroke;stroke:rgba(255,250,235,0.8);stroke-width:2px;">${p.lt}</text>` : ""}
+              font-size="${Math.max(9, labelSize - 3)}" font-style="italic" fill="#5A5C50" font-family="Noto Serif TC">${p.lt}</text>` : ""}
         <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? 16 : 12)).toFixed(1)}" text-anchor="middle"
-              font-size="${Math.max(9, labelSize - 3)}" font-family="Noto Serif TC" fill="#5C3E1A" font-weight="600"
-              style="paint-order:stroke;stroke:rgba(255,250,235,0.8);stroke-width:2px;">${speciesArea} m²</text>` : ""}
+              font-size="${Math.max(9, labelSize - 3)}" font-family="Noto Serif TC" fill="#6E5236" font-weight="600">${speciesArea} m²</text>` : ""}
         <title>${p.zh} · ${p.lt} · ${speciesArea} m² (${speciesCellCount[p.id]} 格 / cell${speciesCellCount[p.id] === 1 ? "" : "s"})</title>
       </g>`;
   }).join("") +
@@ -20051,14 +20035,10 @@ function layoutPlan(plants, dims, space) {
 }
 
 function wirePlanInteractions() {
-  // R189: kick off Wikipedia photo fetches for any cell / picker plant
-  // that isn't cached yet. When they resolve, re-render the plan tab in
-  // place so cells populate with photos. Concurrency cap prevents spam.
+  // R193 (user: 俯視圖不要照片): plan-cell photo fetches removed since
+  // cells no longer show photos. Picker overlay still benefits from photo
+  // backfill so the plant chips there show thumbnails.
   const pending = new Set();
-  document.querySelectorAll(".plan-cell[data-id]").forEach((g) => {
-    const p = PLANT_BY_ID[g.dataset.id];
-    if (p && typeof fetchPlantPhoto === "function" && !getCachedPlantPhoto(p)) pending.add(p);
-  });
   document.querySelectorAll(".plan-picker-plant[data-pid]").forEach((btn) => {
     const p = PLANT_BY_ID[btn.dataset.pid];
     if (p && typeof fetchPlantPhoto === "function" && !getCachedPlantPhoto(p)) pending.add(p);
