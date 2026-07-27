@@ -22,15 +22,15 @@
 
 | Tab | What it shows |
 |---|---|
-| **實景參考 · Realistic** | 3 AI-generated photorealistic landscape previews via pollinations.ai (free, no API key) |
-| **俯瞰平面圖 · Plan** | Top-down SVG using your real width × depth, with orientation-aware sun marker |
+| **實景參考 · Realistic** | Client's uploaded space photo shown at the top as the **BEFORE** reference, then 3 AI-generated photorealistic mockups (AFTER) below via pollinations.ai (free, no API key) — designer can show clients the visual comparison |
+| **俯瞰平面圖 · Plan** | Real landscape-architect drawing: each cell ≈ 1 m² (grid derived from your actual width × depth), industry-standard plant symbols per cell (canopy = circle+cross, shrub = double ring, ground = stipple dots, water = concentric ripples, climber = spiral), perimeter dimension callouts (↔ / ↕), N compass rose, per-species area totals, thick title-block border. Click 🖊 "Edit cells" to tap any cell and swap in a different plant from a picker overlay — placements persist to localStorage + share URLs |
 | **3D 視角 · 3D View** | 30° isometric SVG drawn as a botanical illustration plate in its geometry: lobed Bezier crowns full of individual green leaves with midveins, tapered trunks with root flare + bark striations, hatched-ink shadows, drawn balustrades on balcony walls, tile-grid floors, lily pads with V-notches + radial veins for water plants, alternating long/short sun rays, drawn clouds with rim strokes + soft undersides, and a "Ho, A. · pl. NNN · YYYY" plate signature. A 🎨 **Art view** toggle cycles 4 filter variants over the geometry — watercolor, ink wash, cyanotype, woodblock (木刻) |
 | **復層配置 · Layered Design** | Vertical section diagram — canopy → shrub → ground → water → climber |
 | **花期月曆 · Bloom Calendar** | 12-month grid of bloom × fruit timing across recommended plants |
 | **養護月曆 · Care Calendar** | Auto-generated month-by-month tasks: prune, fertilize, pest watch, seasonal warnings |
 | **施工指南 · Build Plan** | 8-phase install sequence + soil-recipe calculator + Taiwan-specific hazard preparedness (颱風 / 淹水 / 乾旱 / 寒流) |
 | **採購清單 · Shopping List** | Editable per-plant qty with NT$ subtotals + 5-year cost-of-ownership projection |
-| **植物字典 · Plant Dictionary** | 245 plants, filterable by tier / native vs introduced / fragrance / pet-safe / 🥗 edible / 🏹 indigenous / search |
+| **植物字典 · Plant Dictionary** | All 233 plants shown at once (no pagination) with a full-width Wikipedia photo banner on every card. Filterable by tier / native vs introduced / fragrance / pet-safe / 🥗 edible / 🏹 indigenous / search. Photos live-fetched via Wikipedia REST API + 30-day localStorage cache; entire DB pre-warmed on idle so tab open is instant |
 
 ### Per-design workspace
 
@@ -70,6 +70,14 @@ Every plant drawer carries a **📚 Sources & citations** block that credits eac
 The whole app extends a **botanical illustration book** aesthetic: parchment cream palette (`#F1E6CB`) with sepia accents (`#7A5F42`), italic serif for chapter titles and captions, upright sepia serif small-caps for eyebrows, forest gradient for primary actions and active states, sepia gradient for warm secondary actions. Watercolor imagery (corner ornaments, botanical banner, space patterns, tier silhouettes, home wallpaper) is generated once via pollinations.ai and committed to `assets/` so the runtime is fully self-contained.
 
 The 3D scene is drawn as illustration in its **geometry**, not just applied as a filter overlay. Turn every art filter off and each canopy visibly reads as 20 individual drawn leaves with midveins and radial venation inside a lobed Bezier silhouette. Trunks taper with root flare and bark striations; shadows are hatched ink strokes not soft blurs; balcony walls are drawn balustrades with pickets; pots have rim + striations + inner shadow; water plants render as botanical lily pads with V-notches, radial vein lines, and a 5-petal starburst flower; ground cover renders as scattered leaf clumps; wildflowers are 5-petal starbursts with golden centers. The classic bottom-right plate signature (`Ho, A. · pl. NNN · YYYY`) uses a stable per-design hash so the same design always shows the same plate number.
+
+The 2D top-view plan is drawn using **real landscape-architect conventions**: the ground is divided into a grid where each cell ≈ 1 m² (derived from your actual width × depth), every cell shows the industry-standard plant symbol for its tier (canopy trees are circle-with-cross, shrubs are double concentric rings, ground cover is a stipple dot pattern, water is concentric ripples, climbers a spiral), perimeter dimension callouts sit in cream chips at the top and right edges (↔ width, ↕ depth), a N compass rose anchors the bottom-left, and each species patch carries its total area allocated (e.g. "茶花 3.0 m²"). Users can toggle **🖊 Edit cells** to tap any cell and swap in a different species from a picker overlay — manual placements persist to localStorage and travel with shared `#d=…` URLs.
+
+Every plant carries a **real Wikipedia photo** across the dictionary, drawer, recommendation cards, shopping list, and the plan picker overlay. Photos are fetched from the Wikipedia REST API using the plant's Latin binomial (fallback to Chinese name or genus), cached 30 days in localStorage. On app boot the entire 233-plant database is prefetched in the background on idle (concurrency capped at 4 so Wikipedia isn't hammered) so opening any surface renders synchronously from cache.
+
+The **realistic preview** tab shows the client's uploaded space photo at the top labeled **👤 BEFORE**, with the 3 AI-generated planting mockups below labeled **🎨 AFTER** — so a landscape designer can show clients a real visual comparison before → after.
+
+The **shopping list** every-open triggers an AI agent (pollinations.ai) that investigates the current 2026 Shopee / Ruten / BigGo / PChome market price for each plant at its size spec (7吋盆 / 5加侖盆 / 3.5吋開花株 / etc.), replacing the static estimate with the live figure and caching for 7 days.
 
 ## Tech
 
