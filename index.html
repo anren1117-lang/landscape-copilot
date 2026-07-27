@@ -19924,25 +19924,20 @@ function renderPlan(layers, recs) {
   // North arrow at bottom-right (opposite the sun) — standard N compass rose.
   `<rect x="${bedX0.toFixed(1)}" y="${bedY0.toFixed(1)}" width="${bedW.toFixed(1)}" height="${bedH.toFixed(1)}" fill="none" stroke="#4A3620" stroke-width="1.8"/>` +
   (() => {
-    // Top-edge dimension: width in metres
-    const tickY = bedY0 - 8;
-    const tickL = 4;
+    // R196: dimension callouts sit INSIDE the bed corners on mobile-safe
+    // positions — top-center for width, right-center for depth — with a
+    // cream chip background so they read on top of any hatch pattern.
+    // Never overflows the SVG viewBox regardless of viewport size.
     return `<g class="plan-dims" pointer-events="none" style="font-family:Noto Serif TC;">
-      <line x1="${bedX0}" y1="${tickY}" x2="${(bedX0 + bedW)}" y2="${tickY}" stroke="#6E5236" stroke-width="0.7"/>
-      <line x1="${bedX0}" y1="${(tickY - tickL)}" x2="${bedX0}" y2="${(tickY + tickL)}" stroke="#6E5236" stroke-width="0.9"/>
-      <line x1="${(bedX0 + bedW)}" y1="${(tickY - tickL)}" x2="${(bedX0 + bedW)}" y2="${(tickY + tickL)}" stroke="#6E5236" stroke-width="0.9"/>
-      <rect x="${(bedX0 + bedW / 2 - 18)}" y="${(tickY - 8)}" width="36" height="14" fill="rgba(255,250,235,0.92)"/>
-      <text x="${(bedX0 + bedW / 2)}" y="${(tickY + 3)}" text-anchor="middle" font-size="10" fill="#4A3620" font-style="italic">${realW} m</text>
+      <rect x="${(bedX0 + bedW / 2 - 20)}" y="${(bedY0 + 4)}" width="40" height="16" rx="3" fill="rgba(255,250,235,0.92)" stroke="#4A3620" stroke-width="0.5"/>
+      <text x="${(bedX0 + bedW / 2)}" y="${(bedY0 + 15)}" text-anchor="middle" font-size="10" fill="#4A3620" font-style="italic" font-weight="600">↔ ${realW} m</text>
     </g>
     <g class="plan-dims" pointer-events="none" style="font-family:Noto Serif TC;">
-      <line x1="${(bedX0 + bedW + 8)}" y1="${bedY0}" x2="${(bedX0 + bedW + 8)}" y2="${(bedY0 + bedH)}" stroke="#6E5236" stroke-width="0.7"/>
-      <line x1="${(bedX0 + bedW + 8 - tickL)}" y1="${bedY0}" x2="${(bedX0 + bedW + 8 + tickL)}" y2="${bedY0}" stroke="#6E5236" stroke-width="0.9"/>
-      <line x1="${(bedX0 + bedW + 8 - tickL)}" y1="${(bedY0 + bedH)}" x2="${(bedX0 + bedW + 8 + tickL)}" y2="${(bedY0 + bedH)}" stroke="#6E5236" stroke-width="0.9"/>
-      <rect x="${(bedX0 + bedW + 2)}" y="${(bedY0 + bedH / 2 - 7)}" width="14" height="14" fill="rgba(255,250,235,0.92)"/>
-      <text x="${(bedX0 + bedW + 9)}" y="${(bedY0 + bedH / 2 + 3)}" text-anchor="middle" font-size="10" fill="#4A3620" font-style="italic">${realD} m</text>
+      <rect x="${(bedX0 + bedW - 44)}" y="${(bedY0 + bedH / 2 - 8)}" width="40" height="16" rx="3" fill="rgba(255,250,235,0.92)" stroke="#4A3620" stroke-width="0.5"/>
+      <text x="${(bedX0 + bedW - 24)}" y="${(bedY0 + bedH / 2 + 3)}" text-anchor="middle" font-size="10" fill="#4A3620" font-style="italic" font-weight="600">↕ ${realD} m</text>
     </g>
-    <g class="plan-north" pointer-events="none" transform="translate(${(bedX0 + bedW - 26)}, ${(bedY0 + bedH - 32)})">
-      <circle r="14" fill="rgba(255,250,235,0.85)" stroke="#4A3620" stroke-width="1"/>
+    <g class="plan-north" pointer-events="none" transform="translate(${(bedX0 + 24)}, ${(bedY0 + bedH - 32)})">
+      <circle r="14" fill="rgba(255,250,235,0.90)" stroke="#4A3620" stroke-width="1"/>
       <polygon points="0,-11 3.5,3 0,0.5 -3.5,3" fill="#4A3620"/>
       <text x="0" y="-15" text-anchor="middle" font-size="9" font-family="Noto Serif TC" fill="#4A3620" font-weight="700">N</text>
     </g>` ;
