@@ -10479,6 +10479,9 @@ function buildLayers(scored) {
 // ─────────────────────────────────────────────────────────────
 const SAVE_KEY = "landscape-copilot-v1";
 const HASH_KEY = "d";
+// R198: single source of truth for result-tab identifiers, used by both
+// snapshot restore validation and the popstate router.
+const KNOWN_TABS = ["preview","plan","iso3d","layers","calendar","care","build","tutorials","shopping","dict"];
 // Multi-design dashboard — list of saved designs the user has explicitly kept.
 // Each entry: { id, name, snapshot, savedAt }
 // SAVE_KEY still holds the *active* (last-touched) design for backward compat
@@ -10608,8 +10611,8 @@ function applySnapshot(snap) {
     pinned:   (snap.prefs && snap.prefs.pinned   && typeof snap.prefs.pinned   === "object") ? { ...snap.prefs.pinned }   : {},
   };
   // Resume on the user's last-viewed result tab; legacy snapshots default to "preview".
-  // Whitelist against known tabs so a malformed snapshot can't park us on an undefined tab.
-  const KNOWN_TABS = ["preview","plan","iso3d","layers","calendar","care","build","tutorials","shopping","dict"];
+  // Whitelist against known tabs (module-level KNOWN_TABS) so a malformed
+  // snapshot can't park us on an undefined tab.
   state.resultTab = (snap.resultTab && KNOWN_TABS.includes(snap.resultTab)) ? snap.resultTab : "preview";
   state.wizardPhotoSuggestActed = (snap.wizardPhotoSuggestActed && typeof snap.wizardPhotoSuggestActed === "object")
     ? { ...snap.wizardPhotoSuggestActed }
@@ -10874,9 +10877,49 @@ function decodeHash(hash) {
 function pushHashFromState() {
   const enc = encodeHashFromState();
   if (enc) {
-    const url = `${location.pathname}#${HASH_KEY}=${enc}`;
+    // Preserve any router params (plant, tab) that are also in the hash
+    const extras = getRouterHashParams();
+    const parts = [`${HASH_KEY}=${enc}`];
+    if (extras.plant) parts.push(`plant=${encodeURIComponent(extras.plant)}`);
+    if (extras.tab)   parts.push(`tab=${encodeURIComponent(extras.tab)}`);
+    const url = `${location.pathname}#${parts.join("&")}`;
     history.replaceState(null, "", url);
   }
+}
+
+// R198: hash-based router. Reads secondary params (plant, tab) from
+// location.hash alongside the existing #d=BASE64 snapshot. Supports
+// browser back/forward across tabs + shareable plant deep links like
+// `#plant=camellia`.
+function getRouterHashParams() {
+  const out = {};
+  const h = (location.hash || "").replace(/^#/, "");
+  h.split("&").forEach(seg => {
+    if (!seg || seg.startsWith(`${HASH_KEY}=`)) return;
+    const eq = seg.indexOf("=");
+    if (eq === -1) return;
+    const k = seg.slice(0, eq);
+    const v = seg.slice(eq + 1);
+    if (k === "plant" || k === "tab") {
+      try { out[k] = decodeURIComponent(v); } catch { out[k] = v; }
+    }
+  });
+  return out;
+}
+function writeRouterHash({ plant, tab }, { replace = false } = {}) {
+  // Rebuild hash preserving #d= if present; drop keys explicitly set to null.
+  const dMatch = (location.hash || "").match(new RegExp(`${HASH_KEY}=([^&]+)`));
+  const current = getRouterHashParams();
+  const next = { ...current };
+  if (plant !== undefined) { if (plant === null) delete next.plant; else next.plant = plant; }
+  if (tab !== undefined)   { if (tab === null)   delete next.tab;   else next.tab = tab; }
+  const parts = [];
+  if (dMatch) parts.push(`${HASH_KEY}=${dMatch[1]}`);
+  if (next.plant) parts.push(`plant=${encodeURIComponent(next.plant)}`);
+  if (next.tab)   parts.push(`tab=${encodeURIComponent(next.tab)}`);
+  const url = `${location.pathname}${parts.length ? "#" + parts.join("&") : ""}`;
+  if (replace) history.replaceState(null, "", url);
+  else history.pushState(null, "", url);
 }
 
 // On result page reach, save to localStorage + bump URL hash so a bookmark works.
@@ -11881,9 +11924,9 @@ function resumeDesignById(id, opts) {
   state.view = "wizard";
   state.step = 5;
   state.resultTab = "preview";
-  // Optional override: caller can request a specific tab (e.g. "care"). Whitelist
-  // mirrors applySnapshot's so an unknown value silently falls back to preview.
-  const KNOWN_TABS = ["preview","plan","iso3d","layers","calendar","care","build","tutorials","shopping","dict"];
+  // Optional override: caller can request a specific tab (e.g. "care").
+  // Whitelist against module-level KNOWN_TABS so unknown values silently
+  // fall back to preview.
   if (opts && opts.resultTab && KNOWN_TABS.includes(opts.resultTab)) {
     state.resultTab = opts.resultTab;
   }
@@ -19395,7 +19438,11 @@ function renderResult() {
   };
   tabEls.forEach((tt) => {
     tt.addEventListener("click", () => {
-      state.resultTab = tt.dataset.tab;
+      const newTab = tt.dataset.tab;
+      if (newTab === state.resultTab) return;
+      state.resultTab = newTab;
+      // R198: push tab to history so browser back returns to previous tab
+      if (typeof writeRouterHash === "function") writeRouterHash({ tab: newTab });
       syncTabAttrs();
       renderTabPanel(recs, layers);
       applyLanguage();
@@ -19410,7 +19457,9 @@ function renderResult() {
       if (nextIdx !== null) {
         e.preventDefault();
         const next = tabEls[nextIdx];
+        if (next.dataset.tab === state.resultTab) { next.focus(); return; }
         state.resultTab = next.dataset.tab;
+        if (typeof writeRouterHash === "function") writeRouterHash({ tab: state.resultTab });
         syncTabAttrs();
         renderTabPanel(recs, layers);
         applyLanguage();
@@ -24466,10 +24515,17 @@ function rerenderDict() {
 // ─────────────────────────────────────────────────────────────
 // PLANT DRAWER
 // ─────────────────────────────────────────────────────────────
-function openDrawer(id) {
+function openDrawer(id, opts) {
   const plant = PLANT_BY_ID[id];
   if (!plant) return;
   state.selectedPlantId = id;
+  // R198: push #plant=id to history so the drawer is a real navigation
+  // step (browser back closes it) AND the URL is shareable — send someone
+  // a link that opens straight into 「山櫻花」 detail. opts.fromRoute
+  // suppresses the push when we're already responding to a popstate.
+  if (!opts?.fromRoute && typeof writeRouterHash === "function") {
+    writeRouterHash({ plant: id });
+  }
   // Mark the body so the @media print rules know to swap result for drawer.
   document.body.classList.add("drawer-open");
   drawerHost.innerHTML = `
@@ -24934,11 +24990,18 @@ function openDrawer(id) {
   applyLanguage();
 }
 
-function closeDrawer() {
+function closeDrawer(opts) {
   state.selectedPlantId = null;
   drawerHost.innerHTML = "";
   document.body.classList.remove("drawer-open");
   document.removeEventListener("keydown", drawerEscHandler);
+  // R198: clear #plant= from the URL when user explicitly closes.
+  // opts.fromRoute suppresses this when we're already responding to a
+  // popstate (browser back handled the URL change for us).
+  if (!opts?.fromRoute && typeof writeRouterHash === "function") {
+    const cur = getRouterHashParams();
+    if (cur.plant) writeRouterHash({ plant: null }, { replace: true });
+  }
 }
 
 function drawerEscHandler(e) { if (e.key === "Escape") closeDrawer(); }
@@ -26078,7 +26141,43 @@ window.printResultBundle = function () {
 // If only localStorage → stay on home but show a "welcome back" banner offering to resume.
 tryRestoreDashboard();
 updateLineShare();
+// R198: honor #tab= and #plant= params from URL before first render, so
+// a link like `#d=…&tab=dict` opens on the dictionary tab, and
+// `#plant=camellia` deep-opens the camellia drawer post-render.
+(function applyInitialRoute() {
+  const p = getRouterHashParams();
+  if (p.tab && typeof KNOWN_TABS !== "undefined" && KNOWN_TABS.includes(p.tab)) {
+    state.resultTab = p.tab;
+  }
+})();
 render();
+// Open plant drawer AFTER the main render so DOM is in place.
+(function applyInitialPlantDeepLink() {
+  const p = getRouterHashParams();
+  if (p.plant && typeof PLANT_BY_ID === "object" && PLANT_BY_ID[p.plant] && typeof openDrawer === "function") {
+    openDrawer(p.plant, { fromRoute: true });
+  }
+})();
+// R198: browser back / forward listener — sync state to URL and re-render.
+// Handles: (a) closing an open drawer when its #plant param is gone,
+// (b) opening the drawer when navigating forward to a #plant URL,
+// (c) switching tabs when #tab= changes,
+// (d) restoring the whole snapshot when #d= changes (rare — user pastes
+//     a different shared URL then hits back).
+window.addEventListener("popstate", () => {
+  const p = getRouterHashParams();
+  // Drawer sync
+  if (p.plant && p.plant !== state.selectedPlantId) {
+    if (PLANT_BY_ID[p.plant]) openDrawer(p.plant, { fromRoute: true });
+  } else if (!p.plant && state.selectedPlantId) {
+    closeDrawer({ fromRoute: true });
+  }
+  // Tab sync
+  if (p.tab && p.tab !== state.resultTab && typeof KNOWN_TABS !== "undefined" && KNOWN_TABS.includes(p.tab)) {
+    state.resultTab = p.tab;
+    render();
+  }
+});
 // R182: kick off background prefetch of Wikipedia photos for every plant
 // in the DB so ALL 233 species have thumbnails ready before the user
 // scrolls to page 8 of the dictionary or opens a rare drawer. Uses
