@@ -15240,10 +15240,10 @@ function renderDesignLogicPanel(entry) {
     // "the shape of thing you'll actually plant" which the tier letter
     // never did.
     const chipsZh = presentTiers.map(t =>
-      `<span class="logic-tier-chip"><img src="assets/tier-${t}.jpg" alt="" loading="lazy"/>${tierLabelsZh[t]} ${tierCounts[t]}</span>`
+      `<span class="logic-tier-chip"><img src="assets/tier-${t}.jpg" alt="" aria-hidden="true" loading="lazy"/>${tierLabelsZh[t]} ${tierCounts[t]}</span>`
     ).join("");
     const chipsEn = presentTiers.map(t =>
-      `<span class="logic-tier-chip"><img src="assets/tier-${t}.jpg" alt="" loading="lazy"/>${tierLabelsEn[t]} ${tierCounts[t]}</span>`
+      `<span class="logic-tier-chip"><img src="assets/tier-${t}.jpg" alt="" aria-hidden="true" loading="lazy"/>${tierLabelsEn[t]} ${tierCounts[t]}</span>`
     ).join("");
     rules.push({
       zh: `🎨 群落種植：同種圍著焦點中心<br>${chipsZh}`,
@@ -17673,9 +17673,9 @@ function renderDetails() {
                 data-en="Measure your usable width × depth in meters (decimals OK). The plan view scales to real proportions; plant counts are estimated from the area.">
                 量一下你能用的長寬，公尺即可（小數可）。AI 會用實際比例繪製俯瞰圖，並估算需要的植株數。</span>
           <div class="dim-row">
-            <input class="field-input-num" id="widthInput" type="number" min="0.3" max="50" step="0.1" value="${state.widthM}" />
+            <input class="field-input-num" id="widthInput" type="number" min="0.3" max="50" step="0.1" value="${state.widthM}" aria-label="${t('寬度（公尺）', 'Width in meters')}" />
             <span class="dim-x">×</span>
-            <input class="field-input-num" id="depthInput" type="number" min="0.3" max="50" step="0.1" value="${state.depthM}" />
+            <input class="field-input-num" id="depthInput" type="number" min="0.3" max="50" step="0.1" value="${state.depthM}" aria-label="${t('深度（公尺）', 'Depth in meters')}" />
             <span class="dim-unit">m</span>
           </div>
           <div class="dim-area" id="areaDisplay" data-zh="≈ ${area} m² 可用面積" data-en="≈ ${area} m² usable area">≈ ${area} m² 可用面積</div>
