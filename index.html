@@ -20406,8 +20406,11 @@ function buildPreviewPrompt(plants) {
 
 function previewURL(prompt, seed) {
   const encoded = encodeURIComponent(prompt);
-  // model=flux gives more photorealistic output than the default; nologo strips the watermark.
-  return `https://image.pollinations.ai/prompt/${encoded}?width=960&height=600&seed=${seed}&model=flux&nologo=true`;
+  // model=gptimage routes through pollinations.ai to OpenAI's gpt-image-1
+  // (same model powering ChatGPT image generation today). Slower than flux
+  // — first paint of a fresh (uncached) image typically 30-60s — but higher
+  // photorealism and better prompt adherence. nologo strips the watermark.
+  return `https://image.pollinations.ai/prompt/${encoded}?width=960&height=600&seed=${seed}&model=gptimage&nologo=true`;
 }
 
 function renderRealisticPreview(recs) {
@@ -20449,9 +20452,9 @@ function renderRealisticPreview(recs) {
   return `
     <h2 class="subtitle" data-zh="實景參考 · Realistic Preview" data-en="Realistic Preview · AI-generated">實景參考 · Realistic Preview</h2>
     <p class="lead-small"
-       data-zh="AI 根據你的推薦植物即時生成的實景照片，幫客戶想像種完之後的樣子。圖片由 pollinations.ai 生成（免費、無註冊），初次載入需 10-30 秒。"
-       data-en="AI-generated realistic photos of how the planting might look, so the client can visualize the finished landscape. Powered by pollinations.ai (free, no signup). First load takes 10-30 seconds.">
-       AI 根據你的推薦植物即時生成的實景照片，幫客戶想像種完之後的樣子。圖片由 pollinations.ai 生成（免費、無註冊），初次載入需 10-30 秒。</p>
+       data-zh="AI 根據你的推薦植物即時生成的實景照片，幫客戶想像種完之後的樣子。圖片由 ChatGPT 的 gpt-image-1 模型生成（透過 pollinations.ai 代理，免費、無註冊），初次載入需 30-60 秒。"
+       data-en="AI-generated realistic photos of how the planting might look, so the client can visualize the finished landscape. Powered by ChatGPT's gpt-image-1 (via pollinations.ai — free, no signup). First load takes 30-60 seconds.">
+       AI 根據你的推薦植物即時生成的實景照片，幫客戶想像種完之後的樣子。圖片由 ChatGPT 的 gpt-image-1 模型生成（透過 pollinations.ai 代理，免費、無註冊），初次載入需 30-60 秒。</p>
 
     ${clientPhotoPanel}
 
@@ -20464,7 +20467,7 @@ function renderRealisticPreview(recs) {
     <div class="preview-grid">
       ${state.previewSeeds.map((seed, i) => `
         <div class="preview-frame">
-          <div class="skel" data-zh="生成中… 約 10-30 秒" data-en="Generating… 10-30s">生成中… 約 10-30 秒</div>
+          <div class="skel" data-zh="生成中… 約 30-60 秒" data-en="Generating… 30-60s">生成中… 約 30-60 秒</div>
           <img class="preview-img" data-seed="${seed}" src="${previewURL(prompt, seed)}" alt="${t('AI 生成的景觀實景', 'AI-generated landscape')}" loading="lazy" />
           <div class="preview-caption" data-zh="變化 ${i + 1} · 種子 ${seed}" data-en="Variation ${i + 1} · seed ${seed}">變化 ${i + 1} · 種子 ${seed}</div>
         </div>
