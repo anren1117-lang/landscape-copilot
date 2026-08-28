@@ -24348,28 +24348,57 @@ function renderDictionary() {
 }
 
 function wireDictionary() {
-  document.getElementById("dictSearch")?.addEventListener("input", (e) => {
-    // R54 — preserve the caret position across the re-render. The old code
-    // jumped the cursor to the end of the string, which made editing in the
-    // middle of a query feel broken (delete one char → cursor leaps to end).
-    const caret = (typeof e.target.selectionStart === "number")
-      ? e.target.selectionStart
-      : e.target.value.length;
-    state.dictQuery = e.target.value;
-    // Search filters change the result set — reset pagination to page 1.
-    state.dictShown = state.dictPageSize || 30;
-    const host = document.getElementById("tabPanel");
-    if (host) host.innerHTML = renderDictionary();
-    wireDictionary();
-    applyLanguage();
-    // Restore focus + caret on the freshly mounted input.
-    const s = document.getElementById("dictSearch");
-    if (s) {
-      s.focus();
-      const pos = Math.min(caret, s.value.length);
-      try { s.setSelectionRange(pos, pos); } catch (e) { /* unsupported on some types */ }
-    }
-  });
+  // R202 — debounce the free-text search re-render (~200ms). Prior code
+  // re-ran renderDictionary() on every keystroke: 233 plants × 10+ filter
+  // conditions + full innerHTML rebuild, which dropped frames for fast
+  // typists and — importantly — for Chinese IME users whose composition
+  // events fire many "input" events per character. Chip clicks stay
+  // synchronous (they still call rerenderDict() directly).
+  const dictSearchEl = document.getElementById("dictSearch");
+  if (dictSearchEl) {
+    let _dictSearchTimer = null;
+    let _dictSearchComposing = false;
+    const scheduleDictSearchRender = () => {
+      if (_dictSearchTimer) clearTimeout(_dictSearchTimer);
+      _dictSearchTimer = setTimeout(() => {
+        _dictSearchTimer = null;
+        // Re-read the caret from the currently-mounted input at flush time,
+        // not at keystroke time — the user may have moved it while we waited.
+        const src = document.getElementById("dictSearch");
+        const caret = (src && typeof src.selectionStart === "number")
+          ? src.selectionStart
+          : (src ? src.value.length : 0);
+        // Search filters change the result set — reset pagination to page 1.
+        state.dictShown = state.dictPageSize || 30;
+        const host = document.getElementById("tabPanel");
+        if (host) host.innerHTML = renderDictionary();
+        wireDictionary();
+        applyLanguage();
+        // Restore focus + caret on the freshly mounted input.
+        const s = document.getElementById("dictSearch");
+        if (s) {
+          s.focus();
+          const pos = Math.min(caret, s.value.length);
+          try { s.setSelectionRange(pos, pos); } catch (e) { /* unsupported on some types */ }
+        }
+      }, 200);
+    };
+    dictSearchEl.addEventListener("compositionstart", () => { _dictSearchComposing = true; });
+    dictSearchEl.addEventListener("compositionend", (e) => {
+      _dictSearchComposing = false;
+      state.dictQuery = e.target.value;
+      scheduleDictSearchRender();
+    });
+    dictSearchEl.addEventListener("input", (e) => {
+      // Always keep state.dictQuery in sync so chip clicks (which re-render
+      // synchronously via rerenderDict()) reflect the latest typed text.
+      state.dictQuery = e.target.value;
+      // While an IME composition is active, don't schedule a re-render —
+      // compositionend will fire the final render once the character commits.
+      if (_dictSearchComposing) return;
+      scheduleDictSearchRender();
+    });
+  }
   // "Show more" — bump dictShown by one page and re-render in place.
   document.getElementById("dictShowMoreBtn")?.addEventListener("click", () => {
     state.dictShown = (state.dictShown || state.dictPageSize || 30) + (state.dictPageSize || 30);
