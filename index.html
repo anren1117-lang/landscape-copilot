@@ -23726,6 +23726,16 @@ function renderShopping(recs) {
     const agentBadgeZh = quote ? "🤖 AI 查詢" : "🔍 查詢中…";
     const agentBadgeEn = quote ? "🤖 AI lookup" : "🔍 investigating…";
     const agentClass = quote ? "shop-agent-done" : "shop-agent-pending";
+    // R203: surface hidden sourcing_zh / sourcing_en metadata inline so the
+    // shopping list answers "where do I actually buy these?" — skip silently
+    // when a plant has no sourcing hint recorded.
+    const srcZh = (p.sourcing_zh || "").trim();
+    const srcEn = (p.sourcing_en || "").trim();
+    const sourcingLine = (srcZh || srcEn)
+      ? `<div style="font-size:10.5px;color:var(--ink-soft);font-style:italic;margin-top:2px;line-height:1.35;"
+             data-zh="📍 ${escapeHtml(srcZh || srcEn)}"
+             data-en="📍 ${escapeHtml(srcEn || srcZh)}">📍 ${escapeHtml(state.lang === "en" ? (srcEn || srcZh) : (srcZh || srcEn))}</div>`
+      : "";
     return `
       <tr data-plant-id="${escapeHtml(p.id)}" data-plant-fallback-cost="${p.cost}">
         <td>
@@ -23734,6 +23744,7 @@ function renderShopping(recs) {
             <div>
               <div style="font-weight:600;color:var(--forest);" data-zh="${p.zh}" data-en="${p.en}">${p.zh}</div>
               <div style="font-size:11.5px;font-style:italic;color:var(--ink-soft);font-family:var(--serif);">${p.lt}</div>
+              ${sourcingLine}
             </div>
           </div>
         </td>
@@ -23757,12 +23768,30 @@ function renderShopping(recs) {
       </tr>`;
   }).join("");
 
+  // R203: summary chip — unique sourcing tokens across selected plants
+  // (split on 、 / , · to normalize the free-text sourcing_zh values)
+  const srcTokens = (lang) => {
+    const set = new Set();
+    top.forEach(p => {
+      const raw = (lang === "en" ? p.sourcing_en : p.sourcing_zh) || "";
+      raw.split(/[、,/·]/).map(s => s.trim()).filter(Boolean).forEach(s => set.add(s));
+    });
+    return [...set];
+  };
+  const srcZhList = srcTokens("zh");
+  const srcEnList = srcTokens("en");
+  const sourcingChip = srcZhList.length
+    ? `<div class="lead-small" style="margin:6px 0 12px;padding:6px 10px;background:rgba(120,140,100,0.08);border-radius:6px;font-size:12px;color:var(--sage-deep);"
+           data-zh="🏪 建議產地：${escapeHtml(srcZhList.join(' · '))}"
+           data-en="🏪 Sources: ${escapeHtml(srcEnList.join(' · ') || srcZhList.join(' · '))}">🏪 建議產地：${escapeHtml(srcZhList.join(' · '))}</div>`
+    : "";
   return `
     <h2 class="subtitle" data-zh="採購清單" data-en="Shopping List">採購清單</h2>
     <p class="lead-small"
        data-zh="調整每種植物的數量，估算總成本。每筆售價都附上對應規格（盆大小 / 苗高），並由 AI agent（pollinations.ai）每次打開清單時針對該規格<b>即時查詢</b> Shopee 蝦皮 / 露天 / BigGo / PChome / 花市當前價位（結果快取 7 天）— 未查到前先顯示前次靜態估算。實際成交價依苗圃、季節、地區而異。"
        data-en="Adjust quantities to estimate total cost. Every price shows its size/pot spec, and an AI agent (pollinations.ai) <b>investigates the current Shopee / Ruten / BigGo / PChome / market price</b> for that spec every time you open this list (results cached 7 days). While the agent is working, the previous static estimate is shown. Actual price varies by nursery, season, and region.">
        調整每種植物的數量，估算總成本。價格為一般花市/苗圃參考價，依規格與季節變動。</p>
+    ${sourcingChip}
     <div class="shop-frame">
       <table class="shop-table">
         <thead>
