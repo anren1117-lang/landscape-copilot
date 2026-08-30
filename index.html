@@ -19822,6 +19822,41 @@ function renderPlan(layers, recs) {
     speciesCellCount[cell.p.id] = (speciesCellCount[cell.p.id] || 0) + 1;
   });
 
+  // User ask 2026-08-30 (「俯視平面圖需要改進因為有很多植物會共用一個
+  // 格子然後要給數目」): each cell holds one SYMBOL but in reality a 1 m²
+  // patch of ground cover is 2 plants, a shrub cell is ½ a plant (one
+  // shrub across 2 cells), a canopy tree covers ~8 cells. Surface the
+  // realistic 株數 (individual count) so the plan reads like an actual
+  // planting spec, not just a species map. Density rules mirror the
+  // shopping-list tierQty() at line 19239 so plan numbers and shopping
+  // quantities always match — SINGLE SOURCE OF TRUTH.
+  //   T (canopy)  → 1 plant per 8 m²
+  //   S (shrub)   → 1 plant per 2 m²
+  //   G (ground)  → 2 plants per m²
+  //   H (herb)    → 2 plants per m² (same as ground cover)
+  //   W (water)   → 2 plants for the whole patch (edge planting)
+  //   C (climber) → 1 plant per 6 m²
+  const speciesPlantCount = {};  // total plants for species across all its cells
+  const perCellCount = {};       // plants per SINGLE cell (may be < 1 for big plants)
+  Object.keys(speciesCellCount).forEach(pid => {
+    const cellCount = speciesCellCount[pid];
+    const plant = PLANT_BY_ID[pid];
+    if (!plant) { speciesPlantCount[pid] = cellCount; perCellCount[pid] = 1; return; }
+    const areaM2 = cellCount * cellRealArea;
+    let total;
+    switch (plant.tier) {
+      case "T": total = Math.max(1, Math.round(areaM2 / 8));  break;
+      case "S": total = Math.max(1, Math.round(areaM2 / 2));  break;
+      case "G": total = Math.max(2, Math.round(areaM2 * 2));  break;
+      case "H": total = Math.max(2, Math.round(areaM2 * 2));  break;
+      case "W": total = 2;                                     break;
+      case "C": total = Math.max(1, Math.round(areaM2 / 6));  break;
+      default:  total = cellCount;                             break;
+    }
+    speciesPlantCount[pid] = total;
+    perCellCount[pid] = total / cellCount;
+  });
+
   const plantCircles = cellSpecs.map((cell, i) => {
     const p = cell.p;
     const isFirst = speciesFirstIdx[p.id] === i;
@@ -19882,6 +19917,21 @@ function renderPlan(layers, recs) {
       spiral.push(`<polyline points="${pts.join(" ")}" fill="none" stroke="${symCol}" stroke-width="0.9"/>`);
       plantSymbol = spiral.join("");
     }
+    // User ask 2026-08-30: show 株數 (individual plant count) so users
+    // read the plan as an actual planting spec, not just a species map.
+    const perCell = perCellCount[p.id] || 1;
+    const totalPlants = speciesPlantCount[p.id] || 1;
+    // Per-cell tag rendered in the top-right corner of the cell (opposite
+    // the m² dim marker which sits top-left). Only when a cell holds ≥1
+    // whole plant AND the cell is big enough for the tag not to clutter.
+    // For big plants that span multiple cells (perCell < 1, e.g. 1 shrub
+    // over 2 cells or 1 tree over 8) we skip per-cell — the total "N 株"
+    // on the species label conveys that already.
+    const showPerCell = perCell >= 1 && cell.w > 44 && cell.h > 38;
+    const perCellTag = showPerCell
+      ? `<text x="${(cell.x + cell.w - 4).toFixed(1)}" y="${(cell.y + 10).toFixed(1)}" text-anchor="end"
+             font-size="9" font-family="Noto Serif TC" fill="#6E5236" font-weight="700" opacity="0.85">×${Math.round(perCell)}</text>`
+      : "";
     return `
       <g class="plan-plant plan-cell" data-id="${p.id}" data-cell-key="${cell.cellKey}" data-cell-tier="${cell.tier}" style="cursor:pointer;">
         <rect x="${cell.x.toFixed(1)}" y="${cell.y.toFixed(1)}" width="${cell.w.toFixed(1)}" height="${cell.h.toFixed(1)}"
@@ -19890,6 +19940,7 @@ function renderPlan(layers, recs) {
         ${plantSymbol}
         ${showCellDim ? `<text x="${(cell.x + 3).toFixed(1)}" y="${(cell.y + 10).toFixed(1)}"
               font-size="8" font-family="Noto Serif TC" fill="#8C6F52" opacity="0.55" font-style="italic">${cellDimLabel}</text>` : ""}
+        ${perCellTag}
         ${isFirst ? `
         <text x="${cx.toFixed(1)}" y="${(cy + (showLatin ? -18 : -12)).toFixed(1)}" text-anchor="middle"
               font-size="${labelSize}" font-family="Noto Serif TC" font-weight="700" fill="#2C3526"
@@ -19899,8 +19950,8 @@ function renderPlan(layers, recs) {
               style="paint-order:stroke;stroke:rgba(255,250,235,0.9);stroke-width:2px;">${p.lt}</text>` : ""}
         <text x="${cx.toFixed(1)}" y="${(cy + symR + 12).toFixed(1)}" text-anchor="middle"
               font-size="${Math.max(9, labelSize - 3)}" font-family="Noto Serif TC" fill="#6E5236" font-weight="600"
-              style="paint-order:stroke;stroke:rgba(255,250,235,0.9);stroke-width:2px;">${speciesArea} m²</text>` : ""}
-        <title>${p.zh} · ${p.lt} · ${speciesArea} m² (${speciesCellCount[p.id]} 格 / cell${speciesCellCount[p.id] === 1 ? "" : "s"})</title>
+              style="paint-order:stroke;stroke:rgba(255,250,235,0.9);stroke-width:2px;">${totalPlants} ${t("株", "plants")} · ${speciesArea} m²</text>` : ""}
+        <title>${p.zh} · ${p.lt} · ${totalPlants} ${t("株", "plants")} across ${speciesArea} m² (${speciesCellCount[p.id]} 格 / cell${speciesCellCount[p.id] === 1 ? "" : "s"}${perCell >= 1 ? `, ≈ ${Math.round(perCell)}/cell` : ""})</title>
       </g>`;
   }).join("") +
   // R195: thicker outer border like architect drawings + perimeter
